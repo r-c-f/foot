@@ -552,6 +552,14 @@ draw_cursor:
         draw_cursor(term, cell, font, pix, &fg, &bg, x, y, cell_cols);
 
     pixman_image_set_clip_region32(pix, NULL);
+
+    /* TODO: remove when fcft doesn't leak these */
+    if (glyphs != &single) {
+        for (unsigned i = 0; i < glyph_count; i++)
+            free((void *)glyphs[i]);
+        free((void *)glyphs);
+    }
+
     return cell_cols;
 }
 
