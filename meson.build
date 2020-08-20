@@ -60,6 +60,7 @@ wayland_client = dependency('wayland-client')
 wayland_cursor = dependency('wayland-cursor')
 xkb = dependency('xkbcommon')
 fontconfig = dependency('fontconfig')
+utf8proc = dependency('libutf8proc')   # TODO: optional
 
 tllist = dependency('tllist', version: '>=1.0.4', fallback: 'tllist')
 fcft = dependency('fcft', version: ['>=2.3.0', '<3.0.0'], fallback: 'fcft')
@@ -135,7 +136,7 @@ executable(
   'wayland.c', 'wayland.h',
   'xmalloc.c', 'xmalloc.h',
   wl_proto_src + wl_proto_headers, version,
-  dependencies: [math, threads, pixman, wayland_client, wayland_cursor, xkb, fontconfig,
+  dependencies: [math, threads, pixman, wayland_client, wayland_cursor, xkb, fontconfig, utf8proc,
                  tllist, fcft],
   install: true)
 

@@ -21,3 +21,10 @@ thrd_err_as_string(int thrd_err)
 
     return "unknown error";
 }
+
+static inline int
+my_wcswidth(const wchar_t *s, size_t n)
+{
+    int ret = wcswidth(s, n);
+    return max(0, min(ret, 2));
+}

@@ -8,6 +8,8 @@
 #include <threads.h>
 #include <semaphore.h>
 
+#include <utf8proc.h>
+
 #include <tllist.h>
 #include <fcft/fcft.h>
 
@@ -79,8 +81,7 @@ struct damage {
 };
 
 struct composed {
-    wchar_t base;
-    wchar_t combining[5];
+    wchar_t chars[20];
     uint8_t count;
 };
 
@@ -129,6 +130,7 @@ struct vt_param {
 struct vt {
     int state;  /* enum state */
     wchar_t last_printed;
+    utf8proc_int32_t grapheme_state;
     wchar_t utf8;
     struct {
         struct vt_param v[16];

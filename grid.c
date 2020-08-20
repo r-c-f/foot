@@ -234,6 +234,7 @@ grid_reflow(struct grid *grid, int new_rows, int new_cols,
                 wc = composed[wc - CELL_COMB_CHARS_LO].base;
             }
 
+            /* TODO: grapheme clusters */
             int width = max(1, wcwidth(wc));
 
             /* Multi-column characters are never cut in half */
@@ -253,6 +254,7 @@ grid_reflow(struct grid *grid, int new_rows, int new_cols,
                 }
 
                 /* Out of columns on current row in new grid? */
+                /* TODO: grapheme clusters */
                 if (new_col_idx + max(1, wcwidth(wc)) > new_cols) {
                     /* Pad to end-of-line with spacers, then line-wrap */
                     for (;new_col_idx < new_cols; new_col_idx++)

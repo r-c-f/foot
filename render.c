@@ -414,8 +414,10 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     }
 
     struct fcft_font *font = attrs_to_font(term, &cell->attrs);
-    const struct fcft_glyph *glyph = NULL;
     const struct composed *composed = NULL;
+    const struct fcft_glyph *single = NULL;
+    const struct fcft_glyph **glyphs = NULL;
+    unsigned glyph_count = 0;
 
     if (cell->wc != 0) {
         wchar_t base = cell->wc;
@@ -424,14 +426,25 @@ render_cell(struct terminal *term, pixman_image_t *pix,
             base < (CELL_COMB_CHARS_LO + term->composed_count))
         {
             composed = &term->composed[base - CELL_COMB_CHARS_LO];
-            base = composed->base;
+
+            glyphs = fcft_glyph_rasterize_grapheme(
+                font, composed->chars, composed->count, term->font_subpixel, &glyph_count);
+
+            if (glyphs != NULL)
+                composed = NULL;
         }
 
-        glyph = fcft_glyph_rasterize(font, base, term->font_subpixel);
+        if (glyphs == NULL) {
+            assert(base != 0);
+            single = fcft_glyph_rasterize(font, base, term->font_subpixel);
+            glyph_count = 1;
+            glyphs = &single;
+        }
     }
 
+    assert(glyph_count == 0 || glyphs != NULL);
     const int cols_left = term->cols - col;
-    int cell_cols = glyph != NULL ? max(1, min(glyph->cols, cols_left)) : 1;
+    int cell_cols = glyph_count > 0 ? max(1, min(glyphs[0]->cols, cols_left)) : 1;
 
     /*
      * Hack!
@@ -480,7 +493,9 @@ render_cell(struct terminal *term, pixman_image_t *pix,
 
     pixman_image_t *clr_pix = pixman_image_create_solid_fill(&fg);
 
-    if (glyph != NULL) {
+    for (unsigned i = 0; i < glyph_count; i++) {
+        const struct fcft_glyph *glyph = glyphs[i];
+
         /* Clip to cell */
         if (unlikely(pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8)) {
             /* Glyph surface is a pre-rendered image (typically a color emoji...) */
@@ -498,9 +513,11 @@ render_cell(struct terminal *term, pixman_image_t *pix,
 
             /* Combining characters */
             if (composed != NULL) {
-                for (size_t i = 0; i < composed->count; i++) {
+                assert(glyph_count == 1);
+
+                for (size_t i = 1; i < composed->count; i++) {
                     const struct fcft_glyph *g = fcft_glyph_rasterize(
-                        font, composed->combining[i], term->font_subpixel);
+                        font, composed->chars[i], term->font_subpixel);
 
                     if (g == NULL)
                         continue;
@@ -515,7 +532,6 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                 }
             }
         }
-
     }
 
     pixman_image_unref(clr_pix);
