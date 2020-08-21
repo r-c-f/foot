@@ -553,7 +553,8 @@ action_utf8_print(struct terminal *term, wchar_t wc)
             last != 0x200d /* ZWJ */)
         {
             term->vt.grapheme_state = 0;
-            term_print(term, wc, width);
+            if (width > 0)
+                term_print(term, wc, width);
             return;
         }
 
