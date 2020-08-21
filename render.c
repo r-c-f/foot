@@ -532,6 +532,8 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                 }
             }
         }
+
+        x += glyph->advance.x;
     }
 
     pixman_image_unref(clr_pix);
