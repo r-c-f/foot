@@ -231,8 +231,10 @@ action_print(struct terminal *term, uint8_t c)
     if (unlikely(term->charsets.set[term->charsets.selected] == CHARSET_GRAPHIC) &&
         c >= 0x60 && c <= 0x7e)
     {
+        term->vt.grapheme_state = 0;
         term_print(term, vt100_0[c - 0x60], 1);
     } else {
+        term->vt.grapheme_state = 0;
         term_print(term, c, 1);
     }
 }
