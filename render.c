@@ -495,6 +495,8 @@ render_cell(struct terminal *term, pixman_image_t *pix,
 
     for (unsigned i = 0; i < glyph_count; i++) {
         const struct fcft_glyph *glyph = glyphs[i];
+        if (glyph == NULL)
+            continue;
 
         /* Clip to cell */
         if (unlikely(pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8)) {
