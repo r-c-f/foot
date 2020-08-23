@@ -591,6 +591,7 @@ action_utf8_print(struct terminal *term, wchar_t wc)
                  !base_from_primary ||
                  !comb_from_primary))
             {
+                term->vt.grapheme_state = 0;
                 term_print(term, precomposed, precomposed_width);
                 return;
             }
