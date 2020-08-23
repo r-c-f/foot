@@ -609,7 +609,6 @@ action_utf8_print(struct terminal *term, wchar_t wc)
             wanted_count--;
         }
 
-        LOG_INFO("wanted = %zu, %zu", wanted_count, ALEN(composed->chars));
         assert(wanted_count <= ALEN(composed->chars));
 
         /* Look for existing combining chain */
