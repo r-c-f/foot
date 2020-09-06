@@ -1845,6 +1845,7 @@ config_load(struct config *conf, const char *conf_path,
             user_notifications_t *initial_user_notifications, bool errors_are_fatal)
 {
     bool ret = false;
+    enum fcft_capabilities fcft_caps = fcft_capabilities();
 
     *conf = (struct config) {
         .term = xstrdup("foot"),
@@ -1862,6 +1863,7 @@ config_load(struct config *conf, const char *conf_path,
         .pad_y = 2,
         .startup_mode = STARTUP_WINDOWED,
         .fonts = tll_init(),
+        .can_shape_grapheme = fcft_caps & FCFT_CAPABILITY_GRAPHEME_SHAPING,
         .scrollback = {
             .lines = 1000,
             .indicator = {

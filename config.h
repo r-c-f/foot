@@ -75,6 +75,7 @@ struct config {
     enum { STARTUP_WINDOWED, STARTUP_MAXIMIZED, STARTUP_FULLSCREEN } startup_mode;
 
     tll(struct config_font) fonts;
+    bool can_shape_grapheme;
 
     struct {
         int lines;
