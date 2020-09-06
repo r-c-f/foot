@@ -10,6 +10,7 @@
 #define LOG_MODULE "vt"
 #define LOG_ENABLE_DBG 0
 #include "log.h"
+#include "config.h"
 #include "csi.h"
 #include "dcs.h"
 #include "grid.h"
@@ -520,12 +521,15 @@ static void
 action_utf8_print(struct terminal *term, wchar_t wc)
 {
     int width = wcwidth(wc);
+    const bool grapheme_clustering = term->conf->tweak.grapheme_clustering;
 
-    if (term->grid->cursor.point.col > 0
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
-        && width == 0 && wc >= 0x0300
+    assert(!grapheme_clustering);
 #endif
-        )
+
+    if (term->grid->cursor.point.col > 0 &&
+        (grapheme_clustering ||
+         (!grapheme_clustering && width == 0 && wc >= 0x300)))
     {
         int col = term->grid->cursor.point.col;
         if (!term->grid->cursor.lcf)
@@ -553,15 +557,17 @@ action_utf8_print(struct terminal *term, wchar_t wc)
         }
 
 #if defined(FOOT_GRAPHEME_CLUSTERING)
-        /* Check if we're on a grapheme cluster break */
-        /* Note: utf8proc fails to ZWJ */
-        if (utf8proc_grapheme_break_stateful(last, wc, &term->vt.grapheme_state) &&
-            last != 0x200d /* ZWJ */)
-        {
-            term_reset_grapheme_state(term);
-            if (width > 0)
-                term_print(term, wc, width);
-            return;
+        if (grapheme_clustering) {
+            /* Check if we're on a grapheme cluster break */
+            /* Note: utf8proc fails to ZWJ */
+            if (utf8proc_grapheme_break_stateful(last, wc, &term->vt.grapheme_state) &&
+                last != 0x200d /* ZWJ */)
+            {
+                term_reset_grapheme_state(term);
+                if (width > 0)
+                    term_print(term, wc, width);
+                return;
+            }
         }
 #endif
 
