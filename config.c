@@ -1484,6 +1484,20 @@ parse_section_tweak(
             LOG_WARN("tweak: damage whole window");
     }
 
+    else if (strcmp(key, "grapheme-clustering") == 0) {
+        conf->tweak.grapheme_clustering = str_to_bool(value);
+
+#if !defined(FOOT_GRAPHEME_CLUSTERING)
+        if (conf->tweak.grapheme_clustering) {
+            LOG_AND_NOTIFY_WARN(
+                "%s:%d: [tweak]: "
+                "grapheme-clustering enabled but foot was not compiled with "
+                "support for it", path, lineno);
+            conf->tweak.grapheme_clustering = false;
+        }
+#endif
+    }
+
     else if (strcmp(key, "render-timer") == 0) {
         if (strcmp(value, "none") == 0) {
             conf->tweak.render_timer_osd = false;
@@ -1929,6 +1943,7 @@ config_load(struct config *conf, const char *conf_path,
         .tweak = {
             .fcft_filter = FCFT_SCALING_FILTER_LANCZOS3,
             .allow_overflowing_double_width_glyphs = false,
+            .grapheme_clustering = false,
             .delayed_render_lower_ns = 500000,         /* 0.5ms */
             .delayed_render_upper_ns = 16666666 / 2,   /* half a frame period (60Hz) */
             .max_shm_pool_size = 512 * 1024 * 1024,
