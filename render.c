@@ -427,11 +427,18 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         {
             composed = &term->composed[base - CELL_COMB_CHARS_LO];
 
-            glyphs = fcft_glyph_rasterize_grapheme(
-                font, composed->chars, composed->count, term->font_subpixel, &glyph_count);
+            if (term->conf->can_shape_grapheme) {
+                glyphs = fcft_glyph_rasterize_grapheme(
+                    font, composed->chars, composed->count,
+                    term->font_subpixel, &glyph_count);
+            }
 
             if (glyphs != NULL)
                 composed = NULL;
+            else
+                base = composed->chars[0];
+
+
         }
 
         if (glyphs == NULL) {
