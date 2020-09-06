@@ -463,10 +463,10 @@ render_cell(struct terminal *term, pixman_image_t *pix,
      *  - the *glyph* width is less than 3 cells
      */
     if (term->conf->tweak.allow_overflowing_double_width_glyphs &&
-        glyph != NULL &&
-        glyph->cols == 1 &&
-        glyph->width >= term->cell_width * 15 / 10 &&
-        glyph->width < 3 * term->cell_width)
+        glyph_count > 0 &&
+        glyphs[0]->cols == 1 &&
+        glyphs[0]->width >= term->cell_width * 15 / 10 &&
+        glyphs[0]->width < 3 * term->cell_width)
     {
         cell_cols = min(2, cols_left);
     }
