@@ -227,16 +227,14 @@ action_print(struct terminal *term, uint8_t c)
     };
 
     assert(wcwidth(c) == 1);
+    term_reset_grapheme_state(term);
 
     if (unlikely(term->charsets.set[term->charsets.selected] == CHARSET_GRAPHIC) &&
         c >= 0x60 && c <= 0x7e)
     {
-        term->vt.grapheme_state = 0;
         term_print(term, vt100_0[c - 0x60], 1);
-    } else {
-        term->vt.grapheme_state = 0;
+    } else
         term_print(term, c, 1);
-    }
 }
 
 static void
@@ -523,7 +521,12 @@ action_utf8_print(struct terminal *term, wchar_t wc)
 {
     int width = wcwidth(wc);
 
-    if (term->grid->cursor.point.col > 0) {
+    if (term->grid->cursor.point.col > 0
+#if !defined(FOOT_GRAPHEME_CLUSTERING)
+        && width == 0 && wc >= 0x0300
+#endif
+        )
+    {
         int col = term->grid->cursor.point.col;
         if (!term->grid->cursor.lcf)
             col--;
@@ -535,7 +538,7 @@ action_utf8_print(struct terminal *term, wchar_t wc)
 
         assert(col >= 0 && col < term->cols);
         wchar_t base = row->cells[col].wc;
-        wchar_t last = base;
+        wchar_t UNUSED last = base;
 
         /* Is base cell already a cluster? */
         const struct composed *composed =
@@ -549,16 +552,18 @@ action_utf8_print(struct terminal *term, wchar_t wc)
             last = composed->chars[composed->count - 1];
         }
 
+#if defined(FOOT_GRAPHEME_CLUSTERING)
         /* Check if we're on a grapheme cluster break */
         /* Note: utf8proc fails to ZWJ */
         if (utf8proc_grapheme_break_stateful(last, wc, &term->vt.grapheme_state) &&
             last != 0x200d /* ZWJ */)
         {
-            term->vt.grapheme_state = 0;
+            term_reset_grapheme_state(term);
             if (width > 0)
                 term_print(term, wc, width);
             return;
         }
+#endif
 
         int base_width = wcwidth(base);
         term->grid->cursor.point.col = col;
@@ -591,7 +596,7 @@ action_utf8_print(struct terminal *term, wchar_t wc)
                  !base_from_primary ||
                  !comb_from_primary))
             {
-                term->vt.grapheme_state = 0;
+                term_reset_grapheme_state(term);
                 term_print(term, precomposed, precomposed_width);
                 return;
             }
@@ -608,7 +613,7 @@ action_utf8_print(struct terminal *term, wchar_t wc)
                 LOG_WARN("    cc: 0x%04x", composed->chars[i]);
             LOG_ERR("   new: 0x%04x", wc);
 #endif
-            /* This are going to break anyway... */
+            /* This is going to break anyway... */
             wanted_count--;
         }
 
@@ -669,7 +674,7 @@ action_utf8_print(struct terminal *term, wchar_t wc)
         }
     }
 
-    term->vt.grapheme_state = 0;
+    term_reset_grapheme_state(term);
     if (width > 0)
         term_print(term, wc, width);
 }

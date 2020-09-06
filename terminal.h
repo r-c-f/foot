@@ -8,7 +8,9 @@
 #include <threads.h>
 #include <semaphore.h>
 
-#include <utf8proc.h>
+#if defined(FOOT_GRAPHEME_CLUSTERING)
+ #include <utf8proc.h>
+#endif
 
 #include <tllist.h>
 #include <fcft/fcft.h>
@@ -130,7 +132,9 @@ struct vt_param {
 struct vt {
     int state;  /* enum state */
     wchar_t last_printed;
+#if defined(FOOT_GRAPHEME_CLUSTERING)
     utf8proc_int32_t grapheme_state;
+#endif
     wchar_t utf8;
     struct {
         struct vt_param v[16];
@@ -583,3 +587,10 @@ bool term_scrollback_to_text(
     const struct terminal *term, char **text, size_t *len);
 bool term_view_to_text(
     const struct terminal *term, char **text, size_t *len);
+
+static inline void term_reset_grapheme_state(struct terminal *term)
+{
+#if defined(FOOT_GRAPHEME_CLUSTERING)
+    term->vt.grapheme_state = 0;
+#endif
+}

@@ -1,0 +1,1 @@
+ option('grapheme-clustering', type: 'feature', description: 'Enables grapheme clustering using libutf8proc. Requires fcft with harfbuzz support to be useful.')

@@ -60,7 +60,11 @@ wayland_client = dependency('wayland-client')
 wayland_cursor = dependency('wayland-cursor')
 xkb = dependency('xkbcommon')
 fontconfig = dependency('fontconfig')
-utf8proc = dependency('libutf8proc')   # TODO: optional
+utf8proc = dependency('libutf8proc', required: get_option('grapheme-clustering'))
+
+if utf8proc.found()
+  add_project_arguments('-DFOOT_GRAPHEME_CLUSTERING=1', language: 'c')
+endif
 
 tllist = dependency('tllist', version: '>=1.0.4', fallback: 'tllist')
 fcft = dependency('fcft', version: ['>=2.3.0', '<3.0.0'], fallback: 'fcft')
@@ -170,9 +174,9 @@ subdir('completions')
 subdir('doc')
 subdir('icons')
 
-# summary(
-#   {
-#     '<feature>': false,
-#   },
-#   bool_yn: true
-# )
+summary(
+  {
+    'Grapheme clustering': utf8proc.found(),
+  },
+  bool_yn: true
+)
