@@ -498,19 +498,25 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         if (glyph == NULL)
             continue;
 
+        int g_x = glyph->x;
+        int g_y = glyph->y;
+
+        if (i > 0 && glyph->x >= 0)
+            g_x -= term->cell_width;
+
         /* Clip to cell */
         if (unlikely(pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8)) {
             /* Glyph surface is a pre-rendered image (typically a color emoji...) */
             if (!(cell->attrs.blink && term->blink.state == BLINK_OFF)) {
                 pixman_image_composite32(
                     PIXMAN_OP_OVER, glyph->pix, NULL, pix, 0, 0, 0, 0,
-                    x + glyph->x, y + font_baseline(term) - glyph->y,
+                    x + g_x, y + font_baseline(term) - g_y,
                     glyph->width, glyph->height);
             }
         } else {
             pixman_image_composite32(
                 PIXMAN_OP_OVER, clr_pix, glyph->pix, pix, 0, 0, 0, 0,
-                x + glyph->x, y + font_baseline(term) - glyph->y,
+                x + g_x, y + font_baseline(term) - g_y,
                 glyph->width, glyph->height);
 
             /* Combining characters */
