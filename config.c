@@ -1496,6 +1496,9 @@ parse_section_tweak(
             conf->tweak.grapheme_clustering = false;
         }
 #endif
+
+        if (conf->tweak.grapheme_clustering)
+            LOG_WARN("tweak: grapheme shaping");
     }
 
     else if (strcmp(key, "render-timer") == 0) {
