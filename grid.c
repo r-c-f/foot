@@ -231,7 +231,7 @@ grid_reflow(struct grid *grid, int new_rows, int new_cols,
             if (wc >= CELL_COMB_CHARS_LO &&
                 wc < (CELL_COMB_CHARS_LO + compose_count))
             {
-                wc = composed[wc - CELL_COMB_CHARS_LO].base;
+                wc = composed[wc - CELL_COMB_CHARS_LO].chars[0];
             }
 
             /* TODO: grapheme clusters */
@@ -250,7 +250,7 @@ grid_reflow(struct grid *grid, int new_rows, int new_cols,
                 if (wc >= CELL_COMB_CHARS_LO &&
                     wc < (CELL_COMB_CHARS_LO + compose_count))
                 {
-                    wc = composed[wc - CELL_COMB_CHARS_LO].base;
+                    wc = composed[wc - CELL_COMB_CHARS_LO].chars[0];
                 }
 
                 /* Out of columns on current row in new grid? */
