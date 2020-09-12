@@ -415,6 +415,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
 
     struct fcft_font *font = attrs_to_font(term, &cell->attrs);
     const struct composed *composed = NULL;
+    const struct fcft_grapheme *grapheme = NULL;
     const struct fcft_glyph *single = NULL;
     const struct fcft_glyph **glyphs = NULL;
     unsigned glyph_count = 0;
@@ -428,20 +429,20 @@ render_cell(struct terminal *term, pixman_image_t *pix,
             composed = &term->composed[base - CELL_COMB_CHARS_LO];
 
             if (term->conf->can_shape_grapheme) {
-                glyphs = fcft_glyph_rasterize_grapheme(
-                    font, composed->chars, composed->count,
-                    term->font_subpixel, &glyph_count);
+                grapheme = fcft_grapheme_rasterize(
+                    font, composed->count, composed->chars,
+                    term->font_subpixel);
             }
 
-            if (glyphs != NULL)
+            if (grapheme != NULL) {
                 composed = NULL;
-            else
+                glyphs = grapheme->glyphs;
+                glyph_count = grapheme->count;
+            } else
                 base = composed->chars[0];
-
-
         }
 
-        if (glyphs == NULL) {
+        if (grapheme == NULL) {
             assert(base != 0);
             single = fcft_glyph_rasterize(font, base, term->font_subpixel);
             glyph_count = 1;
@@ -569,14 +570,6 @@ draw_cursor:
         draw_cursor(term, cell, font, pix, &fg, &bg, x, y, cell_cols);
 
     pixman_image_set_clip_region32(pix, NULL);
-
-    /* TODO: remove when fcft doesn't leak these */
-    if (glyphs != &single) {
-        for (unsigned i = 0; i < glyph_count; i++)
-            free((void *)glyphs[i]);
-        free((void *)glyphs);
-    }
-
     return cell_cols;
 }
 
