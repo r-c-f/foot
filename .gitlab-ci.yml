@@ -31,6 +31,19 @@ debug-x64:
     reports:
       junit: bld/debug/meson-logs/testlog.junit.xml
 
+debug-x64-no-grapheme-clustering:
+  image: alpine:edge
+  stage: build
+  script:
+    - mkdir -p bld/debug
+    - cd bld/debug
+    - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:text-shaping=disabled -Dfcft:test-text-shaping=false ../../
+    - ninja -v -k0
+    - ninja -v test
+  artifacts:
+    reports:
+      junit: bld/debug/meson-logs/testlog.junit.xml
+
 release-x64:
   image: alpine:edge
   stage: build
@@ -69,19 +82,6 @@ release-x86:
   artifacts:
     reports:
       junit: bld/release/meson-logs/testlog.junit.xml
-
-debug-x64-no-grapheme-clustering:
-  image: alpine:edge
-  stage: build
-  script:
-    - mkdir -p bld/debug
-    - cd bld/debug
-    - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:text-shaping=disabled -Dfcft:test-text-shaping=false ../../
-    - ninja -v -k0
-    - ninja -v test
-  artifacts:
-    reports:
-      junit: bld/debug/meson-logs/testlog.junit.xml
 
 codespell:
   image: alpine:edge
