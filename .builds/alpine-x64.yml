@@ -13,6 +13,7 @@ packages:
   - freetype-dev
   - fontconfig-dev
   - harfbuzz-dev
+  - utf8proc-dev
   - pixman-dev
   - libxkbcommon-dev
   - ncurses

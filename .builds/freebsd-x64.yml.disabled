@@ -9,6 +9,7 @@ packages:
   - freetype2
   - fontconfig
   - harfbuzz
+  - utf8proc
   - pixman
   - libxkbcommon
   - ncurses
