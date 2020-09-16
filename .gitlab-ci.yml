@@ -35,6 +35,7 @@ debug-x64-no-grapheme-clustering:
   image: alpine:edge
   stage: build
   script:
+    - apk del harfbuzz harfbuzz-dev utf8proc utf8proc-dev
     - mkdir -p bld/debug
     - cd bld/debug
     - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:text-shaping=disabled -Dfcft:test-text-shaping=false ../../
