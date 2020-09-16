@@ -5,7 +5,9 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include <utf8proc.h>
+#if defined(FOOT_GRAPHEME_CLUSTERING)
+ #include <utf8proc.h>
+#endif
 
 #define LOG_MODULE "vt"
 #define LOG_ENABLE_DBG 0
