@@ -428,7 +428,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         {
             composed = &term->composed[base - CELL_COMB_CHARS_LO];
 
-            if (term->conf->can_shape_grapheme) {
+            if (term->conf->can_shape_grapheme && term->conf->tweak.grapheme_shaping) {
                 grapheme = fcft_grapheme_rasterize(
                     font, composed->count, composed->chars,
                     0, NULL, term->font_subpixel);
