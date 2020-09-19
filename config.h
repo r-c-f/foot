@@ -164,7 +164,7 @@ struct config {
     struct {
         enum fcft_scaling_filter fcft_filter;
         bool allow_overflowing_double_width_glyphs;
-        bool grapheme_clustering;
+        bool grapheme_shaping;
         bool render_timer_osd;
         bool render_timer_log;
         bool damage_whole_window;

@@ -523,7 +523,7 @@ static void
 action_utf8_print(struct terminal *term, wchar_t wc)
 {
     int width = wcwidth(wc);
-    const bool grapheme_clustering = term->conf->tweak.grapheme_clustering;
+    const bool grapheme_clustering = term->conf->tweak.grapheme_shaping;
 
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
     assert(!grapheme_clustering);

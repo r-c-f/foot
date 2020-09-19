@@ -1484,20 +1484,30 @@ parse_section_tweak(
             LOG_WARN("tweak: damage whole window");
     }
 
-    else if (strcmp(key, "grapheme-clustering") == 0) {
-        conf->tweak.grapheme_clustering = str_to_bool(value);
+    else if (strcmp(key, "grapheme-shaping") == 0) {
+        conf->tweak.grapheme_shaping = str_to_bool(value);
 
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
-        if (conf->tweak.grapheme_clustering) {
+        if (conf->tweak.grapheme_shaping) {
             LOG_AND_NOTIFY_WARN(
                 "%s:%d: [tweak]: "
-                "grapheme-clustering enabled but foot was not compiled with "
+                "grapheme-shaping enabled but foot was not compiled with "
                 "support for it", path, lineno);
-            conf->tweak.grapheme_clustering = false;
+            conf->tweak.grapheme_shaping = false;
         }
 #endif
 
-        if (conf->tweak.grapheme_clustering)
+        if (conf->tweak.grapheme_shaping && !conf->can_shape_grapheme) {
+            LOG_WARN(
+                "%s:%d [tweak]: "
+                "grapheme-shaping enabled but fcft was not compiled with "
+                "support for it", path, lineno);
+
+            /* Keep it enabled though - this will cause us to do
+             * grapheme-clustering at least */
+        }
+
+        if (conf->tweak.grapheme_shaping)
             LOG_WARN("tweak: grapheme shaping");
     }
 
@@ -1946,7 +1956,7 @@ config_load(struct config *conf, const char *conf_path,
         .tweak = {
             .fcft_filter = FCFT_SCALING_FILTER_LANCZOS3,
             .allow_overflowing_double_width_glyphs = false,
-            .grapheme_clustering = false,
+            .grapheme_shaping = false,
             .delayed_render_lower_ns = 500000,         /* 0.5ms */
             .delayed_render_upper_ns = 16666666 / 2,   /* half a frame period (60Hz) */
             .max_shm_pool_size = 512 * 1024 * 1024,
