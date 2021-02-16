@@ -45,6 +45,9 @@
   `footclient` (https://codeberg.org/dnkl/foot/issues/337).
 * `-D,--working-directory=DIR` to both `foot` and `footclient`
   (https://codeberg.org/dnkl/foot/issues/347)
+* Implement `XTVERSION` (`CSI > 0q`). Foot will reply with
+  `DCS>|foot(<major>.<minor>.<patch>)ST`
+  (https://codeberg.org/dnkl/foot/issues/359).
 
 
 ### Changed

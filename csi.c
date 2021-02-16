@@ -1527,6 +1527,21 @@ csi_dispatch(struct terminal *term, uint8_t final)
             }
             break; /* final == 'm' */
 
+        case 'q': {
+            /* XTVERSION */
+            if (vt_param_get(term, 0, 0) != 0) {
+                UNHANDLED();
+                break;
+            }
+
+            char reply[64];
+            size_t n = snprintf(
+                reply, sizeof(reply), "\033P>|foot(%u.%u.%u)\033\\",
+                FOOT_MAJOR, FOOT_MINOR, FOOT_PATCH);
+            term_to_slave(term, reply, n);
+            break;
+        }
+
         default:
             UNHANDLED();
             break;
