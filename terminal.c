@@ -4,6 +4,8 @@
 #include <malloc.h>
 #endif
 #include <signal.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -42,6 +44,7 @@
 #include "util.h"
 #include "vt.h"
 #include "xmalloc.h"
+#include "xsnprintf.h"
 
 #define PTMX_TIMING 0
 
@@ -3050,21 +3053,57 @@ term_flash(struct terminal *term, unsigned duration_ms)
     }
 }
 
+bool
+term_set_urgent_sway(struct terminal *term)
+{
+    if (!getenv("SWAYSOCK"))
+        return false;
+
+    static pid_t pid;
+    if (pid == 0)
+        pid = getpid();
+
+    static unsigned count;
+    char title[128];
+    char cmd[256];
+    xsnprintf(title, sizeof title, "_foot_%jd_%u", (intmax_t)pid, count++);
+    xsnprintf(cmd, sizeof cmd, "swaymsg '[title=%s]' urgent enable", title);
+
+    /* This is gross, but it the process *must* be synchronous to avoid being
+     * any racier than it already is */
+    xdg_toplevel_set_title(term->window->xdg_toplevel, title);
+    wl_display_flush(term->wl->display);
+    int status = system(cmd);
+    render_refresh_title(term);
+    if (status != 0) {
+        LOG_ERR("failed to execute command: \"%s\"", cmd);
+        return false;
+    }
+    return true;
+}
+
 void
 term_bell(struct terminal *term)
 {
     if (!term->bell_action_enabled)
         return;
 
-    if (term->conf->bell.urgent && !term->kbd_focus) {
-        if (!wayl_win_set_urgent(term->window)) {
-            /*
-             * Urgency (xdg-activation) is relatively new in
-             * Wayland. Fallback to our old, “faked”, urgency -
-             * rendering our window margins in red
-             */
-            term->render.urgency = true;
-            term_damage_margins(term);
+    if (!term->kbd_focus) {
+        if (term->conf->bell.urgent) {
+            if (!wayl_win_set_urgent(term->window)) {
+                /*
+                 * Urgency (xdg-activation) is relatively new in
+                 * Wayland. Fallback to trying sway IPC.
+                 */
+                if (!term_set_urgent_sway(term)) {
+                    /*
+                     * Fallback to our old, “faked”, urgency -
+                     * rendering our window margins in red
+                     */
+                    term->render.urgency = true;
+                    term_damage_margins(term);
+                }
+            }
         }
     }
 
