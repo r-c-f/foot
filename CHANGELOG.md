@@ -33,6 +33,9 @@
 
 * `locked-title=no|yes` to `foot.ini`
   (https://codeberg.org/dnkl/foot/issues/386).
+* `tweak.overflowing-glyphs` option, which can be enabled to fix rendering
+  issues with glyphs of any width that appear cut-off
+  (https://codeberg.org/dnkl/foot/issues/592).
 
 
 ### Changed
@@ -45,6 +48,12 @@
 
 ### Deprecated
 ### Removed
+
+* The `tweak.allow-overflowing-double-width-glyphs` and
+  `tweak.pua-double-width` options (which have been superseded by
+  `tweak.overflowing-glyphs`).
+
+
 ### Fixed
 
 * Glyph offset not being taken into account when applying
@@ -68,6 +77,8 @@
 
 ### Security
 ### Contributors
+
+* [clktmr](https://codeberg.org/clktmr)
 
 
 ## 1.8.1
