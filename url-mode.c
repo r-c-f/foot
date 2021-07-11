@@ -654,6 +654,11 @@ tag_cells_for_url(struct terminal *term, const struct url *url, bool value)
             c = 0;
 
             row = term->grid->rows[r];
+            if (row == NULL) {
+                /* Un-allocated scrollback. This most likely means a
+                 * runaway OSC-8 URL. */
+                break;
+            }
             row->dirty = true;
         }
     }
