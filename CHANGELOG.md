@@ -53,6 +53,8 @@
   URLs.
 * Double free of URL while removing duplicated and/or overlapping URLs
   in URL mode (https://codeberg.org/dnkl/foot/issues/627).
+* Crash when an unclosed OSC-8 URL ran into un-allocated scrollback
+  rows.
 
 
 ### Security
