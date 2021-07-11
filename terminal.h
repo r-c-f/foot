@@ -264,6 +264,7 @@ struct url {
     enum url_action action;
     bool url_mode_dont_change_url_attr; /* Entering/exiting URL mode doesn’t touch the cells’ attr.url */
     bool osc8;
+    bool duplicate;
 };
 typedef tll(struct url) url_list_t;
 
