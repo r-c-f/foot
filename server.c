@@ -132,13 +132,6 @@ term_shutdown_handler(void *data, int exit_code)
 {
     struct terminal_instance *instance = data;
 
-    struct wl_shm *shm = instance->server->wayl->shm;
-
-    shm_purge(shm, shm_cookie_grid(instance->terminal));
-    shm_purge(shm, shm_cookie_search(instance->terminal));
-    for (enum csd_surface surf = 0; surf < CSD_SURF_COUNT; surf++)
-        shm_purge(shm, shm_cookie_csd(instance->terminal, surf));
-
     instance->terminal = NULL;
     instance_destroy(instance, exit_code);
 }
