@@ -1475,6 +1475,14 @@ wayl_win_destroy(struct wl_window *win)
     wayl_win_subsurface_destroy(&win->scrollback_indicator);
     wayl_win_subsurface_destroy(&win->render_timer);
 
+    shm_purge(shm, shm_cookie_search(term));
+    shm_purge(shm, shm_cookie_scrollback_indicator(term));
+    shm_purge(shm, shm_cookie_render_timer(term));
+    shm_purge(shm, shm_cookie_grid(term));
+
+    for (size_t i = 0; i < ALEN(win->csd.surface); i++)
+        shm_purge(shm, shm_cookie_csd(term, i));
+
 #if defined(HAVE_XDG_ACTIVATION)
     if (win->xdg_activation_token != NULL)
         xdg_activation_token_v1_destroy(win->xdg_activation_token);
