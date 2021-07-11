@@ -51,6 +51,8 @@
   last column, and `tweak.allow-overflowing-double-width-glyphs=yes`.
 * FD exhaustion when repeatedly entering/exiting URL mode with many
   URLs.
+* Double free of URL while removing duplicated and/or overlapping URLs
+  in URL mode (https://codeberg.org/dnkl/foot/issues/627).
 
 
 ### Security

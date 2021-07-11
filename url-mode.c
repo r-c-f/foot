@@ -470,14 +470,18 @@ remove_overlapping(url_list_t *urls, int cols)
                  */
                 xassert(in->osc8 || out->osc8);
 
-                if (in->osc8) {
-                    url_destroy(&outer->item);
-                    tll_remove(*urls, outer);
-                } else {
-                    url_destroy(&inner->item);
-                    tll_remove(*urls, inner);
-                }
+                if (in->osc8)
+                    outer->item.duplicate = true;
+                else
+                    inner->item.duplicate = true;
             }
+        }
+    }
+
+    tll_foreach(*urls, it) {
+        if (it->item.duplicate) {
+            url_destroy(&it->item);
+            tll_remove(*urls, it);
         }
     }
 }
