@@ -51,8 +51,13 @@ csd_instantiate(struct wl_window *win)
 static void
 csd_destroy(struct wl_window *win)
 {
-    for (size_t i = 0; i < ALEN(win->csd.surface); i++)
+    struct terminal *term = win->term;
+    struct wl_shm *shm = term->wl->shm;
+
+    for (size_t i = 0; i < ALEN(win->csd.surface); i++) {
         wayl_win_subsurface_destroy(&win->csd.surface[i]);
+        shm_purge(shm, shm_cookie_csd(term, i));
+    }
 }
 
 static void
