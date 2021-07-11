@@ -14,6 +14,7 @@
 #include "grid.h"
 #include "render.h"
 #include "selection.h"
+#include "shm.h"
 #include "spawn.h"
 #include "terminal.h"
 #include "uri.h"
@@ -728,7 +729,9 @@ urls_reset(struct terminal *term)
 
     if (term->window != NULL) {
         tll_foreach(term->window->urls, it) {
+            const struct url *url = it->item.url;
             wayl_win_subsurface_destroy(&it->item.surf);
+            shm_purge(term->wl->shm, shm_cookie_url(url));
             tll_remove(term->window->urls, it);
         }
     }

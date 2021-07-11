@@ -26,6 +26,7 @@
 #include "input.h"
 #include "render.h"
 #include "selection.h"
+#include "shm.h"
 #include "util.h"
 #include "xmalloc.h"
 
@@ -1410,6 +1411,9 @@ wayl_win_destroy(struct wl_window *win)
     if (win == NULL)
         return;
 
+    struct terminal *term = win->term;
+    struct wl_shm *shm = term->wl->shm;
+
     if (win->csd.move_timeout_fd != -1)
         close(win->csd.move_timeout_fd);
 
@@ -1457,6 +1461,7 @@ wayl_win_destroy(struct wl_window *win)
 
     tll_foreach(win->urls, it) {
         wayl_win_subsurface_destroy(&it->item.surf);
+        shm_purge(shm, shm_cookie_url(it->item.url));
         tll_remove(win->urls, it);
     }
 
