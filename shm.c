@@ -156,7 +156,6 @@ page_size(void)
 static bool
 instantiate_offset(struct wl_shm *shm, struct buffer *buf, off_t new_offset)
 {
-    xassert(buf->fd >= 0);
     xassert(buf->mmapped == NULL);
     xassert(buf->wl_buf == NULL);
     xassert(buf->pix == NULL);
@@ -416,6 +415,12 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
             max_alloced = currently_alloced;
     }
 #endif
+
+    if (!shm_can_scroll(ret)) {
+        /* We only need to keep the pool FD open if we’re going to SHM
+         * scroll it */
+        close(pool_fd);
+    }
 
     return ret;
 
