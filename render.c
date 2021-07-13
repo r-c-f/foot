@@ -682,7 +682,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         if (i > 0 && glyph->x >= 0)
             g_x -= term->cell_width;
 
-        if (unlikely(pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8)) {
+        if (unlikely(PIXMAN_FORMAT_BPP(pixman_image_get_format(glyph->pix)) == 32)) {
             /* Glyph surface is a pre-rendered image (typically a color emoji...) */
             if (!(cell->attrs.blink && term->blink.state == BLINK_OFF)) {
                 pixman_image_composite32(
@@ -2801,7 +2801,7 @@ render_search_box(struct terminal *term)
             continue;
         }
 
-        if (unlikely(pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8)) {
+        if (unlikely(PIXMAN_FORMAT_BPP(pixman_image_get_format(glyph->pix)) == 32)) {
             /* Glyph surface is a pre-rendered image (typically a color emoji...) */
             pixman_image_composite32(
                 PIXMAN_OP_OVER, glyph->pix, NULL, buf->pix[0], 0, 0, 0, 0,
