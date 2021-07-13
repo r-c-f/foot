@@ -1244,6 +1244,16 @@ draw_box_drawings_double_vertical_and_horizontal(struct buf *buf)
     vline(hmid + 2 * thick, buf->height, vmid + 2 * thick, thick);
 }
 
+static inline void
+set_a1_bit(uint8_t *data, size_t ofs, size_t bit_no)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    data[ofs] |= 1 << bit_no;
+#else
+    data[ofs] |= 1 << (7 - bit_no);
+#endif
+}
+
 static void
 draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
 {
@@ -1354,7 +1364,7 @@ draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
                 if (fmt == PIXMAN_a1) {
                     size_t idx = c / 8;
                     size_t bit_no = c % 8;
-                    data[r * stride + idx] |= 1 << bit_no;
+                    set_a1_bit(data, r * stride + idx, bit_no);
                 } else
                     data[r * stride + c] = 0xff;
             }
@@ -1376,7 +1386,7 @@ draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
                     if (fmt == PIXMAN_a1) {
                         size_t ofs = col / 8;
                         size_t bit_no = col % 8;
-                        data[row * stride + ofs] |= 1 << bit_no;
+                        set_a1_bit(data, row * stride + ofs, bit_no);
                     } else
                         data[row * stride + col] = 0xff;
                 }
@@ -1392,7 +1402,7 @@ draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
                     if (fmt == PIXMAN_a1) {
                         size_t ofs = col / 8;
                         size_t bit_no = col % 8;
-                        data[row * stride + ofs] |= 1 << bit_no;
+                        set_a1_bit(data, row * stride + ofs, bit_no);
                     } else
                         data[row * stride + col] = 0xff;
                 }
@@ -1767,7 +1777,7 @@ draw_light_shade(struct buf *buf)
             for (size_t col = 0; col < buf->width; col += 2) {
                 size_t idx = col / 8;
                 size_t bit_no = col % 8;
-                buf->data[row * buf->stride + idx] |= 1 << bit_no;
+                set_a1_bit(buf->data, row * buf->stride + idx, bit_no);
             }
         }
     }
@@ -1790,7 +1800,7 @@ draw_medium_shade(struct buf *buf)
             for (size_t col = row % 2; col < buf->width; col += 2) {
                 size_t idx = col / 8;
                 size_t bit_no = col % 8;
-                buf->data[row * buf->stride + idx] |= 1 << bit_no;
+                set_a1_bit(buf->data, row * buf->stride + idx, bit_no);
             }
         }
     }
@@ -1813,7 +1823,7 @@ draw_dark_shade(struct buf *buf)
             for (size_t col = 0; col < buf->width; col += 1 + row % 2) {
                 size_t idx = col / 8;
                 size_t bit_no = col % 8;
-                buf->data[row * buf->stride + idx] |= 1 << bit_no;
+                set_a1_bit(buf->data, row * buf->stride + idx, bit_no);
             }
         }
     }
