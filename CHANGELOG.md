@@ -55,6 +55,8 @@
   in URL mode (https://codeberg.org/dnkl/foot/issues/627).
 * Crash when an unclosed OSC-8 URL ran into un-allocated scrollback
   rows.
+* Some box-drawing characters were rendered incorrectly on big-endian
+  architectures.
 
 
 ### Security
