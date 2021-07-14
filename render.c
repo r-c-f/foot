@@ -3119,8 +3119,10 @@ fdm_tiocswinsz(struct fdm *fdm, int fd, int events, void *data)
     if (events & EPOLLIN)
         tiocswinsz(term);
 
-    fdm_del(fdm, fd);
-    term->window->resize_timeout_fd = -1;
+    if (term->window->resize_timeout_fd >= 0) {
+        fdm_del(fdm, term->window->resize_timeout_fd);
+        term->window->resize_timeout_fd = -1;
+    }
     return true;
 }
 
