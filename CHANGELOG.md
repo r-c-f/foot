@@ -39,6 +39,8 @@
 
 * Non-empty lines are now considered to have a hard linebreak,
   _unless_ an actual word-wrap is inserted.
+* Setting `DECSDM` now _disables_ sixel scrolling, while resetting it
+  _enables_ scrolling (https://codeberg.org/dnkl/foot/issues/631).
 
 
 ### Deprecated
