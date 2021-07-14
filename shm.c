@@ -420,6 +420,7 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
         /* We only need to keep the pool FD open if we’re going to SHM
          * scroll it */
         close(pool_fd);
+        ret->fd = -1;
     }
 
     return ret;
