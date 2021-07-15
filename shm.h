@@ -17,7 +17,7 @@ struct buffer {
     int stride;
 
     size_t size;           /* Buffer size */
-    void *mmapped;         /* Raw data (TODO: rename) */
+    void *data;         /* Raw data (TODO: rename) */
 
     struct wl_buffer *wl_buf;
     pixman_image_t **pix;

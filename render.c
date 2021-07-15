@@ -954,7 +954,7 @@ grid_render_scroll(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.end - dmg->lines, term->rows, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -1019,7 +1019,7 @@ grid_render_scroll_reverse(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.start, dmg->region.start + dmg->lines, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -2162,7 +2162,7 @@ reapply_old_damage(struct terminal *term, struct buffer *new, struct buffer *old
     }
 
     if (new->age > 1) {
-        memcpy(new->mmapped, old->mmapped, new->size);
+        memcpy(new->data, old->data, new->size);
         return;
     }
 

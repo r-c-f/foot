@@ -108,7 +108,7 @@ buffer_destroy_dont_close(struct buffer *buf)
     free(buf->pix);
     buf->pix = NULL;
     buf->wl_buf = NULL;
-    buf->mmapped = NULL;
+    buf->data = NULL;
 }
 
 static void
@@ -150,6 +150,8 @@ buffer_destroy(struct buffer_private *buf)
 void
 shm_fini(void)
 {
+    xassert(tll_length(buffers) == 0);
+
     tll_foreach(buffers, it) {
         buffer_destroy(&it->item);
         tll_remove(buffers, it);
@@ -199,7 +201,7 @@ page_size(void)
 static bool
 instantiate_offset(struct wl_shm *shm, struct buffer_private *buf, off_t new_offset)
 {
-    xassert(buf->public.mmapped == NULL);
+    xassert(buf->public.data == NULL);
     xassert(buf->public.pix == NULL);
     xassert(buf->public.wl_buf == NULL);
     xassert(buf->pool != NULL);
@@ -233,7 +235,7 @@ instantiate_offset(struct wl_shm *shm, struct buffer_private *buf, off_t new_off
         }
     }
 
-    buf->public.mmapped = mmapped;
+    buf->public.data = mmapped;
     buf->public.wl_buf = wl_buf;
     buf->public.pix = pix;
     buf->offset = new_offset;
@@ -584,7 +586,7 @@ wrap_buffer(struct wl_shm *shm, struct buffer_private *buf, off_t new_offset)
     xassert(diff > buf->public.size);
 
     memcpy((uint8_t *)pool->real_mmapped + new_offset,
-           buf->public.mmapped,
+           buf->public.data,
            buf->public.size);
 
     off_t trim_ofs, trim_len;
@@ -653,7 +655,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
     if (top_keep_rows > 0) {
         /* Copy current 'top' region to its new location */
         const int stride = buf->public.stride;
-        uint8_t *base = buf->public.mmapped;
+        uint8_t *base = buf->public.data;
 
         memmove(
             base + (top_margin + rows) * stride,
@@ -704,7 +706,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
         /* Copy 'bottom' region to its new location */
         const size_t size = buf->public.size;
         const int stride = buf->public.stride;
-        uint8_t *base = buf->public.mmapped;
+        uint8_t *base = buf->public.data;
 
         memmove(
             base + size - (bottom_margin + bottom_keep_rows) * stride,
@@ -760,7 +762,7 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer_private *buf, int rows,
         /* Copy 'bottom' region to its new location */
         const size_t size = buf->public.size;
         const int stride = buf->public.stride;
-        uint8_t *base = buf->public.mmapped;
+        uint8_t *base = buf->public.data;
 
         memmove(
             base + size - (bottom_margin + rows + bottom_keep_rows) * stride,
@@ -809,7 +811,7 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer_private *buf, int rows,
     if (ret && top_keep_rows > 0) {
         /* Copy current 'top' region to its new location */
         const int stride = buf->public.stride;
-        uint8_t *base = buf->public.mmapped;
+        uint8_t *base = buf->public.data;
 
         memmove(
             base + (top_margin + 0) * stride,
