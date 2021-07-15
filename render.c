@@ -2047,10 +2047,6 @@ render_scrollback_position(struct terminal *term)
     const int height =
         (2 * margin + term->cell_height + scale - 1) / scale * scale;
 
-    unsigned long cookie = shm_cookie_scrollback_indicator(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, width, height, cookie, false, 1);
-
     /* *Where* to render - parent relative coordinates */
     int surf_top = 0;
     switch (term->conf->scrollback.indicator.position) {
@@ -2068,18 +2064,30 @@ render_scrollback_position(struct terminal *term)
             /* Make sure we don't collide with the scrollback search box */
             lines--;
         }
-        xassert(lines > 0);
 
-        int pixels = lines * term->cell_height - height + 2 * margin;
+        lines = max(lines, 0);
+
+        int pixels = max(lines * term->cell_height - height + 2 * margin, 0);
         surf_top = term->cell_height - margin + (int)(percent * pixels);
         break;
     }
     }
 
+    const int x = (term->width - margin - width) / scale * scale;
+    const int y = (term->margins.top + surf_top) / scale * scale;
+
+    if (y + height > term->height) {
+        wl_surface_attach(win->scrollback_indicator.surf, NULL, 0, 0);
+        wl_surface_commit(win->scrollback_indicator.surf);
+        return;
+    }
+
+    unsigned long cookie = shm_cookie_scrollback_indicator(term);
+    struct buffer *buf = shm_get_buffer(
+        term->wl->shm, width, height, cookie, false, 1);
+
     wl_subsurface_set_position(
-        win->scrollback_indicator.sub,
-        (term->width - margin - width) / scale,
-        (term->margins.top + surf_top) / scale);
+        win->scrollback_indicator.sub, x / scale, y / scale);
 
     render_osd(
         term,
@@ -2088,7 +2096,6 @@ render_scrollback_position(struct terminal *term)
         buf, text,
         term->colors.table[0], term->colors.table[8 + 4],
         width - margin - wcslen(text) * term->cell_width, margin);
-
 }
 
 static void

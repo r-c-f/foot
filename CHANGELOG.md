@@ -57,6 +57,8 @@
   rows.
 * Some box-drawing characters were rendered incorrectly on big-endian
   architectures.
+* Scrollback indicator being incorrectly rendered when window size is
+  very small.
 
 
 ### Security
