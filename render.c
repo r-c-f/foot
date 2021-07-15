@@ -2162,7 +2162,7 @@ reapply_old_damage(struct terminal *term, struct buffer *new, struct buffer *old
     }
 
     if (new->age > 1) {
-        memcpy(new->data, old->data, new->size);
+        memcpy(new->data, old->data, new->height * new->stride);
         return;
     }
 

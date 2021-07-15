@@ -71,14 +71,15 @@ struct buffer_pool {
 struct buffer_private {
     struct buffer public;
 
-    bool busy;             /* Owned by compositor */
+    size_t size;
+    bool busy;                /* Owned by compositor */
 
     unsigned long cookie;
     struct buffer_pool *pool;
-    off_t offset;          /* Offset into memfd where data begins */
+    off_t offset;             /* Offset into memfd where data begins */
 
     bool scrollable;
-    bool purge;            /* True if this buffer should be destroyed */
+    bool purge;               /* True if this buffer should be destroyed */
 };
 
 static tll(struct buffer_private) buffers;
@@ -425,11 +426,11 @@ get_new_buffers(struct wl_shm *shm, size_t count,
                     .width = info[i].width,
                     .height = info[i].height,
                     .stride = stride[i],
-                    .size = sizes[i],
                     .pix_instances = pix_instances,
                     .age = 1234,  /* Force a full repaint */
                 },
                 .cookie = info[i].cookie,
+                .size = sizes[i],
                 .busy = true,
                 .purge = immediate_purge,
                 .pool = pool,
@@ -443,7 +444,7 @@ get_new_buffers(struct wl_shm *shm, size_t count,
 
         pixman_region32_init(&buf->public.dirty);
         pool->ref_count++;
-        offset += buf->public.size;
+        offset += buf->size;
         bufs[i] = &buf->public;
     }
 
@@ -583,11 +584,11 @@ wrap_buffer(struct wl_shm *shm, struct buffer_private *buf, off_t new_offset)
     off_t UNUSED diff = new_offset < buf->offset
         ? buf->offset - new_offset
         : new_offset - buf->offset;
-    xassert(diff > buf->public.size);
+    xassert(diff > buf->size);
 
     memcpy((uint8_t *)pool->real_mmapped + new_offset,
            buf->public.data,
-           buf->public.size);
+           buf->size);
 
     off_t trim_ofs, trim_len;
     if (new_offset > buf->offset) {
@@ -596,7 +597,7 @@ wrap_buffer(struct wl_shm *shm, struct buffer_private *buf, off_t new_offset)
         trim_len = new_offset;
     } else {
         /* Trim everything *after* the new buffer location */
-        trim_ofs = new_offset + buf->public.size;
+        trim_ofs = new_offset + buf->size;
         trim_len = pool->mmap_size - trim_ofs;
     }
 
@@ -633,9 +634,9 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
 
     const off_t diff = rows * buf->public.stride;
     xassert(rows > 0);
-    xassert(diff < buf->public.size);
+    xassert(diff < buf->size);
 
-    if (buf->offset + diff + buf->public.size > max_pool_size) {
+    if (buf->offset + diff + buf->size > max_pool_size) {
         LOG_DBG("memfd offset wrap around");
         if (!wrap_buffer(shm, buf, 0))
             goto err;
@@ -643,7 +644,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
 
     off_t new_offset = buf->offset + diff;
     xassert(new_offset > buf->offset);
-    xassert(new_offset + buf->public.size <= max_pool_size);
+    xassert(new_offset + buf->size <= max_pool_size);
 
 #if TIME_SCROLL
     struct timeval time1;
@@ -704,7 +705,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
 
     if (ret && bottom_keep_rows > 0) {
         /* Copy 'bottom' region to its new location */
-        const size_t size = buf->public.size;
+        const size_t size = buf->size;
         const int stride = buf->public.stride;
         uint8_t *base = buf->public.data;
 
@@ -742,7 +743,7 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer_private *buf, int rows,
     const off_t diff = rows * buf->public.stride;
     if (diff > buf->offset) {
         LOG_DBG("memfd offset reverse wrap-around");
-        if (!wrap_buffer(shm, buf, (max_pool_size - buf->public.size) & ~(page_size() - 1)))
+        if (!wrap_buffer(shm, buf, (max_pool_size - buf->size) & ~(page_size() - 1)))
             goto err;
     }
 
@@ -760,7 +761,7 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer_private *buf, int rows,
 
     if (bottom_keep_rows > 0) {
         /* Copy 'bottom' region to its new location */
-        const size_t size = buf->public.size;
+        const size_t size = buf->size;
         const int stride = buf->public.stride;
         uint8_t *base = buf->public.data;
 
@@ -780,7 +781,7 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer_private *buf, int rows,
     buffer_destroy_dont_close(&buf->public);
 
     /* Free unused memory - everything after the relocated buffer */
-    const off_t trim_ofs = new_offset + buf->public.size;
+    const off_t trim_ofs = new_offset + buf->size;
     const off_t trim_len = pool->mmap_size - trim_ofs;
 
     if (fallocate(
