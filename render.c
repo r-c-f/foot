@@ -2886,6 +2886,10 @@ render_urls(struct terminal *term)
     struct wl_window *win = term->window;
     xassert(tll_length(win->urls) > 0);
 
+    const int scale = term->scale;
+    const int x_margin = 2 * scale;
+    const int y_margin = 1 * scale;
+
     /* Calculate view start, counted from the *current* scrollback start */
     const int scrollback_end
         = (term->grid->offset + term->rows) & (term->grid->num_rows - 1);
@@ -2896,6 +2900,44 @@ render_urls(struct terminal *term)
     const int view_end = view_start + term->rows - 1;
 
     const bool show_url = term->urls_show_uri_on_jump_label;
+
+    /*
+     * There can potentially be a lot of URLs.
+     *
+     * Since each URL is a separate sub-surface, and requires its own
+     * SHM buffer, we may be allocating a lot of buffers.
+     *
+     * SHM buffers normally have their own, private SHM buffer
+     * pool. Each pool is mmapped, and thus allocates *at least*
+     * 4K. Since URL labels are typically small, we end up using an
+     * excessive amount of both virtual and physical memory.
+     *
+     * For this reason, we instead use shm_get_many(), which uses a
+     * single, shared pool for all buffers.
+     *
+     * To be able to use it, we need to have all the *all* the buffer
+     * dimensions up front.
+     *
+     * Thus, the first iteration through the URLs do the heavy
+     * lifting: builds the label contents and calculates both its
+     * position and size. But instead of rendering the label
+     * immediately, we store the calculated data, and then do a second
+     * pass, where we first get all our buffers, and then render to
+     * them.
+     */
+
+    /* Positioning data + label contents */
+    struct {
+        const struct wl_url *url;
+        wchar_t *text;
+        int x;
+        int y;
+    } info[tll_length(win->urls)];
+
+    /* For shm_get_many() */
+    struct buffer_description shm_desc[tll_length(win->urls)];
+
+    size_t render_count = 0;
 
     tll_foreach(win->urls, it) {
         const struct url *url = it->item.url;
@@ -2953,6 +2995,7 @@ render_urls(struct terminal *term)
         /* Maximum width of label, in pixels */
         const int max_width =
             term->width - term->margins.left - term->margins.right - x;
+        const int max_cols = max_width / term->cell_width;
 
         const size_t key_len = wcslen(key);
 
@@ -2990,10 +3033,6 @@ render_urls(struct terminal *term)
          * Do it in a way such that we don’t cut the label in the
          * middle of a double-width character.
          */
-        const int scale = term->scale;
-        const int x_margin = 2 * scale;
-        const int y_margin = 1 * scale;
-        const int max_cols = max_width / term->cell_width;
 
         int cols = 0;
 
@@ -3021,23 +3060,48 @@ render_urls(struct terminal *term)
         const int height =
             (2 * y_margin + term->cell_height + scale - 1) / scale * scale;
 
-        struct buffer *buf = shm_get_buffer(
-            term->wl->shm, width, height, shm_cookie_url(url), false, 1);
+        info[render_count].url = &it->item;
+        info[render_count].text = xwcsdup(label);
+        info[render_count].x = x;
+        info[render_count].y = y;
+
+        shm_desc[render_count].width = width;
+        shm_desc[render_count].height = height;
+        shm_desc[render_count].cookie = shm_cookie_url(url);
+
+        render_count++;
+    }
+
+    struct buffer *bufs[render_count];
+    shm_get_many(term->wl->shm, render_count, shm_desc, bufs, 1);
+
+    uint32_t fg = term->conf->colors.use_custom.jump_label
+        ? term->conf->colors.jump_label.fg
+        : term->colors.table[0];
+    uint32_t bg = term->conf->colors.use_custom.jump_label
+        ? term->conf->colors.jump_label.bg
+        : term->colors.table[3];
+
+    for (size_t i = 0; i < render_count; i++) {
+        struct wl_surface *surf = info[i].url->surf.surf;
+        struct wl_subsurface *sub_surf = info[i].url->surf.sub;
+
+        const wchar_t *label = info[i].text;
+        const int x = info[i].x;
+        const int y = info[i].y;
+
+        xassert(surf != NULL);
+        xassert(sub_surf != NULL);
 
         wl_subsurface_set_position(
             sub_surf,
             (term->margins.left + x) / term->scale,
             (term->margins.top + y) / term->scale);
 
-        uint32_t fg = term->conf->colors.use_custom.jump_label
-            ? term->conf->colors.jump_label.fg
-            : term->colors.table[0];
-        uint32_t bg = term->conf->colors.use_custom.jump_label
-            ? term->conf->colors.jump_label.bg
-            : term->colors.table[3];
-
         render_osd(
-            term, surf, sub_surf, buf, label, fg, bg, x_margin, y_margin);
+            term, surf, sub_surf, bufs[i], label, fg, bg, x_margin, y_margin);
+
+        free(info[i].text);
     }
 }
 

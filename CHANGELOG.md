@@ -61,6 +61,7 @@
   scrollback search is active.
 * Scrollback indicator being incorrectly rendered when window size is
   very small.
+* Reduced memory usage in URL mode.
 
 
 ### Security
