@@ -7,7 +7,7 @@
 #include <pixman.h>
 #include <wayland-client.h>
 
-#include "terminal.h"
+struct damage;
 
 struct buffer {
     bool locked;           /* Caller owned, shm won’t destroy it */
