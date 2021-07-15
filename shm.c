@@ -89,19 +89,36 @@ buffer_destroy_dont_close(struct buffer *buf)
 }
 
 static void
+pool_unref(struct buffer_pool *pool)
+{
+    if (pool == NULL)
+        return;
+
+    xassert(pool->ref_count > 0);
+    pool->ref_count--;
+
+    if (pool->ref_count > 0)
+        return;
+
+    if (pool->real_mmapped != MAP_FAILED)
+        munmap(pool->real_mmapped, pool->mmap_size);
+    if (pool->wl_pool != NULL)
+        wl_shm_pool_destroy(pool->wl_pool);
+    if (pool->fd >= 0)
+        close(pool->fd);
+
+    pool->real_mmapped = MAP_FAILED;
+    pool->wl_pool = NULL;
+    pool->fd = -1;
+    free(pool);
+}
+
+static void
 buffer_destroy(struct buffer *buf)
 {
     buffer_destroy_dont_close(buf);
-    if (buf->real_mmapped != MAP_FAILED)
-        munmap(buf->real_mmapped, buf->mmap_size);
-    if (buf->pool != NULL)
-        wl_shm_pool_destroy(buf->pool);
-    if (buf->fd >= 0)
-        close(buf->fd);
-
-    buf->real_mmapped = MAP_FAILED;
+    pool_unref(buf->pool);
     buf->pool = NULL;
-    buf->fd = -1;
 
     free(buf->scroll_damage);
     pixman_region32_fini(&buf->dirty);
@@ -124,7 +141,10 @@ static void
 buffer_release(void *data, struct wl_buffer *wl_buffer)
 {
     struct buffer *buffer = data;
-    LOG_DBG("release: cookie=%lx (buf=%p)", buffer->cookie, (void *)buffer);
+
+    LOG_DBG("release: cookie=%lx (buf=%p, total buffer count: %zu)",
+            buffer->cookie, (void *)buffer, tll_length(buffers));
+
     xassert(buffer->wl_buf == wl_buffer);
     xassert(buffer->busy);
     buffer->busy = false;
@@ -159,15 +179,20 @@ instantiate_offset(struct wl_shm *shm, struct buffer *buf, off_t new_offset)
     xassert(buf->mmapped == NULL);
     xassert(buf->wl_buf == NULL);
     xassert(buf->pix == NULL);
+    xassert(buf->pool != NULL);
+
+    const struct buffer_pool *pool = buf->pool;
 
     void *mmapped = MAP_FAILED;
     struct wl_buffer *wl_buf = NULL;
     pixman_image_t **pix = xcalloc(buf->pix_instances, sizeof(*pix));
 
-    mmapped = (uint8_t *)buf->real_mmapped + new_offset;
+    mmapped = (uint8_t *)pool->real_mmapped + new_offset;
 
     wl_buf = wl_shm_pool_create_buffer(
-        buf->pool, new_offset, buf->width, buf->height, buf->stride, WL_SHM_FORMAT_ARGB8888);
+        pool->wl_pool, new_offset, buf->width, buf->height, buf->stride,
+        WL_SHM_FORMAT_ARGB8888);
+
     if (wl_buf == NULL) {
         LOG_ERR("failed to create SHM buffer");
         goto err;
@@ -183,8 +208,8 @@ instantiate_offset(struct wl_shm *shm, struct buffer *buf, off_t new_offset)
         }
     }
 
-    buf->offset = new_offset;
     buf->mmapped = mmapped;
+    buf->offset = new_offset;
     buf->wl_buf = wl_buf;
     buf->pix = pix;
 
@@ -205,18 +230,19 @@ err:
     return false;
 }
 
-struct buffer *
-shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, bool scrollable, size_t pix_instances)
+static void NOINLINE
+destroy_all_purgeables(void)
 {
     /* Purge buffers marked for purging */
     tll_foreach(buffers, it) {
-        if (it->item.cookie != cookie)
+        if (it->item.locked)
             continue;
 
         if (!it->item.purge)
             continue;
 
-        xassert(!it->item.busy);
+        if (it->item.busy)
+            continue;
 
         LOG_DBG("cookie=%lx: purging buffer %p (width=%d, height=%d): %zu KB",
                 cookie, (void *)&it->item, it->item.width, it->item.height,
@@ -225,56 +251,15 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
         buffer_destroy(&it->item);
         tll_remove(buffers, it);
     }
+}
 
-    struct buffer *cached = NULL;
-
-    tll_foreach(buffers, it) {
-        if (it->item.width != width)
-            continue;
-        if (it->item.height != height)
-            continue;
-        if (it->item.cookie != cookie)
-            continue;
-
-        if (it->item.busy)
-            it->item.age++;
-        else
-#if FORCED_DOUBLE_BUFFERING
-            if (it->item.age == 0)
-                it->item.age++;
-            else
-#endif
-            {
-                LOG_DBG("cookie=%lx: re-using buffer from cache (buf=%p)",
-                        cookie, (void *)&it->item);
-                it->item.busy = true;
-                it->item.purge = false;
-                pixman_region32_clear(&it->item.dirty);
-                free(it->item.scroll_damage);
-                it->item.scroll_damage = NULL;
-                xassert(it->item.pix_instances == pix_instances);
-                cached = &it->item;
-            }
-    }
-
-    if (cached != NULL)
-        return cached;
-
-    /* Purge old buffers associated with this cookie */
-    tll_foreach(buffers, it) {
-        if (it->item.cookie != cookie)
-            continue;
-
-        if (it->item.busy)
-            continue;
-
-        if (it->item.width == width && it->item.height == height)
-            continue;
-
-        LOG_DBG("cookie=%lx: marking buffer %p for purging", cookie, (void *)&it->item);
-        it->item.purge = true;
-    }
-
+static void NOINLINE
+get_new_buffers(struct wl_shm *shm, size_t count,
+                struct buffer_description info[static count],
+                struct buffer *bufs[static count],
+                size_t pix_instances, bool scrollable, bool immediate_purge)
+{
+    xassert(count == 1 || !scrollable);
     /*
      * No existing buffer available. Create a new one by:
      *
@@ -285,14 +270,21 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
      * The pixman image and the wayland buffer are now sharing memory.
      */
 
+    int stride[count];
+    int sizes[count];
+
+    size_t total_size = 0;
+    for (size_t i = 0; i < count; i++) {
+        stride[i] = stride_for_format_and_width(PIXMAN_a8r8g8b8, info[i].width);
+        sizes[i] = stride[i] * info[i].height;
+        total_size += sizes[i];
+    }
+
     int pool_fd = -1;
-    const int stride = stride_for_format_and_width(PIXMAN_a8r8g8b8, width);
-    const size_t size = stride * height;
 
     void *real_mmapped = MAP_FAILED;
-    struct wl_shm_pool *pool = NULL;
-
-    LOG_DBG("cookie=%lx: allocating new buffer: %zu KB", cookie, size / 1024);
+    struct wl_shm_pool *wl_pool = NULL;
+    struct buffer_pool *pool = NULL;
 
     /* Backing memory for SHM */
 #if defined(MEMFD_CREATE)
@@ -311,14 +303,16 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
     }
 
 #if __SIZEOF_POINTER__ == 8
-    off_t initial_offset = scrollable && max_pool_size > 0 ? (max_pool_size / 4) & ~(page_size() - 1) : 0;
-    off_t memfd_size = scrollable && max_pool_size > 0 ? max_pool_size : size;
+    off_t offset = scrollable && max_pool_size > 0 ? (max_pool_size / 4) & ~(page_size() - 1) : 0;
+    off_t memfd_size = scrollable && max_pool_size > 0 ? max_pool_size : total_size;
 #else
-    off_t initial_offset = 0;
-    off_t memfd_size = size;
+    off_t offset = 0;
+    off_t memfd_size = total_size;
 #endif
 
-    LOG_DBG("memfd-size: %lu, initial offset: %lu", memfd_size, initial_offset);
+    xassert(scrollable || (offset == 0 && memfd_size == total_size));
+
+    LOG_DBG("memfd-size: %lu, initial offset: %lu", memfd_size, offset);
 
     if (ftruncate(pool_fd, memfd_size) == -1) {
         LOG_ERRNO("failed to set size of SHM backing memory file");
@@ -344,8 +338,8 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
     }
 
     if (scrollable && !can_punch_hole) {
-        initial_offset = 0;
-        memfd_size = size;
+        offset = 0;
+        memfd_size = total_size;
         scrollable = false;
 
         if (ftruncate(pool_fd, memfd_size) < 0) {
@@ -374,37 +368,55 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
     }
 #endif
 
-    pool = wl_shm_create_pool(shm, pool_fd, memfd_size);
-    if (pool == NULL) {
+    wl_pool = wl_shm_create_pool(shm, pool_fd, memfd_size);
+    if (wl_pool == NULL) {
         LOG_ERR("failed to create SHM pool");
         goto err;
     }
 
-    /* Push to list of available buffers, but marked as 'busy' */
-    tll_push_back(
-        buffers,
-        ((struct buffer){
-            .cookie = cookie,
-            .width = width,
-            .height = height,
-            .stride = stride,
-            .busy = true,
-            .size = size,
-            .pix_instances = pix_instances,
-            .fd = pool_fd,
-            .pool = pool,
-            .scrollable = scrollable,
-            .real_mmapped = real_mmapped,
-            .mmap_size = memfd_size,
-            .offset = 0,
-            .age = 1234,  /* Force a full repaint */
-        }));
-
-    struct buffer *ret = &tll_back(buffers);
-    if (!instantiate_offset(shm, ret, initial_offset))
+    pool = malloc(sizeof(*pool));
+    if (pool == NULL) {
+        LOG_ERRNO("failed to allocate buffer pool");
         goto err;
+    }
 
-    pixman_region32_init(&ret->dirty);
+    *pool = (struct buffer_pool){
+        .fd = pool_fd,
+        .wl_pool = wl_pool,
+        .real_mmapped = real_mmapped,
+        .mmap_size = memfd_size,
+        .ref_count = 0,
+    };
+
+    for (size_t i = 0; i < count; i++) {
+
+        /* Push to list of available buffers, but marked as 'busy' */
+        tll_push_front(
+            buffers,
+            ((struct buffer){
+                .cookie = info[i].cookie,
+                .width = info[i].width,
+                .height = info[i].height,
+                .stride = stride[i],
+                .busy = true,
+                .purge = immediate_purge,
+                .size = sizes[i],
+                .pix_instances = pix_instances,
+                .pool = pool,
+                .scrollable = scrollable,
+                .offset = 0,
+                .age = 1234,  /* Force a full repaint */
+            }));
+
+        struct buffer *buf = &tll_front(buffers);
+        if (!instantiate_offset(shm, buf, offset))
+            goto err;
+
+        pixman_region32_init(&buf->dirty);
+        pool->ref_count++;
+        offset += buf->size;
+        bufs[i] = buf;
+    }
 
 #if defined(MEASURE_SHM_ALLOCS) && MEASURE_SHM_ALLOCS
     {
@@ -416,18 +428,19 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie, 
     }
 #endif
 
-    if (!shm_can_scroll(ret)) {
+    if (!shm_can_scroll(bufs[0])) {
         /* We only need to keep the pool FD open if we’re going to SHM
          * scroll it */
         close(pool_fd);
-        ret->fd = -1;
+        pool->fd = -1;
     }
 
-    return ret;
+    return;
 
 err:
-    if (pool != NULL)
-        wl_shm_pool_destroy(pool);
+    pool_unref(pool);
+    if (wl_pool != NULL)
+        wl_shm_pool_destroy(wl_pool);
     if (real_mmapped != MAP_FAILED)
         munmap(real_mmapped, memfd_size);
     if (pool_fd != -1)
@@ -435,7 +448,78 @@ err:
 
     /* We don't handle this */
     abort();
-    return NULL;
+}
+
+void
+shm_get_many(struct wl_shm *shm, size_t count,
+             struct buffer_description info[static count],
+             struct buffer *bufs[static count],
+             size_t pix_instances)
+{
+    destroy_all_purgeables();
+    get_new_buffers(shm, count, info, bufs, pix_instances, false, true);
+}
+
+struct buffer *
+shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie,
+               bool scrollable, size_t pix_instances)
+{
+    destroy_all_purgeables();
+
+    struct buffer *cached = NULL;
+    tll_foreach(buffers, it) {
+        if (it->item.width != width)
+            continue;
+        if (it->item.height != height)
+            continue;
+        if (it->item.cookie != cookie)
+            continue;
+
+        if (it->item.busy)
+            it->item.age++;
+        else
+#if FORCED_DOUBLE_BUFFERING
+            if (it->item.age == 0)
+                it->item.age++;
+            else
+#endif
+            {
+                if (cached == NULL) {
+                    LOG_DBG("cookie=%lx: re-using buffer from cache (buf=%p)",
+                            cookie, (void *)&it->item);
+                    it->item.busy = true;
+                    it->item.purge = false;
+                    pixman_region32_clear(&it->item.dirty);
+                    free(it->item.scroll_damage);
+                    it->item.scroll_damage = NULL;
+                    xassert(it->item.pix_instances == pix_instances);
+                    cached = &it->item;
+                }
+            }
+    }
+
+    if (cached != NULL)
+        return cached;
+
+    /* Mark old buffers associated with this cookie for purging */
+    tll_foreach(buffers, it) {
+        if (it->item.cookie != cookie)
+            continue;
+
+        if (it->item.busy)
+            continue;
+
+        if (it->item.width == width && it->item.height == height)
+            continue;
+
+        LOG_DBG("cookie=%lx: marking buffer %p for purging", cookie, (void *)&it->item);
+        it->item.purge = true;
+    }
+
+    struct buffer *ret;
+    get_new_buffers(shm, 1, &(struct buffer_description){width, height, cookie},
+                    &ret, pix_instances, scrollable, false);
+    return ret;
 }
 
 bool
@@ -453,12 +537,15 @@ shm_can_scroll(const struct buffer *buf)
 static bool
 wrap_buffer(struct wl_shm *shm, struct buffer *buf, off_t new_offset)
 {
+    struct buffer_pool *pool = buf->pool;
+    xassert(pool->ref_count == 1);
+
     /* We don't allow overlapping offsets */
     off_t UNUSED diff =
         new_offset < buf->offset ? buf->offset - new_offset : new_offset - buf->offset;
     xassert(diff > buf->size);
 
-    memcpy((uint8_t *)buf->real_mmapped + new_offset, buf->mmapped, buf->size);
+    memcpy((uint8_t *)pool->real_mmapped + new_offset, buf->mmapped, buf->size);
 
     off_t trim_ofs, trim_len;
     if (new_offset > buf->offset) {
@@ -468,11 +555,11 @@ wrap_buffer(struct wl_shm *shm, struct buffer *buf, off_t new_offset)
     } else {
         /* Trim everything *after* the new buffer location */
         trim_ofs = new_offset + buf->size;
-        trim_len = buf->mmap_size - trim_ofs;
+        trim_len = pool->mmap_size - trim_ofs;
     }
 
     if (fallocate(
-            buf->fd,
+            pool->fd,
             FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
             trim_ofs, trim_len) < 0)
     {
@@ -490,11 +577,15 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer *buf, int rows,
                    int top_margin, int top_keep_rows,
                    int bottom_margin, int bottom_keep_rows)
 {
+    struct buffer_pool *pool = buf->pool;
+
     xassert(can_punch_hole);
     xassert(buf->busy);
     xassert(buf->pix);
     xassert(buf->wl_buf);
-    xassert(buf->fd >= 0);
+    xassert(pool != NULL);
+    xassert(pool->ref_count == 1);
+    xassert(pool->fd >= 0);
 
     LOG_DBG("scrolling %d rows (%d bytes)", rows, rows * buf->stride);
 
@@ -541,7 +632,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer *buf, int rows,
     const off_t trim_len = new_offset;
 
     if (fallocate(
-            buf->fd,
+            pool->fd,
             FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
             trim_ofs, trim_len) < 0)
     {
@@ -596,6 +687,9 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer *buf, int rows,
 {
     xassert(rows > 0);
 
+    struct buffer_pool *pool = buf->pool;
+    xassert(pool->ref_count == 1);
+
     const off_t diff = rows * buf->stride;
     if (diff > buf->offset) {
         LOG_DBG("memfd offset reverse wrap-around");
@@ -634,10 +728,10 @@ shm_scroll_reverse(struct wl_shm *shm, struct buffer *buf, int rows,
 
     /* Free unused memory - everything after the relocated buffer */
     const off_t trim_ofs = new_offset + buf->size;
-    const off_t trim_len = buf->mmap_size - trim_ofs;
+    const off_t trim_len = pool->mmap_size - trim_ofs;
 
     if (fallocate(
-            buf->fd,
+            pool->fd,
             FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
             trim_ofs, trim_len) < 0)
     {
@@ -712,9 +806,13 @@ shm_purge(struct wl_shm *shm, unsigned long cookie)
         if (it->item.cookie != cookie)
             continue;
 
-        xassert(!it->item.busy);
-
-        buffer_destroy(&it->item);
-        tll_remove(buffers, it);
+         if (it->item.busy) {
+            LOG_WARN("deferring purge of 'busy' buffer (width=%d, height=%d)",
+                     it->item.width, it->item.height);
+            it->item.purge = true;
+        } else {
+            buffer_destroy(&it->item);
+            tll_remove(buffers, it);
+        }
     }
 }

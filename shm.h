@@ -9,6 +9,16 @@
 
 #include "terminal.h"
 
+struct buffer_pool {
+    int fd;                /* memfd */
+    struct wl_shm_pool *wl_pool;
+
+    void *real_mmapped;    /* Address returned from mmap */
+    size_t mmap_size;      /* Size of mmap (>= size) */
+
+    size_t ref_count;
+};
+
 struct buffer {
     unsigned long cookie;
 
@@ -16,7 +26,8 @@ struct buffer {
     int height;
     int stride;
 
-    bool busy;
+    bool locked;           /* Caller owned, shm won’t destroy it */
+    bool busy;             /* Owned by compositor */
     size_t size;           /* Buffer size */
     void *mmapped;         /* Raw data (TODO: rename) */
 
@@ -25,11 +36,7 @@ struct buffer {
     size_t pix_instances;
 
     /* Internal */
-    int fd;                /* memfd */
-    struct wl_shm_pool *pool;
-
-    void *real_mmapped;    /* Address returned from mmap */
-    size_t mmap_size;      /* Size of mmap (>= size) */
+    struct buffer_pool *pool;
     off_t offset;          /* Offset into memfd where data begins */
 
     bool scrollable;
@@ -41,11 +48,47 @@ struct buffer {
     pixman_region32_t dirty;
 };
 
-struct buffer *shm_get_buffer(
-    struct wl_shm *shm, int width, int height, unsigned long cookie, bool scrollable, size_t pix_instances);
-void shm_fini(void);
+struct buffer_description {
+    int width;
+    int height;
+    unsigned long cookie;
+};
 
+void shm_fini(void);
 void shm_set_max_pool_size(off_t max_pool_size);
+
+/*
+ * Returns a single buffer.
+ *
+ * May returned a cached buffer. If so, the buffer’s age indicates how
+ * many shm_get_buffer() calls have been made for the same
+ * width/height/cookie while the buffer was still busy.
+ *
+ * A newly allocated buffer has an age of 1234.
+ */
+struct buffer *shm_get_buffer(
+    struct wl_shm *shm, int width, int height, unsigned long cookie,
+    bool scrollable, size_t pix_instances);
+
+/*
+ * Returns many buffers, described by ‘info’, all sharing the same SHM
+ * buffer pool.
+ *
+ * Never returns cached buffers. However, the newly created buffers
+ * are all inserted into the regular buffer cache, and are treated
+ * just like buffers created by shm_get_buffer().
+ *
+ * This function is useful when allocating many small buffers, with
+ * (roughly) the same life time.
+ *
+ * Buffers are tagged for immediate purging, and will be destroyed as
+ * soon as the compositor releases them.
+ */
+void shm_get_many(
+    struct wl_shm *shm, size_t count,
+    struct buffer_description info[static count],
+    struct buffer *bufs[static count], size_t pix_instances);
+
 bool shm_can_scroll(const struct buffer *buf);
 bool shm_scroll(struct wl_shm *shm, struct buffer *buf, int rows,
                 int top_margin, int top_keep_rows,
