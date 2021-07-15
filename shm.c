@@ -495,7 +495,7 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie,
                     xassert(it->item.pix_instances == pix_instances);
                     cached = &it->item;
                 } else {
-                    /* We have multiple buffers eligable for
+                    /* We have multiple buffers eligible for
                      * re-use. Pick the “youngest” one, and mark the
                      * other one for purging */
                     if (it->item.age < cached->age) {
