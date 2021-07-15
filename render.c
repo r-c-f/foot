@@ -815,13 +815,10 @@ render_margin(struct terminal *term, struct buffer *buf,
     const int line_count = end_line - start_line;
 
     uint32_t _bg = !term->reverse ? term->colors.bg : term->colors.fg;
-    if (term->is_searching)
-        _bg = color_dim(_bg);
+    pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, term->colors.alpha);
 
-    pixman_color_t bg = color_hex_to_pixman_with_alpha(
-        _bg,
-        (_bg == (term->reverse ? term->colors.fg : term->colors.bg)
-         ? term->colors.alpha : 0xffff));
+    if (term->is_searching)
+        color_dim_for_search(&bg);
 
     pixman_image_fill_rectangles(
         PIXMAN_OP_SRC, buf->pix[0], &bg, 4,
