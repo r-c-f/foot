@@ -9,38 +9,19 @@
 
 #include "terminal.h"
 
-struct buffer_pool {
-    int fd;                /* memfd */
-    struct wl_shm_pool *wl_pool;
-
-    void *real_mmapped;    /* Address returned from mmap */
-    size_t mmap_size;      /* Size of mmap (>= size) */
-
-    size_t ref_count;
-};
-
 struct buffer {
-    unsigned long cookie;
+    bool locked;           /* Caller owned, shm won’t destroy it */
 
     int width;
     int height;
     int stride;
 
-    bool locked;           /* Caller owned, shm won’t destroy it */
-    bool busy;             /* Owned by compositor */
     size_t size;           /* Buffer size */
     void *mmapped;         /* Raw data (TODO: rename) */
 
     struct wl_buffer *wl_buf;
     pixman_image_t **pix;
     size_t pix_instances;
-
-    /* Internal */
-    struct buffer_pool *pool;
-    off_t offset;          /* Offset into memfd where data begins */
-
-    bool scrollable;
-    bool purge;            /* True if this buffer should be destroyed */
 
     unsigned age;
     struct damage *scroll_damage;
