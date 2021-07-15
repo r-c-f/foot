@@ -2626,6 +2626,12 @@ render_search_box(struct terminal *term)
     unsigned long cookie = shm_cookie_search(term);
     struct buffer *buf = shm_get_buffer(term->wl->shm, width, height, cookie, false, 1);
 
+    pixman_region32_t clip;
+    pixman_region32_init_rect(&clip, 0, 0, width, height);
+    pixman_image_set_clip_region32(buf->pix[0], &clip);
+    pixman_region32_fini(&clip);
+
+
 #define WINDOW_X(x) (margin + x)
 #define WINDOW_Y(y) (term->height - margin - height + y)
 

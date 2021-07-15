@@ -57,6 +57,8 @@
   rows.
 * Some box-drawing characters were rendered incorrectly on big-endian
   architectures.
+* Crash when resizing the window to the smallest possible size while
+  scrollback search is active.
 * Scrollback indicator being incorrectly rendered when window size is
   very small.
 
