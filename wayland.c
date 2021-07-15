@@ -1447,6 +1447,12 @@ wayl_win_destroy(struct wl_window *win)
         wl_surface_commit(win->search.surf);
     }
 
+    /* URLs */
+    tll_foreach(win->urls, it) {
+        wl_surface_attach(it->item.surf.surf, NULL, 0, 0);
+        wl_surface_commit(it->item.surf.surf);
+    }
+
     /* CSD */
     for (size_t i = 0; i < ALEN(win->csd.surface); i++) {
         if (win->csd.surface[i].surf != NULL) {
