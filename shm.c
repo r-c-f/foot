@@ -515,6 +515,11 @@ shm_get_many(struct buffer_chain *chain, size_t count,
 struct buffer *
 shm_get_buffer(struct buffer_chain *chain, int width, int height)
 {
+    LOG_DBG(
+        "chain=%p: looking for a re-usable %dx%d buffer "
+        "among %zu potential buffers",
+        (void *)chain, width, height, tll_length(chain->bufs));
+
     struct buffer_private *cached = NULL;
     tll_foreach(chain->bufs, it) {
         struct buffer_private *buf = it->item;
@@ -919,5 +924,11 @@ shm_chain_free(struct buffer_chain *chain)
         return;
 
     shm_purge(chain);
+
+    if (tll_length(chain->bufs) > 0) {
+        BUG("chain=%p: there are buffers remaining; "
+            "is there a missing call to shm_unref()?", (void *)chain);
+    }
+
     free(chain);
 }
