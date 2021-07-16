@@ -917,26 +917,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
             case 3: {
                 /* Erase scrollback */
-                int end = (term->grid->offset + term->rows - 1) % term->grid->num_rows;
-                for (size_t i = 0; i < term->grid->num_rows; i++) {
-                    if (end >= term->grid->offset) {
-                        /* Not wrapped */
-                        if (i >= term->grid->offset && i <= end)
-                            continue;
-                    } else {
-                        /* Wrapped */
-                        if (i >= term->grid->offset || i <= end)
-                            continue;
-                    }
-
-                    if (term->render.last_cursor.row == term->grid->rows[i])
-                        term->render.last_cursor.row = NULL;
-
-                    grid_row_free(term->grid->rows[i]);
-                    term->grid->rows[i] = NULL;
-                }
-                term->grid->view = term->grid->offset;
-                term_damage_view(term);
+                term_erase_scrollback(term);
                 break;
             }
 

@@ -2011,6 +2011,69 @@ term_erase(struct terminal *term, const struct coord *start, const struct coord 
     sixel_overwrite_by_row(term, end->row, 0, end->col + 1);
 }
 
+void
+term_erase_scrollback(struct terminal *term)
+{
+    const int mask = term->grid->num_rows - 1;
+    const int start = (term->grid->offset + term->rows) & mask;
+    const int end = (term->grid->offset - 1) & mask;
+    const int sel_start = term->selection.start.row;
+    const int sel_end = term->selection.end.row;
+
+    if (sel_end >= 0) {
+        /*
+         * Cancel selection if it touches any of the rows in the
+         * scrollback, since we can’t have the selection reference
+         * soon-to-be deleted rows.
+         *
+         * This is done by range checking the selection range against
+         * the scrollback range.
+         *
+         * To make this comparison simpler, the start/end absolute row
+         * numbers are “rebased” against the scrollback start, where
+         * row 0 is the *first* row in the scrollback. A high number
+         * thus means the row is further *down* in the scrollback,
+         * closer to the screen bottom.
+         */
+        int scrollback_start = term->grid->offset + term->rows;
+
+        int rel_sel_start = sel_start - scrollback_start + term->grid->num_rows;
+        int rel_sel_end = sel_end - scrollback_start + term->grid->num_rows;
+
+        int rel_start = start - scrollback_start + term->grid->num_rows;
+        int rel_end = end - scrollback_start + term->grid->num_rows;
+
+        rel_sel_start &= mask;
+        rel_sel_end &= mask;
+        rel_start &= mask;
+        rel_end &= mask;
+
+        if ((rel_sel_start <= rel_start && rel_sel_end >= rel_start) ||
+            (rel_sel_start <= rel_end && rel_sel_end >= rel_end) ||
+            (rel_sel_start >= rel_start && rel_sel_end <= rel_end))
+        {
+            selection_cancel(term);
+        }
+    }
+
+    for (int i = start;; i = (i + 1) & mask) {
+        struct row *row = term->grid->rows[i];
+        if (row != NULL) {
+            if (term->render.last_cursor.row == row)
+                term->render.last_cursor.row = NULL;
+
+            grid_row_free(row);
+            term->grid->rows[i] = NULL;
+        }
+
+        if (i == end)
+            break;
+    }
+
+    term->grid->view = term->grid->offset;
+    term_damage_view(term);
+}
+
 int
 term_row_rel_to_abs(const struct terminal *term, int row)
 {
