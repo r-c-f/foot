@@ -52,11 +52,10 @@ static void
 csd_destroy(struct wl_window *win)
 {
     struct terminal *term = win->term;
-    struct wl_shm *shm = term->wl->shm;
 
     for (size_t i = 0; i < ALEN(win->csd.surface); i++) {
         wayl_win_subsurface_destroy(&win->csd.surface[i]);
-        shm_purge(shm, shm_cookie_csd(term, i));
+        shm_purge(term->render.chains.csd[i]);
     }
 }
 
@@ -1417,7 +1416,6 @@ wayl_win_destroy(struct wl_window *win)
         return;
 
     struct terminal *term = win->term;
-    struct wl_shm *shm = term->wl->shm;
 
     if (win->csd.move_timeout_fd != -1)
         close(win->csd.move_timeout_fd);
@@ -1472,7 +1470,7 @@ wayl_win_destroy(struct wl_window *win)
 
     tll_foreach(win->urls, it) {
         wayl_win_subsurface_destroy(&it->item.surf);
-        shm_purge(shm, shm_cookie_url(it->item.url));
+        shm_purge(term->render.chains.url);
         tll_remove(win->urls, it);
     }
 
@@ -1481,13 +1479,13 @@ wayl_win_destroy(struct wl_window *win)
     wayl_win_subsurface_destroy(&win->scrollback_indicator);
     wayl_win_subsurface_destroy(&win->render_timer);
 
-    shm_purge(shm, shm_cookie_search(term));
-    shm_purge(shm, shm_cookie_scrollback_indicator(term));
-    shm_purge(shm, shm_cookie_render_timer(term));
-    shm_purge(shm, shm_cookie_grid(term));
+    shm_purge(term->render.chains.search);
+    shm_purge(term->render.chains.scrollback_indicator);
+    shm_purge(term->render.chains.render_timer);
+    shm_purge(term->render.chains.grid);
 
     for (size_t i = 0; i < ALEN(win->csd.surface); i++)
-        shm_purge(shm, shm_cookie_csd(term, i));
+        shm_purge(term->render.chains.csd[i]);
 
 #if defined(HAVE_XDG_ACTIVATION)
     if (win->xdg_activation_token != NULL)

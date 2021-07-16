@@ -21,6 +21,7 @@
 #include "fdm.h"
 #include "macros.h"
 #include "reaper.h"
+#include "shm.h"
 #include "wayland.h"
 
 /*
@@ -475,6 +476,15 @@ struct terminal {
     enum term_surface active_surface;
 
     struct {
+        struct {
+            struct buffer_chain *grid;
+            struct buffer_chain *search;
+            struct buffer_chain *scrollback_indicator;
+            struct buffer_chain *render_timer;
+            struct buffer_chain *url;
+            struct buffer_chain *csd[CSD_SURF_COUNT];
+        } chains;
+
         /* Scheduled for rendering, as soon-as-possible */
         struct {
             bool grid;
