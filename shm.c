@@ -82,7 +82,8 @@ struct buffer_private {
     bool scrollable;
 };
 
-static tll(struct buffer_private) buffers;
+static tll(struct buffer_private *) buffers;
+static tll(struct buffer_private *) deferred;
 
 #undef MEASURE_SHM_ALLOCS
 #if defined(MEASURE_SHM_ALLOCS)
@@ -146,18 +147,22 @@ buffer_destroy(struct buffer_private *buf)
 
     free(buf->public.scroll_damage);
     pixman_region32_fini(&buf->public.dirty);
+    free(buf);
 }
 
 static bool
 buffer_unref_no_remove_from_cache(struct buffer_private *buf)
 {
-    if (buf->ref_count > 0)
-        buf->ref_count--;
+    xassert(buf->ref_count > 0);
+    buf->ref_count--;
 
-    if (buf->ref_count > 0 || buf->busy)
+    if (buf->ref_count > 0)
         return false;
 
-    buffer_destroy(buf);
+    if (buf->busy)
+        tll_push_back(deferred, buf);
+    else
+        buffer_destroy(buf);
     return true;
 }
 
@@ -168,13 +173,21 @@ shm_fini(void)
     size_t non_busy_count UNUSED = 0;
 
     tll_foreach(buffers, it) {
-        if (it->item.busy)
+        if (it->item->busy)
             busy_count++;
         else
             non_busy_count++;
 
-        buffer_destroy(&it->item);
+        buffer_destroy(it->item);
         tll_remove(buffers, it);
+    }
+
+    xassert(busy_count == 0);
+    busy_count = tll_length(deferred);
+
+    tll_foreach(deferred, it) {
+        buffer_destroy(it->item);
+        tll_remove(deferred, it);
     }
 
     LOG_DBG("buffers left: busy=%zu, non-busy=%zu", busy_count, non_busy_count);
@@ -201,8 +214,21 @@ buffer_release(void *data, struct wl_buffer *wl_buffer)
     xassert(buffer->busy);
     buffer->busy = false;
 
-    if (buffer->ref_count == 0)
-        shm_unref(&buffer->public);
+    if (buffer->ref_count == 0) {
+        LOG_WARN("deferred delete");
+
+        bool found = false;
+        tll_foreach(deferred, it) {
+            if (it->item == buffer) {
+                found = true;
+                buffer_destroy(buffer);
+                tll_remove(deferred, it);
+                break;
+            }
+        }
+
+        xassert(found);
+    }
 }
 
 static const struct wl_buffer_listener buffer_listener = {
@@ -425,28 +451,33 @@ get_new_buffers(struct wl_shm *shm, size_t count,
     for (size_t i = 0; i < count; i++) {
 
         /* Push to list of available buffers, but marked as 'busy' */
-        tll_push_front(
-            buffers,
-            ((struct buffer_private){
-                .public = {
-                    .width = info[i].width,
-                    .height = info[i].height,
-                    .stride = stride[i],
-                    .pix_instances = pix_instances,
-                    .age = 1234,  /* Force a full repaint */
-                },
-                .cookie = info[i].cookie,
-                .ref_count = immediate_purge ? 0 : 1,
-                .size = sizes[i],
-                .busy = true,
-                .pool = pool,
-                .scrollable = scrollable,
-                .offset = 0,
-            }));
+        struct buffer_private *buf = xmalloc(sizeof(*buf));
+        *buf = (struct buffer_private){
+            .public = {
+                .width = info[i].width,
+                .height = info[i].height,
+                .stride = stride[i],
+                .pix_instances = pix_instances,
+                .age = 1234,  /* Force a full repaint */
+            },
+            .cookie = info[i].cookie,
+            .ref_count = immediate_purge ? 0 : 1,
+            .size = sizes[i],
+            .busy = true,
+            .pool = pool,
+            .scrollable = scrollable,
+            .offset = 0,
+        };
 
-        struct buffer_private *buf = &tll_front(buffers);
-        if (!instantiate_offset(shm, buf, offset))
+        if (!instantiate_offset(shm, buf, offset)) {
+            free(buf);
             goto err;
+        }
+
+        if (immediate_purge)
+            tll_push_front(deferred, buf);
+        else
+            tll_push_front(buffers, buf);
 
         pixman_region32_init(&buf->public.dirty);
         pool->ref_count++;
@@ -501,40 +532,42 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie,
 {
     struct buffer_private *cached = NULL;
     tll_foreach(buffers, it) {
-        if (it->item.public.width != width)
+        struct buffer_private *buf = it->item;
+
+        if (buf->public.width != width)
             continue;
-        if (it->item.public.height != height)
+        if (buf->public.height != height)
             continue;
-        if (it->item.cookie != cookie)
+        if (buf->cookie != cookie)
             continue;
 
-        if (it->item.busy)
-            it->item.public.age++;
+        if (buf->busy)
+            buf->public.age++;
         else
 #if FORCED_DOUBLE_BUFFERING
-            if (it->item.age == 0)
-                it->item.age++;
+            if (buf->age == 0)
+                buf->age++;
             else
 #endif
             {
                 if (cached == NULL) {
                     LOG_DBG("cookie=%lx: re-using buffer from cache (buf=%p)",
-                            cookie, (void *)&it->item);
-                    it->item.busy = true;
-                    pixman_region32_clear(&it->item.public.dirty);
-                    free(it->item.public.scroll_damage);
-                    it->item.public.scroll_damage = NULL;
-                    xassert(it->item.public.pix_instances == pix_instances);
-                    cached = &it->item;
+                            cookie, (void *)buf);
+                    buf->busy = true;
+                    pixman_region32_clear(&buf->public.dirty);
+                    free(buf->public.scroll_damage);
+                    buf->public.scroll_damage = NULL;
+                    xassert(buf->public.pix_instances == pix_instances);
+                    cached = it->item;
                 } else {
                     /* We have multiple buffers eligible for
                      * re-use. Pick the “youngest” one, and mark the
                      * other one for purging */
-                    if (it->item.public.age < cached->public.age) {
+                    if (buf->public.age < cached->public.age) {
                         shm_unref(&cached->public);
-                        cached = &it->item;
+                        cached = buf;
                     } else {
-                        if (buffer_unref_no_remove_from_cache(&it->item))
+                        if (buffer_unref_no_remove_from_cache(buf))
                             tll_remove(buffers, it);
                     }
                 }
@@ -546,14 +579,16 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie,
 
     /* Mark old buffers associated with this cookie for purging */
     tll_foreach(buffers, it) {
-        if (it->item.cookie != cookie)
+        struct buffer_private *buf = it->item;
+
+        if (buf->cookie != cookie)
             continue;
 
-        if (it->item.public.width == width && it->item.public.height == height)
+        if (buf->public.width == width && buf->public.height == height)
             continue;
 
-        LOG_DBG("cookie=%lx: marking buffer %p for purging", cookie, (void *)&it->item);
-        if (buffer_unref_no_remove_from_cache(&it->item))
+        LOG_DBG("cookie=%lx: marking buffer %p for purging", cookie, (void *)buf);
+        if (buffer_unref_no_remove_from_cache(buf))
             tll_remove(buffers, it);
     }
 
@@ -864,10 +899,12 @@ shm_purge(struct wl_shm *shm, unsigned long cookie)
 
     /* Purge old buffers associated with this cookie */
     tll_foreach(buffers, it) {
-        if (it->item.cookie != cookie)
+        struct buffer_private *buf = it->item;
+
+        if (buf->cookie != cookie)
             continue;
 
-        if (buffer_unref_no_remove_from_cache(&it->item))
+        if (buffer_unref_no_remove_from_cache(buf))
             tll_remove(buffers, it);
     }
 }
@@ -887,7 +924,7 @@ shm_unref(struct buffer *_buf)
 
     struct buffer_private *buf = (struct buffer_private *)_buf;
     tll_foreach(buffers, it) {
-        if (&it->item != buf)
+        if (it->item != buf)
             continue;
 
         if (buffer_unref_no_remove_from_cache(buf))
