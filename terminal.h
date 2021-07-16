@@ -378,7 +378,7 @@ struct terminal {
         bool ime:1;
         bool app_sync_updates:1;
 
-        bool sixel_scrolling:1;
+        bool sixel_display_mode:1;
         bool sixel_private_palette:1;
         bool sixel_cursor_right_of_graphics:1;
     } xtsave;
