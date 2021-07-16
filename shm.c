@@ -519,10 +519,12 @@ shm_get_buffer(struct buffer_chain *chain, int width, int height)
     tll_foreach(chain->bufs, it) {
         struct buffer_private *buf = it->item;
 
-        if (buf->public.width != width)
+        if (buf->public.width != width || buf->public.height != height) {
+            LOG_DBG("purging mismatching buffer %p", (void *)buf);
+            if (buffer_unref_no_remove_from_chain(buf))
+                tll_remove(chain->bufs, it);
             continue;
-        if (buf->public.height != height)
-            continue;
+        }
 
         if (buf->busy)
             buf->public.age++;
@@ -558,18 +560,6 @@ shm_get_buffer(struct buffer_chain *chain, int width, int height)
 
     if (cached != NULL)
         return &cached->public;
-
-    /* Mark old buffers associated with this cookie for purging */
-    tll_foreach(chain->bufs, it) {
-        struct buffer_private *buf = it->item;
-
-        if (buf->public.width == width && buf->public.height == height)
-            continue;
-
-        LOG_DBG("marking buffer %p for purging", (void *)buf);
-        if (buffer_unref_no_remove_from_chain(buf))
-            tll_remove(chain->bufs, it);
-    }
 
     struct buffer *ret;
     get_new_buffers(chain, 1, &width, &height, &ret, false);
@@ -909,16 +899,6 @@ shm_unref(struct buffer *_buf)
     }
 }
 
-void
-shm_chain_purge(struct buffer_chain *chain)
-{
-    tll_foreach(chain->bufs, it) {
-        struct buffer_private *buf = it->item;
-        if (buffer_unref_no_remove_from_chain(buf))
-            tll_remove(chain->bufs, it);
-    }
-}
-
 struct buffer_chain *
 shm_chain_new(struct wl_shm *shm, bool scrollable, size_t pix_instances)
 {
@@ -938,6 +918,6 @@ shm_chain_free(struct buffer_chain *chain)
     if (chain == NULL)
         return;
 
-    shm_chain_purge(chain);
+    shm_purge(chain);
     free(chain);
 }
