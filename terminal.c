@@ -35,6 +35,7 @@
 #include "selection.h"
 #include "sixel.h"
 #include "slave.h"
+#include "shm.h"
 #include "spawn.h"
 #include "url-mode.h"
 #include "util.h"
@@ -1457,6 +1458,7 @@ term_destroy(struct terminal *term)
     sem_destroy(&term->render.workers.done);
     xassert(tll_length(term->render.workers.queue) == 0);
     tll_free(term->render.workers.queue);
+    shm_unref(term->render.last_buf);
 
     tll_free(term->tab_stops);
 

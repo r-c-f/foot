@@ -2324,19 +2324,18 @@ grid_render(struct terminal *term)
     }
 
     if (term->render.last_buf != NULL) {
-        term->render.last_buf->locked = false;
-        free(term->render.last_buf->scroll_damage);
-        term->render.last_buf->scroll_damage = NULL;
+        shm_unref(term->render.last_buf);
+        term->render.last_buf = NULL;
     }
 
     term->render.last_buf = buf;
     term->render.was_flashing = term->flash.active;
     term->render.was_searching = term->is_searching;
 
-    buf->locked = true;
+    shm_addref(buf);
     buf->age = 0;
 
-    xassert(buf->scroll_damage == NULL);
+    free(term->render.last_buf->scroll_damage);
     buf->scroll_damage_count = tll_length(term->grid->scroll_damage);
     buf->scroll_damage = xmalloc(
         buf->scroll_damage_count * sizeof(buf->scroll_damage[0]));
@@ -3484,8 +3483,7 @@ damage_view:
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 
-    if (term->render.last_buf != NULL)
-        term->render.last_buf->locked = false;
+    shm_unref(term->render.last_buf);
     term->render.last_buf = NULL;
     term_damage_view(term);
     render_refresh_csd(term);

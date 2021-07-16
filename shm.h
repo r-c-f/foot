@@ -10,8 +10,6 @@
 struct damage;
 
 struct buffer {
-    bool locked;           /* Caller owned, shm won’t destroy it */
-
     int width;
     int height;
     int stride;
@@ -23,6 +21,7 @@ struct buffer {
     size_t pix_instances;
 
     unsigned age;
+
     struct damage *scroll_damage;
     size_t scroll_damage_count;
     pixman_region32_t dirty;
@@ -74,6 +73,8 @@ bool shm_scroll(struct wl_shm *shm, struct buffer *buf, int rows,
                 int top_margin, int top_keep_rows,
                 int bottom_margin, int bottom_keep_rows);
 
+void shm_addref(struct buffer *buf);
+void shm_unref(struct buffer *buf);
 void shm_purge(struct wl_shm *shm, unsigned long cookie);
 
 struct terminal;
