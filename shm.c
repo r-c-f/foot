@@ -151,11 +151,24 @@ buffer_destroy(struct buffer_private *buf)
 void
 shm_fini(void)
 {
-    xassert(tll_length(buffers) == 0);
+    size_t busy_count UNUSED = 0;
+    size_t non_busy_count UNUSED = 0;
 
     tll_foreach(buffers, it) {
+        if (it->item.busy)
+            busy_count++;
+        else
+            non_busy_count++;
+
         buffer_destroy(&it->item);
         tll_remove(buffers, it);
+    }
+
+    LOG_DBG("buffers left: busy=%zu, non-busy=%zu", busy_count, non_busy_count);
+
+    if (non_busy_count > 0) {
+        BUG("%zu non-busy buffers remaining (%zu buffers in total)",
+            non_busy_count, busy_count + non_busy_count);
     }
 
 #if defined(MEASURE_SHM_ALLOCS) && MEASURE_SHM_ALLOCS
@@ -272,8 +285,9 @@ destroy_all_purgeables(void)
         if (it->item.busy)
             continue;
 
-        LOG_DBG("cookie=%lx: purging buffer %p (width=%d, height=%d): %zu KB",
-                cookie, (void *)&it->item, it->item.width, it->item.height,
+        LOG_DBG("purging buffer %p (width=%d, height=%d): %zu KB",
+                (void *)&it->item,
+                it->item.public.width, it->item.public.height,
                 it->item.size / 1024);
 
         buffer_destroy(&it->item);
@@ -630,7 +644,7 @@ shm_scroll_forward(struct wl_shm *shm, struct buffer_private *buf, int rows,
     xassert(pool->ref_count == 1);
     xassert(pool->fd >= 0);
 
-    LOG_DBG("scrolling %d rows (%d bytes)", rows, rows * buf->stride);
+    LOG_DBG("scrolling %d rows (%d bytes)", rows, rows * buf->public.stride);
 
     const off_t diff = rows * buf->public.stride;
     xassert(rows > 0);
@@ -865,9 +879,9 @@ shm_purge(struct wl_shm *shm, unsigned long cookie)
         if (it->item.cookie != cookie)
             continue;
 
-         if (it->item.busy) {
-            LOG_WARN("deferring purge of 'busy' buffer (width=%d, height=%d)",
-                     it->item.public.width, it->item.public.height);
+        if (it->item.busy) {
+            LOG_DBG("deferring purge of 'busy' buffer (width=%d, height=%d)",
+                    it->item.public.width, it->item.public.height);
             it->item.purge = true;
         } else {
             buffer_destroy(&it->item);

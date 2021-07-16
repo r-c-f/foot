@@ -2311,7 +2311,7 @@ grid_render(struct terminal *term)
     }
 
     else if (buf->age > 0) {
-        LOG_DBG("buffer age: %u", buf->age);
+        LOG_DBG("buffer age: %u (%p)", buf->age, (void *)buf);
 
         xassert(term->render.last_buf != NULL);
         xassert(term->render.last_buf != buf);
