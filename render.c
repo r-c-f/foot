@@ -437,6 +437,20 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
     }
 }
 
+static inline void
+render_cell_prepass(struct terminal *term, struct row *row, int col)
+{
+    for (; col < term->cols - 1; col++) {
+        if (row->cells[col].attrs.confined ||
+            (row->cells[col].attrs.clean == row->cells[col + 1].attrs.clean)) {
+            break;
+        }
+
+        row->cells[col].attrs.clean = 0;
+        row->cells[col + 1].attrs.clean = 0;
+    }
+}
+
 static int
 render_cell(struct terminal *term, pixman_image_t *pix,
             struct row *row, int col, int row_no, bool has_cursor)
@@ -446,6 +460,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         return 0;
 
     cell->attrs.clean = 1;
+    cell->attrs.confined = true;
 
     int width = term->cell_width;
     int height = term->cell_height;
@@ -597,51 +612,32 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     cell_cols = max(1, min(cell_cols, cols_left));
 
     /*
-     * Hack!
-     *
-     * Deal with double-width glyphs for which wcwidth() returns
-     * 1. Typically Unicode private usage area characters,
-     * e.g. powerline, or nerd hack fonts.
-     *
-     * Users can enable a tweak option that lets this glyphs
-     * overflow/bleed into the neighbouring cell.
-     *
-     * We only apply this workaround if:
-     *  - the user has explicitly enabled this feature
-     *  - the *character* width is 1
-     *  - the *glyph* width is at least 1.5 cells
-     *  - the *glyph* width is less than 3 cells
-     *  - *this* column isn’t the last column
-     *  - *this* cells is followed by an empty cell, or a space
+     * Determine cells that will bleed into their right neighbor and remember
+     * them for cleanup in the next frame.
      */
-    if (term->conf->tweak.allow_overflowing_double_width_glyphs &&
-        glyph_count > 0 &&
-        cell_cols == 1 &&
-        col < term->cols - 1 &&
-        ((glyphs[0]->x + glyphs[0]->width >= term->cell_width * 15 / 10 &&
-          glyphs[0]->x + glyphs[0]->width < 3 * term->cell_width) ||
-         (term->conf->tweak.pua_double_width &&
-          ((base >= 0x00e000 && base <= 0x00f8ff) ||
-           (base >= 0x0f0000 && base <= 0x0ffffd) ||
-           (base >= 0x100000 && base <= 0x10fffd)))) &&
-        (row->cells[col + 1].wc == 0 || row->cells[col + 1].wc == L' '))
+    int render_width = cell_cols * width;
+    if (term->conf->tweak.overflowing_glyphs &&
+        glyph_count > 0)
     {
-        cell_cols = 2;
+        int glyph_width = 0, advance = 0;
+        for (size_t i = 0; i < glyph_count; i++) {
+            glyph_width = max(glyph_width,
+                              advance + glyphs[i]->x + glyphs[i]->width);
+            advance += glyphs[i]->advance.x;
+        }
 
-        /*
-         * Ensure the cell we’re overflowing into gets re-rendered, to
-         * ensure it is erased if *this* cell is erased. Note that we
-         * do *not* mark the row as dirty - we don’t need to re-render
-         * the cell if nothing else on the row has changed.
-         */
-        row->cells[col].attrs.clean = 0;
-        row->cells[col + 1].attrs.clean = 0;
+        if (glyph_width > render_width) {
+            render_width = min(glyph_width, render_width + width);
+
+            for (int i = 0; i < cell_cols; i++)
+                row->cells[col + i].attrs.confined = false;
+        }
     }
 
     pixman_region32_t clip;
     pixman_region32_init_rect(
         &clip, x, y,
-        cell_cols * term->cell_width, term->cell_height);
+        render_width, term->cell_height);
     pixman_image_set_clip_region32(pix, &clip);
 
     /* Background */
@@ -771,6 +767,10 @@ static void
 render_row(struct terminal *term, pixman_image_t *pix, struct row *row,
            int row_no, int cursor_col)
 {
+    if (term->conf->tweak.overflowing_glyphs)
+        for (int col = term->cols - 1; col >= 0; col--)
+            render_cell_prepass(term, row, col);
+
     for (int col = term->cols - 1; col >= 0; col--)
         render_cell(term, pix, row, col, row_no, cursor_col == col);
 }
@@ -1192,8 +1192,10 @@ render_sixel(struct terminal *term, pixman_image_t *pix,
                         (last_col_needs_erase && last_col))
                     {
                         render_cell(term, pix, row, col, term_row_no, cursor_col == col);
-                    } else
+                    } else {
                         cell->attrs.clean = 1;
+                        cell->attrs.confined = 1;
+                    }
                 }
             }
         }

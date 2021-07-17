@@ -2213,16 +2213,10 @@ parse_section_tweak(
         return false;
     }
 
-    else if (strcmp(key, "allow-overflowing-double-width-glyphs") == 0) {
-        conf->tweak.allow_overflowing_double_width_glyphs = str_to_bool(value);
-        if (!conf->tweak.allow_overflowing_double_width_glyphs)
-            LOG_WARN("tweak: disabled overflowing double-width glyphs");
-    }
-
-    else if (strcmp(key, "pua-double-width") == 0) {
-        conf->tweak.pua_double_width = str_to_bool(value);
-        if (conf->tweak.pua_double_width)
-            LOG_WARN("tweak: PUA double width glyphs enabled");
+    else if (strcmp(key, "overflowing-glyphs") == 0) {
+        conf->tweak.overflowing_glyphs = str_to_bool(value);
+        if (!conf->tweak.overflowing_glyphs)
+            LOG_WARN("tweak: disabled overflowing glyphs");
     }
 
     else if (strcmp(key, "damage-whole-window") == 0) {
@@ -2833,7 +2827,7 @@ config_load(struct config *conf, const char *conf_path,
 
         .tweak = {
             .fcft_filter = FCFT_SCALING_FILTER_LANCZOS3,
-            .allow_overflowing_double_width_glyphs = true,
+            .overflowing_glyphs = true,
             .grapheme_shaping = false,
             .grapheme_width_method = GRAPHEME_WIDTH_DOUBLE,
             .delayed_render_lower_ns = 500000,         /* 0.5ms */
@@ -2844,7 +2838,6 @@ config_load(struct config *conf, const char *conf_path,
             .damage_whole_window = false,
             .box_drawing_base_thickness = 0.04,
             .box_drawing_solid_shades = true,
-            .pua_double_width = false,
         },
 
         .notifications = tll_init(),

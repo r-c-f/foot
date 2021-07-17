@@ -245,7 +245,7 @@ struct config {
 
     struct {
         enum fcft_scaling_filter fcft_filter;
-        bool allow_overflowing_double_width_glyphs;
+        bool overflowing_glyphs;
         bool grapheme_shaping;
         enum {GRAPHEME_WIDTH_WCSWIDTH, GRAPHEME_WIDTH_DOUBLE} grapheme_width_method;
         bool render_timer_osd;
@@ -256,7 +256,6 @@ struct config {
         off_t max_shm_pool_size;
         float box_drawing_base_thickness;
         bool box_drawing_solid_shades;
-        bool pua_double_width;
     } tweak;
 
     user_notifications_t notifications;

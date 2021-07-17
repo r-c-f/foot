@@ -42,11 +42,12 @@ struct attributes {
     uint32_t fg:24;
 
     bool clean:1;
+    bool confined:1;
     bool have_fg:1;
     bool have_bg:1;
     uint32_t selected:2;
     bool url:1;
-    uint32_t reserved:2;
+    uint32_t reserved:1;
     uint32_t bg:24;
 };
 static_assert(sizeof(struct attributes) == 8, "VT attribute struct too large");
