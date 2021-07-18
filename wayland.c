@@ -53,10 +53,9 @@ csd_destroy(struct wl_window *win)
 {
     struct terminal *term = win->term;
 
-    for (size_t i = 0; i < ALEN(win->csd.surface); i++) {
+    for (size_t i = 0; i < ALEN(win->csd.surface); i++)
         wayl_win_subsurface_destroy(&win->csd.surface[i]);
-        shm_purge(term->render.chains.csd[i]);
-    }
+    shm_purge(term->render.chains.csd);
 }
 
 static void
@@ -1470,7 +1469,6 @@ wayl_win_destroy(struct wl_window *win)
 
     tll_foreach(win->urls, it) {
         wayl_win_subsurface_destroy(&it->item.surf);
-        shm_purge(term->render.chains.url);
         tll_remove(win->urls, it);
     }
 
@@ -1483,9 +1481,8 @@ wayl_win_destroy(struct wl_window *win)
     shm_purge(term->render.chains.scrollback_indicator);
     shm_purge(term->render.chains.render_timer);
     shm_purge(term->render.chains.grid);
-
-    for (size_t i = 0; i < ALEN(win->csd.surface); i++)
-        shm_purge(term->render.chains.csd[i]);
+    shm_purge(term->render.chains.url);
+    shm_purge(term->render.chains.csd);
 
 #if defined(HAVE_XDG_ACTIVATION)
     if (win->xdg_activation_token != NULL)

@@ -436,6 +436,10 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
     };
 
     for (size_t i = 0; i < count; i++) {
+        if (sizes[i] == 0) {
+            bufs[i] = NULL;
+            continue;
+        }
 
         /* Push to list of available buffers, but marked as 'busy' */
         struct buffer_private *buf = xmalloc(sizeof(*buf));

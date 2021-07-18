@@ -1150,16 +1150,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
                 .scrollback_indicator = shm_chain_new(wayl->shm, false, 1),
                 .render_timer = shm_chain_new(wayl->shm, false, 1),
                 .url = shm_chain_new(wayl->shm, false, 1),
-                .csd =  {
-                    [CSD_SURF_TITLE] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_LEFT] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_RIGHT] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_TOP] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_BOTTOM] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_MINIMIZE] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_MAXIMIZE] = shm_chain_new(wayl->shm, false, 1),
-                    [CSD_SURF_CLOSE] = shm_chain_new(wayl->shm, false, 1),
-                },
+                .csd = shm_chain_new(wayl->shm, false, 1),
             },
             .scrollback_lines = conf->scrollback.lines,
             .app_sync_updates.timer_fd = app_sync_updates_fd,
@@ -1482,8 +1473,7 @@ term_destroy(struct terminal *term)
     shm_chain_free(term->render.chains.scrollback_indicator);
     shm_chain_free(term->render.chains.render_timer);
     shm_chain_free(term->render.chains.url);
-    for (size_t i = 0; i < CSD_SURF_COUNT; i++)
-        shm_chain_free(term->render.chains.csd[i]);
+    shm_chain_free(term->render.chains.csd);
 
     tll_free(term->tab_stops);
 
