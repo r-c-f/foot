@@ -2014,9 +2014,16 @@ term_erase(struct terminal *term, const struct coord *start, const struct coord 
 void
 term_erase_scrollback(struct terminal *term)
 {
-    const int mask = term->grid->num_rows - 1;
+    const int num_rows = term->grid->num_rows;
+    const int mask = num_rows - 1;
+
     const int start = (term->grid->offset + term->rows) & mask;
     const int end = (term->grid->offset - 1) & mask;
+
+    const int scrollback_start = term->grid->offset + term->rows;
+    const int rel_start = (start - scrollback_start + num_rows) & mask;
+    const int rel_end = (end - scrollback_start + num_rows) & mask;
+
     const int sel_start = term->selection.start.row;
     const int sel_end = term->selection.end.row;
 
@@ -2035,24 +2042,29 @@ term_erase_scrollback(struct terminal *term)
          * thus means the row is further *down* in the scrollback,
          * closer to the screen bottom.
          */
-        int scrollback_start = term->grid->offset + term->rows;
 
-        int rel_sel_start = sel_start - scrollback_start + term->grid->num_rows;
-        int rel_sel_end = sel_end - scrollback_start + term->grid->num_rows;
-
-        int rel_start = start - scrollback_start + term->grid->num_rows;
-        int rel_end = end - scrollback_start + term->grid->num_rows;
-
-        rel_sel_start &= mask;
-        rel_sel_end &= mask;
-        rel_start &= mask;
-        rel_end &= mask;
+        const int rel_sel_start = (sel_start - scrollback_start + num_rows) & mask;
+        const int rel_sel_end = (sel_end - scrollback_start + num_rows) & mask;
 
         if ((rel_sel_start <= rel_start && rel_sel_end >= rel_start) ||
             (rel_sel_start <= rel_end && rel_sel_end >= rel_end) ||
             (rel_sel_start >= rel_start && rel_sel_end <= rel_end))
         {
             selection_cancel(term);
+        }
+    }
+
+    tll_foreach(term->grid->sixel_images, it) {
+        struct sixel *six = &it->item;
+        const int six_start = (six->pos.row - scrollback_start + num_rows) & mask;
+        const int six_end = (six->pos.row + six->rows - 1 - scrollback_start + num_rows) & mask;
+
+        if ((six_start <= rel_start && six_end >= rel_start) ||
+            (six_start <= rel_end && six_end >= rel_end) ||
+            (six_start >= rel_start && six_end <= rel_end))
+        {
+            sixel_destroy(six);
+            tll_remove(term->grid->sixel_images, it);
         }
     }
 
@@ -2164,6 +2176,36 @@ UNITTEST
     xassert(term.selection.end.row == 16);
     xassert(term.selection.kind == SELECTION_CHAR_WISE);
 
+    term.selection.start = (struct coord){-1, -1};
+    term.selection.end = (struct coord){-1, -1};
+    term.selection.kind = SELECTION_NONE;
+
+    /*
+     * Test case 4 - sixel that touch the scrollback
+     */
+
+    struct sixel six = {
+        .rows = 5,
+        .pos = {
+            .row = 15,
+        },
+    };
+    tll_push_back(term.normal.sixel_images, six);
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(tll_length(term.normal.sixel_images) == 0);
+
+    /*
+     * Test case 5 - sixel that does *not* touch the scrollback
+     */
+    six.rows = 3;
+    tll_push_back(term.normal.sixel_images, six);
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(tll_length(term.normal.sixel_images) == 1);
+
+    /* Cleanup */
+    tll_free(term.normal.sixel_images);
     close(term.selection.auto_scroll.fd);
     for (int i = 0; i < scrollback_rows; i++)
         grid_row_free(term.normal.rows[i]);

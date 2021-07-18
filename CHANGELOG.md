@@ -74,7 +74,7 @@
   very small.
 * Reduced memory usage in URL mode.
 * Crash when the `E3` escape (`\E[3J`) was executed, and there was a
-  selection in the scrollback
+  selection, or sixel image, in the scrollback
   (https://codeberg.org/dnkl/foot/issues/633).
 
 
