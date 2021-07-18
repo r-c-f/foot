@@ -2074,6 +2074,103 @@ term_erase_scrollback(struct terminal *term)
     term_damage_view(term);
 }
 
+UNITTEST
+{
+    const int scrollback_rows = 16;
+    const int term_rows = 5;
+    const int cols = 5;
+
+    struct fdm *fdm = fdm_init();
+    xassert(fdm != NULL);
+
+    struct terminal term = {
+        .fdm = fdm,
+        .rows = term_rows,
+        .cols = cols,
+        .normal = {
+            .rows = xcalloc(scrollback_rows, sizeof(term.normal.rows[0])),
+            .num_rows = scrollback_rows,
+            .num_cols = cols,
+        },
+        .grid = &term.normal,
+        .selection = {
+            .start = {-1, -1},
+            .end = {-1, -1},
+            .kind = SELECTION_NONE,
+            .auto_scroll = {
+                .fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK),
+            },
+        },
+    };
+
+    xassert(term.selection.auto_scroll.fd >= 0);
+
+#define populate_scrollback() do {                                      \
+        for (int i = 0; i < scrollback_rows; i++) {                     \
+            if (term.normal.rows[i] == NULL) {                          \
+                struct row *r = xcalloc(1, sizeof(*term.normal.rows[i])); \
+                r->cells = xcalloc(cols, sizeof(r->cells[0]));          \
+                term.normal.rows[i] = r;                                \
+            }                                                           \
+        }                                                               \
+    } while (0)
+
+    /*
+     * Test case 1 - no selection, just verify all rows except those
+     * on screen have been deleted.
+     */
+
+    populate_scrollback();
+    term.normal.offset = 11;
+    term_erase_scrollback(&term);
+    for (int i = 0; i < scrollback_rows; i++) {
+        if (i >= term.normal.offset && i < term.normal.offset + term_rows)
+            xassert(term.normal.rows[i] != NULL);
+        else
+            xassert(term.normal.rows[i] == NULL);
+    }
+
+    /*
+     * Test case 2 - selection that touches the scrollback. Verify the
+     * selection is cancelled.
+     */
+
+    term.normal.offset = 14;  /* Screen covers rows 14,15,0,1,2 */
+
+    /* Selection covers rows 15,0,1,2,3 */
+    term.selection.start = (struct coord){.row = 15};
+    term.selection.end = (struct coord){.row = 19};
+    term.selection.kind = SELECTION_CHAR_WISE;
+
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(term.selection.start.row < 0);
+    xassert(term.selection.end.row < 0);
+    xassert(term.selection.kind == SELECTION_NONE);
+
+    /*
+     * Test case 3 - selection that does *not* touch the
+     * scrollback. Verify the selection is *not* cancelled.
+     */
+
+    /* Selection covers rows 15,0 */
+    term.selection.start = (struct coord){.row = 15};
+    term.selection.end = (struct coord){.row = 16};
+    term.selection.kind = SELECTION_CHAR_WISE;
+
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(term.selection.start.row == 15);
+    xassert(term.selection.end.row == 16);
+    xassert(term.selection.kind == SELECTION_CHAR_WISE);
+
+    close(term.selection.auto_scroll.fd);
+    for (int i = 0; i < scrollback_rows; i++)
+        grid_row_free(term.normal.rows[i]);
+    free(term.normal.rows);
+    fdm_destroy(fdm);
+}
+
 int
 term_row_rel_to_abs(const struct terminal *term, int row)
 {
