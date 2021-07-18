@@ -943,7 +943,7 @@ grid_render_scroll(struct terminal *term, struct buffer *buf,
 
     if (try_shm_scroll) {
         did_shm_scroll = shm_scroll(
-            term->wl->shm, buf, dmg->lines * term->cell_height,
+            buf, dmg->lines * term->cell_height,
             term->margins.top, dmg->region.start * term->cell_height,
             term->margins.bottom, (term->rows - dmg->region.end) * term->cell_height);
     }
@@ -954,7 +954,7 @@ grid_render_scroll(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.end - dmg->lines, term->rows, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -1008,7 +1008,7 @@ grid_render_scroll_reverse(struct terminal *term, struct buffer *buf,
 
     if (try_shm_scroll) {
         did_shm_scroll = shm_scroll(
-            term->wl->shm, buf, -dmg->lines * term->cell_height,
+            buf, -dmg->lines * term->cell_height,
             term->margins.top, dmg->region.start * term->cell_height,
             term->margins.bottom, (term->rows - dmg->region.end) * term->cell_height);
     }
@@ -1019,7 +1019,7 @@ grid_render_scroll_reverse(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.start, dmg->region.start + dmg->lines, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -1587,9 +1587,8 @@ render_csd_title(struct terminal *term)
     xassert(info.width % term->scale == 0);
     xassert(info.height % term->scale == 0);
 
-    unsigned long cookie = shm_cookie_csd(term, CSD_SURF_TITLE);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.csd[CSD_SURF_TITLE];
+    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
 
     uint32_t _color = term->conf->colors.fg;
     uint16_t alpha = 0xffff;
@@ -1622,9 +1621,8 @@ render_csd_border(struct terminal *term, enum csd_surface surf_idx)
     xassert(info.width % term->scale == 0);
     xassert(info.height % term->scale == 0);
 
-    unsigned long cookie = shm_cookie_csd(term, surf_idx);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.csd[surf_idx];
+    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(0, 0);
     render_csd_part(term, surf, buf, info.width, info.height, &color);
@@ -1808,9 +1806,8 @@ render_csd_button(struct terminal *term, enum csd_surface surf_idx)
     xassert(info.width % term->scale == 0);
     xassert(info.height % term->scale == 0);
 
-    unsigned long cookie = shm_cookie_csd(term, surf_idx);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.csd[surf_idx];
+    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
 
     uint32_t _color;
     uint16_t alpha = 0xffff;
@@ -2084,9 +2081,8 @@ render_scrollback_position(struct terminal *term)
         return;
     }
 
-    unsigned long cookie = shm_cookie_scrollback_indicator(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, width, height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.scrollback_indicator;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
 
     wl_subsurface_set_position(
         win->scrollback_indicator.sub, x / scale, y / scale);
@@ -2117,9 +2113,8 @@ render_render_timer(struct terminal *term, struct timeval render_time)
     const int height =
         (2 * margin + term->cell_height + scale - 1) / scale * scale;
 
-    unsigned long cookie = shm_cookie_render_timer(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, width, height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.render_timer;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
 
     wl_subsurface_set_position(
         win->render_timer.sub,
@@ -2162,7 +2157,7 @@ reapply_old_damage(struct terminal *term, struct buffer *new, struct buffer *old
     }
 
     if (new->age > 1) {
-        memcpy(new->mmapped, old->mmapped, new->size);
+        memcpy(new->data, old->data, new->height * new->stride);
         return;
     }
 
@@ -2292,9 +2287,8 @@ grid_render(struct terminal *term)
     xassert(term->width > 0);
     xassert(term->height > 0);
 
-    unsigned long cookie = shm_cookie_grid(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, term->width, term->height, cookie, true, 1 + term->render.workers.count);
+    struct buffer_chain *chain = term->render.chains.grid;
+    struct buffer *buf = shm_get_buffer(chain, term->width, term->height);
 
     /* Dirty old and current cursor cell, to ensure they’re repainted */
     dirty_old_cursor(term);
@@ -2311,7 +2305,7 @@ grid_render(struct terminal *term)
     }
 
     else if (buf->age > 0) {
-        LOG_DBG("buffer age: %u", buf->age);
+        LOG_DBG("buffer age: %u (%p)", buf->age, (void *)buf);
 
         xassert(term->render.last_buf != NULL);
         xassert(term->render.last_buf != buf);
@@ -2324,19 +2318,18 @@ grid_render(struct terminal *term)
     }
 
     if (term->render.last_buf != NULL) {
-        term->render.last_buf->locked = false;
-        free(term->render.last_buf->scroll_damage);
-        term->render.last_buf->scroll_damage = NULL;
+        shm_unref(term->render.last_buf);
+        term->render.last_buf = NULL;
     }
 
     term->render.last_buf = buf;
     term->render.was_flashing = term->flash.active;
     term->render.was_searching = term->is_searching;
 
-    buf->locked = true;
+    shm_addref(buf);
     buf->age = 0;
 
-    xassert(buf->scroll_damage == NULL);
+    free(term->render.last_buf->scroll_damage);
     buf->scroll_damage_count = tll_length(term->grid->scroll_damage);
     buf->scroll_damage = xmalloc(
         buf->scroll_damage_count * sizeof(buf->scroll_damage[0]));
@@ -2627,8 +2620,8 @@ render_search_box(struct terminal *term)
     const size_t visible_cells = (visible_width - 2 * margin) / term->cell_width;
     size_t glyph_offset = term->render.search_glyph_offset;
 
-    unsigned long cookie = shm_cookie_search(term);
-    struct buffer *buf = shm_get_buffer(term->wl->shm, width, height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.search;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
 
     pixman_region32_t clip;
     pixman_region32_init_rect(&clip, 0, 0, width, height);
@@ -2937,7 +2930,8 @@ render_urls(struct terminal *term)
     } info[tll_length(win->urls)];
 
     /* For shm_get_many() */
-    struct buffer_description shm_desc[tll_length(win->urls)];
+    int widths[tll_length(win->urls)];
+    int heights[tll_length(win->urls)];
 
     size_t render_count = 0;
 
@@ -3067,15 +3061,15 @@ render_urls(struct terminal *term)
         info[render_count].x = x;
         info[render_count].y = y;
 
-        shm_desc[render_count].width = width;
-        shm_desc[render_count].height = height;
-        shm_desc[render_count].cookie = shm_cookie_url(url);
+        widths[render_count] = width;
+        heights[render_count] = height;
 
         render_count++;
     }
 
+    struct buffer_chain *chain = term->render.chains.url;
     struct buffer *bufs[render_count];
-    shm_get_many(term->wl->shm, render_count, shm_desc, bufs, 1);
+    shm_get_many(chain, render_count, widths, heights, bufs);
 
     uint32_t fg = term->conf->colors.use_custom.jump_label
         ? term->conf->colors.jump_label.fg
@@ -3484,8 +3478,7 @@ damage_view:
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 
-    if (term->render.last_buf != NULL)
-        term->render.last_buf->locked = false;
+    shm_unref(term->render.last_buf);
     term->render.last_buf = NULL;
     term_damage_view(term);
     render_refresh_csd(term);

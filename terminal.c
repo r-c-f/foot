@@ -35,6 +35,7 @@
 #include "selection.h"
 #include "sixel.h"
 #include "slave.h"
+#include "shm.h"
 #include "spawn.h"
 #include "url-mode.h"
 #include "util.h"
@@ -1143,6 +1144,23 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .tab_stops = tll_init(),
         .wl = wayl,
         .render = {
+            .chains = {
+                .grid = shm_chain_new(wayl->shm, true, 1 + conf->render_worker_count),
+                .search = shm_chain_new(wayl->shm, false, 1),
+                .scrollback_indicator = shm_chain_new(wayl->shm, false, 1),
+                .render_timer = shm_chain_new(wayl->shm, false, 1),
+                .url = shm_chain_new(wayl->shm, false, 1),
+                .csd =  {
+                    [CSD_SURF_TITLE] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_LEFT] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_RIGHT] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_TOP] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_BOTTOM] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_MINIMIZE] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_MAXIMIZE] = shm_chain_new(wayl->shm, false, 1),
+                    [CSD_SURF_CLOSE] = shm_chain_new(wayl->shm, false, 1),
+                },
+            },
             .scrollback_lines = conf->scrollback.lines,
             .app_sync_updates.timer_fd = app_sync_updates_fd,
             .title = {
@@ -1457,6 +1475,15 @@ term_destroy(struct terminal *term)
     sem_destroy(&term->render.workers.done);
     xassert(tll_length(term->render.workers.queue) == 0);
     tll_free(term->render.workers.queue);
+
+    shm_unref(term->render.last_buf);
+    shm_chain_free(term->render.chains.grid);
+    shm_chain_free(term->render.chains.search);
+    shm_chain_free(term->render.chains.scrollback_indicator);
+    shm_chain_free(term->render.chains.render_timer);
+    shm_chain_free(term->render.chains.url);
+    for (size_t i = 0; i < CSD_SURF_COUNT; i++)
+        shm_chain_free(term->render.chains.csd[i]);
 
     tll_free(term->tab_stops);
 
