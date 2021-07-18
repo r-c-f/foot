@@ -56,10 +56,6 @@
 
 ### Fixed
 
-* Glyph offset not being taken into account when applying
-  `tweak.allow-overflowing-double-width-glyphs`.
-* Regression: crash when a single-char, double-width glyph is in the
-  last column, and `tweak.allow-overflowing-double-width-glyphs=yes`.
 * FD exhaustion when repeatedly entering/exiting URL mode with many
   URLs.
 * Double free of URL while removing duplicated and/or overlapping URLs
