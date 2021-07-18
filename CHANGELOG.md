@@ -73,6 +73,9 @@
 * Scrollback indicator being incorrectly rendered when window size is
   very small.
 * Reduced memory usage in URL mode.
+* Crash when the `E3` escape (`\E[3J`) was executed, and there was a
+  selection in the scrollback
+  (https://codeberg.org/dnkl/foot/issues/633).
 
 
 ### Security

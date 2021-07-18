@@ -69,10 +69,8 @@ selection_on_rows(const struct terminal *term, int row_start, int row_end)
         end = tmp;
     }
 
-    if (row_start >= start->row && row_end <= end->row) {
-        LOG_INFO("ON ROWS");
+    if (row_start >= start->row && row_end <= end->row)
         return true;
-    }
 
     return false;
 }
