@@ -482,7 +482,7 @@ struct terminal {
             struct buffer_chain *scrollback_indicator;
             struct buffer_chain *render_timer;
             struct buffer_chain *url;
-            struct buffer_chain *csd[CSD_SURF_COUNT];
+            struct buffer_chain *csd;
         } chains;
 
         /* Scheduled for rendering, as soon-as-possible */

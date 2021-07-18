@@ -1575,20 +1575,16 @@ render_csd_part(struct terminal *term,
 }
 
 static void
-render_csd_title(struct terminal *term)
+render_csd_title(struct terminal *term, const struct csd_data *info,
+                 struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    struct csd_data info = get_csd_data(term, CSD_SURF_TITLE);
     struct wl_surface *surf = term->window->csd.surface[CSD_SURF_TITLE].surf;
+    xassert(info->width > 0 && info->height > 0);
 
-    xassert(info.width > 0 && info.height > 0);
-
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    struct buffer_chain *chain = term->render.chains.csd[CSD_SURF_TITLE];
-    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     uint32_t _color = term->conf->colors.fg;
     uint16_t alpha = 0xffff;
@@ -1602,30 +1598,27 @@ render_csd_title(struct terminal *term)
         _color = color_dim(_color);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
     csd_commit(term, surf, buf);
 }
 
 static void
-render_csd_border(struct terminal *term, enum csd_surface surf_idx)
+render_csd_border(struct terminal *term, enum csd_surface surf_idx,
+                  const struct csd_data *info, struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
     xassert(surf_idx >= CSD_SURF_LEFT && surf_idx <= CSD_SURF_BOTTOM);
 
-    struct csd_data info = get_csd_data(term, surf_idx);
     struct wl_surface *surf = term->window->csd.surface[surf_idx].surf;
 
-    if (info.width == 0 || info.height == 0)
+    if (info->width == 0 || info->height == 0)
         return;
 
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    struct buffer_chain *chain = term->render.chains.csd[surf_idx];
-    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(0, 0);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
     csd_commit(term, surf, buf);
 }
 
@@ -1792,22 +1785,19 @@ render_csd_button_close(struct terminal *term, struct buffer *buf)
 }
 
 static void
-render_csd_button(struct terminal *term, enum csd_surface surf_idx)
+render_csd_button(struct terminal *term, enum csd_surface surf_idx,
+                  const struct csd_data *info, struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
     xassert(surf_idx >= CSD_SURF_MINIMIZE && surf_idx <= CSD_SURF_CLOSE);
 
-    struct csd_data info = get_csd_data(term, surf_idx);
     struct wl_surface *surf = term->window->csd.surface[surf_idx].surf;
 
-    if (info.width == 0 || info.height == 0)
+    if (info->width == 0 || info->height == 0)
         return;
 
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    struct buffer_chain *chain = term->render.chains.csd[surf_idx];
-    struct buffer *buf = shm_get_buffer(chain, info.width, info.height);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     uint32_t _color;
     uint16_t alpha = 0xffff;
@@ -1856,7 +1846,7 @@ render_csd_button(struct terminal *term, enum csd_surface surf_idx)
         _color = color_dim(_color);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
 
     switch (surf_idx) {
     case CSD_SURF_MINIMIZE: render_csd_button_minimize(term, buf); break;
@@ -1880,12 +1870,16 @@ render_csd(struct terminal *term)
     if (term->window->is_fullscreen)
         return;
 
+    struct csd_data infos[CSD_SURF_COUNT];
+    int widths[CSD_SURF_COUNT];
+    int heights[CSD_SURF_COUNT];
+
     for (size_t i = 0; i < CSD_SURF_COUNT; i++) {
-        struct csd_data info = get_csd_data(term, i);
-        const int x = info.x;
-        const int y = info.y;
-        const int width = info.width;
-        const int height = info.height;
+        infos[i] = get_csd_data(term, i);
+        const int x = infos[i].x;
+        const int y = infos[i].y;
+        const int width = infos[i].width;
+        const int height = infos[i].height;
 
         struct wl_surface *surf = term->window->csd.surface[i].surf;
         struct wl_subsurface *sub = term->window->csd.surface[i].sub;
@@ -1894,20 +1888,27 @@ render_csd(struct terminal *term)
         xassert(sub != NULL);
 
         if (width == 0 || height == 0) {
+            widths[i] = heights[i] = 0;
             wl_subsurface_set_position(sub, 0, 0);
             wl_surface_attach(surf, NULL, 0, 0);
             wl_surface_commit(surf);
             continue;
         }
 
+        widths[i] = width;
+        heights[i] = height;
+
         wl_subsurface_set_position(sub, x / term->scale, y / term->scale);
     }
 
+    struct buffer *bufs[CSD_SURF_COUNT];
+    shm_get_many(term->render.chains.csd, CSD_SURF_COUNT, widths, heights, bufs);
+
     for (size_t i = CSD_SURF_LEFT; i <= CSD_SURF_BOTTOM; i++)
-        render_csd_border(term, i);
+        render_csd_border(term, i, &infos[i], bufs[i]);
     for (size_t i = CSD_SURF_MINIMIZE; i <= CSD_SURF_CLOSE; i++)
-        render_csd_button(term, i);
-    render_csd_title(term);
+        render_csd_button(term, i, &infos[i], bufs[i]);
+    render_csd_title(term, &infos[CSD_SURF_TITLE], bufs[CSD_SURF_TITLE]);
 }
 
 static void
