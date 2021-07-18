@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.8.2](#1-8-2)
 * [1.8.1](#1-8-1)
 * [1.8.0](#1-8-0)
 * [1.7.2](#1-7-2)
@@ -28,7 +28,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.8.2
+
 ### Added
 
 * `locked-title=no|yes` to `foot.ini`
@@ -46,7 +47,6 @@
   _enables_ scrolling (https://codeberg.org/dnkl/foot/issues/631).
 
 
-### Deprecated
 ### Removed
 
 * The `tweak.allow-overflowing-double-width-glyphs` and
@@ -74,7 +74,6 @@
   (https://codeberg.org/dnkl/foot/issues/633).
 
 
-### Security
 ### Contributors
 
 * [clktmr](https://codeberg.org/clktmr)
