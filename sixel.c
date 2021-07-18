@@ -88,9 +88,10 @@ sixel_init(struct terminal *term, int p1, int p2, int p3)
 void
 sixel_destroy(struct sixel *sixel)
 {
-    pixman_image_unref(sixel->pix);
-    free(sixel->data);
+    if (sixel->pix != NULL)
+        pixman_image_unref(sixel->pix);
 
+    free(sixel->data);
     sixel->pix = NULL;
     sixel->data = NULL;
 }
