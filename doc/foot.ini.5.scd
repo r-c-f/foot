@@ -188,8 +188,8 @@ in this order:
 	
 	In other words, while you are fiddling with the window size, foot
 	does not send the updated dimensions to the client. Only when you
-	pause the fiddling for *relay-size-ms* milliseconds is the client
-	updated.
+	pause the fiddling for *resize-delay-ms* milliseconds is the
+	client updated.
 	
 	Emphasis is on _while_ here; as soon as the interactive resize
 	ends (i.e. when you let go of the window border), the final
@@ -223,6 +223,10 @@ in this order:
 
 *title*
 	Initial window title. Default: _foot_.
+
+*locked-title*
+	Boolean. If enabled, applications are not allowed to change the
+	title at run-time. Default: _no_.
 
 *app-id*
 	Value to set the *app-id* property on the Wayland window to. The
@@ -843,33 +847,23 @@ any of these options.
 	
 	Default: _lanczos3_.
 
-*allow-overflowing-double-width-glyphs*
-	Boolean. When enabled, double width glyphs with a character width
-	of 1 are allowed to overflow into the neighbouring cell.
+*overflowing-glyphs*
+	Boolean. When enabled, glyphs wider than their cell(s) are allowed
+	to render into one additional neighbouring cell.
 	
-	One use case for this is fonts "icon" characters in the Unicode
-	private usage area, e.g. Nerd Fonts, or Powerline Fonts. Without
-	this option, such glyphs will appear "cut off".
+	One use case for this are fonts with wide italic characters that
+	"bend" into the next cell. Without this option, such glyphs will
+	appear "cut off".
 	
-	Another use case are legacy emoji characters like *WHITE FROWNING
-	FACE*.
+	Another use case are fonts with "icon" characters in the Unicode
+	private usage area, e.g. Nerd Fonts, or Powerline Fonts and legacy
+	emoji characters like *WHITE FROWNING FACE*.
 	
-	Note: this feature uses _heuristics_ to determine *which* glyphs
-	should be allowed to overflow.
-	
-	See also: *pua-double-width*
+	Note: might impact performance depending on the font used.
+	Especially small font sizes can cause many overflowing glyphs
+	because of subpixel rendering.
 	
 	Default: _yes_.
-
-*pua-double-width*
-	Boolean. When enabled, Unicode code points from the private usage
-	area (PUA) are always considered to be double width, regardless of
-	the actual glyph width.
-	
-	Ignored if *allow-overflowing-double-width-glyphs* has been
-	disabled.
-	
-	Default: _no_.
 
 *render-timer*
 	Enables a frame rendering timer, that prints the time it takes to

@@ -35,6 +35,7 @@
 #include "selection.h"
 #include "sixel.h"
 #include "slave.h"
+#include "shm.h"
 #include "spawn.h"
 #include "url-mode.h"
 #include "util.h"
@@ -1143,6 +1144,14 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .tab_stops = tll_init(),
         .wl = wayl,
         .render = {
+            .chains = {
+                .grid = shm_chain_new(wayl->shm, true, 1 + conf->render_worker_count),
+                .search = shm_chain_new(wayl->shm, false, 1),
+                .scrollback_indicator = shm_chain_new(wayl->shm, false, 1),
+                .render_timer = shm_chain_new(wayl->shm, false, 1),
+                .url = shm_chain_new(wayl->shm, false, 1),
+                .csd = shm_chain_new(wayl->shm, false, 1),
+            },
             .scrollback_lines = conf->scrollback.lines,
             .app_sync_updates.timer_fd = app_sync_updates_fd,
             .title = {
@@ -1457,6 +1466,14 @@ term_destroy(struct terminal *term)
     sem_destroy(&term->render.workers.done);
     xassert(tll_length(term->render.workers.queue) == 0);
     tll_free(term->render.workers.queue);
+
+    shm_unref(term->render.last_buf);
+    shm_chain_free(term->render.chains.grid);
+    shm_chain_free(term->render.chains.search);
+    shm_chain_free(term->render.chains.scrollback_indicator);
+    shm_chain_free(term->render.chains.render_timer);
+    shm_chain_free(term->render.chains.url);
+    shm_chain_free(term->render.chains.csd);
 
     tll_free(term->tab_stops);
 
@@ -1982,6 +1999,208 @@ term_erase(struct terminal *term, const struct coord *start, const struct coord 
 
     erase_cell_range(term, grid_row(term->grid, end->row), 0, end->col);
     sixel_overwrite_by_row(term, end->row, 0, end->col + 1);
+}
+
+void
+term_erase_scrollback(struct terminal *term)
+{
+    const int num_rows = term->grid->num_rows;
+    const int mask = num_rows - 1;
+
+    const int start = (term->grid->offset + term->rows) & mask;
+    const int end = (term->grid->offset - 1) & mask;
+
+    const int scrollback_start = term->grid->offset + term->rows;
+    const int rel_start = (start - scrollback_start + num_rows) & mask;
+    const int rel_end = (end - scrollback_start + num_rows) & mask;
+
+    const int sel_start = term->selection.start.row;
+    const int sel_end = term->selection.end.row;
+
+    if (sel_end >= 0) {
+        /*
+         * Cancel selection if it touches any of the rows in the
+         * scrollback, since we can’t have the selection reference
+         * soon-to-be deleted rows.
+         *
+         * This is done by range checking the selection range against
+         * the scrollback range.
+         *
+         * To make this comparison simpler, the start/end absolute row
+         * numbers are “rebased” against the scrollback start, where
+         * row 0 is the *first* row in the scrollback. A high number
+         * thus means the row is further *down* in the scrollback,
+         * closer to the screen bottom.
+         */
+
+        const int rel_sel_start = (sel_start - scrollback_start + num_rows) & mask;
+        const int rel_sel_end = (sel_end - scrollback_start + num_rows) & mask;
+
+        if ((rel_sel_start <= rel_start && rel_sel_end >= rel_start) ||
+            (rel_sel_start <= rel_end && rel_sel_end >= rel_end) ||
+            (rel_sel_start >= rel_start && rel_sel_end <= rel_end))
+        {
+            selection_cancel(term);
+        }
+    }
+
+    tll_foreach(term->grid->sixel_images, it) {
+        struct sixel *six = &it->item;
+        const int six_start = (six->pos.row - scrollback_start + num_rows) & mask;
+        const int six_end = (six->pos.row + six->rows - 1 - scrollback_start + num_rows) & mask;
+
+        if ((six_start <= rel_start && six_end >= rel_start) ||
+            (six_start <= rel_end && six_end >= rel_end) ||
+            (six_start >= rel_start && six_end <= rel_end))
+        {
+            sixel_destroy(six);
+            tll_remove(term->grid->sixel_images, it);
+        }
+    }
+
+    for (int i = start;; i = (i + 1) & mask) {
+        struct row *row = term->grid->rows[i];
+        if (row != NULL) {
+            if (term->render.last_cursor.row == row)
+                term->render.last_cursor.row = NULL;
+
+            grid_row_free(row);
+            term->grid->rows[i] = NULL;
+        }
+
+        if (i == end)
+            break;
+    }
+
+    term->grid->view = term->grid->offset;
+    term_damage_view(term);
+}
+
+UNITTEST
+{
+    const int scrollback_rows = 16;
+    const int term_rows = 5;
+    const int cols = 5;
+
+    struct fdm *fdm = fdm_init();
+    xassert(fdm != NULL);
+
+    struct terminal term = {
+        .fdm = fdm,
+        .rows = term_rows,
+        .cols = cols,
+        .normal = {
+            .rows = xcalloc(scrollback_rows, sizeof(term.normal.rows[0])),
+            .num_rows = scrollback_rows,
+            .num_cols = cols,
+        },
+        .grid = &term.normal,
+        .selection = {
+            .start = {-1, -1},
+            .end = {-1, -1},
+            .kind = SELECTION_NONE,
+            .auto_scroll = {
+                .fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK),
+            },
+        },
+    };
+
+    xassert(term.selection.auto_scroll.fd >= 0);
+
+#define populate_scrollback() do {                                      \
+        for (int i = 0; i < scrollback_rows; i++) {                     \
+            if (term.normal.rows[i] == NULL) {                          \
+                struct row *r = xcalloc(1, sizeof(*term.normal.rows[i])); \
+                r->cells = xcalloc(cols, sizeof(r->cells[0]));          \
+                term.normal.rows[i] = r;                                \
+            }                                                           \
+        }                                                               \
+    } while (0)
+
+    /*
+     * Test case 1 - no selection, just verify all rows except those
+     * on screen have been deleted.
+     */
+
+    populate_scrollback();
+    term.normal.offset = 11;
+    term_erase_scrollback(&term);
+    for (int i = 0; i < scrollback_rows; i++) {
+        if (i >= term.normal.offset && i < term.normal.offset + term_rows)
+            xassert(term.normal.rows[i] != NULL);
+        else
+            xassert(term.normal.rows[i] == NULL);
+    }
+
+    /*
+     * Test case 2 - selection that touches the scrollback. Verify the
+     * selection is cancelled.
+     */
+
+    term.normal.offset = 14;  /* Screen covers rows 14,15,0,1,2 */
+
+    /* Selection covers rows 15,0,1,2,3 */
+    term.selection.start = (struct coord){.row = 15};
+    term.selection.end = (struct coord){.row = 19};
+    term.selection.kind = SELECTION_CHAR_WISE;
+
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(term.selection.start.row < 0);
+    xassert(term.selection.end.row < 0);
+    xassert(term.selection.kind == SELECTION_NONE);
+
+    /*
+     * Test case 3 - selection that does *not* touch the
+     * scrollback. Verify the selection is *not* cancelled.
+     */
+
+    /* Selection covers rows 15,0 */
+    term.selection.start = (struct coord){.row = 15};
+    term.selection.end = (struct coord){.row = 16};
+    term.selection.kind = SELECTION_CHAR_WISE;
+
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(term.selection.start.row == 15);
+    xassert(term.selection.end.row == 16);
+    xassert(term.selection.kind == SELECTION_CHAR_WISE);
+
+    term.selection.start = (struct coord){-1, -1};
+    term.selection.end = (struct coord){-1, -1};
+    term.selection.kind = SELECTION_NONE;
+
+    /*
+     * Test case 4 - sixel that touch the scrollback
+     */
+
+    struct sixel six = {
+        .rows = 5,
+        .pos = {
+            .row = 15,
+        },
+    };
+    tll_push_back(term.normal.sixel_images, six);
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(tll_length(term.normal.sixel_images) == 0);
+
+    /*
+     * Test case 5 - sixel that does *not* touch the scrollback
+     */
+    six.rows = 3;
+    tll_push_back(term.normal.sixel_images, six);
+    populate_scrollback();
+    term_erase_scrollback(&term);
+    xassert(tll_length(term.normal.sixel_images) == 1);
+
+    /* Cleanup */
+    tll_free(term.normal.sixel_images);
+    close(term.selection.auto_scroll.fd);
+    for (int i = 0; i < scrollback_rows; i++)
+        grid_row_free(term.normal.rows[i]);
+    free(term.normal.rows);
+    fdm_destroy(fdm);
 }
 
 int
@@ -2634,9 +2853,13 @@ term_xcursor_update(struct terminal *term)
 void
 term_set_window_title(struct terminal *term, const char *title)
 {
+    if (term->conf->locked_title && term->window_title_has_been_set)
+        return;
+
     free(term->window_title);
     term->window_title = xstrdup(title);
     render_refresh_title(term);
+    term->window_title_has_been_set = true;
 }
 
 void
@@ -2756,6 +2979,7 @@ print_linewrap(struct terminal *term)
         return;
     }
 
+    term->grid->cur_row->linebreak = false;
     term->grid->cursor.lcf = false;
 
     const int row = term->grid->cursor.point.row;
@@ -2848,7 +3072,7 @@ term_print(struct terminal *term, wchar_t wc, int width)
     cell->attrs = term->vt.attrs;
 
     row->dirty = true;
-    row->linebreak = false;
+    row->linebreak = true;
 
     /* Advance cursor the 'additional' columns while dirty:ing the cells */
     for (int i = 1; i < width && term->grid->cursor.point.col < term->cols - 1; i++) {
@@ -2887,7 +3111,7 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
     cell->attrs = term->vt.attrs;
 
     row->dirty = true;
-    row->linebreak = false;
+    row->linebreak = true;
 
     /* Advance cursor */
     if (unlikely(++term->grid->cursor.point.col >= term->cols)) {

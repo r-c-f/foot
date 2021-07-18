@@ -26,6 +26,7 @@
 #include "input.h"
 #include "render.h"
 #include "selection.h"
+#include "shm.h"
 #include "util.h"
 #include "xmalloc.h"
 
@@ -50,8 +51,11 @@ csd_instantiate(struct wl_window *win)
 static void
 csd_destroy(struct wl_window *win)
 {
+    struct terminal *term = win->term;
+
     for (size_t i = 0; i < ALEN(win->csd.surface); i++)
         wayl_win_subsurface_destroy(&win->csd.surface[i]);
+    shm_purge(term->render.chains.csd);
 }
 
 static void
@@ -1410,6 +1414,8 @@ wayl_win_destroy(struct wl_window *win)
     if (win == NULL)
         return;
 
+    struct terminal *term = win->term;
+
     if (win->csd.move_timeout_fd != -1)
         close(win->csd.move_timeout_fd);
 
@@ -1438,6 +1444,12 @@ wayl_win_destroy(struct wl_window *win)
         wl_surface_commit(win->search.surf);
     }
 
+    /* URLs */
+    tll_foreach(win->urls, it) {
+        wl_surface_attach(it->item.surf.surf, NULL, 0, 0);
+        wl_surface_commit(it->item.surf.surf);
+    }
+
     /* CSD */
     for (size_t i = 0; i < ALEN(win->csd.surface); i++) {
         if (win->csd.surface[i].surf != NULL) {
@@ -1464,6 +1476,13 @@ wayl_win_destroy(struct wl_window *win)
     wayl_win_subsurface_destroy(&win->search);
     wayl_win_subsurface_destroy(&win->scrollback_indicator);
     wayl_win_subsurface_destroy(&win->render_timer);
+
+    shm_purge(term->render.chains.search);
+    shm_purge(term->render.chains.scrollback_indicator);
+    shm_purge(term->render.chains.render_timer);
+    shm_purge(term->render.chains.grid);
+    shm_purge(term->render.chains.url);
+    shm_purge(term->render.chains.csd);
 
 #if defined(HAVE_XDG_ACTIVATION)
     if (win->xdg_activation_token != NULL)

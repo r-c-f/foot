@@ -21,6 +21,7 @@
 #include "fdm.h"
 #include "macros.h"
 #include "reaper.h"
+#include "shm.h"
 #include "wayland.h"
 
 /*
@@ -42,11 +43,12 @@ struct attributes {
     uint32_t fg:24;
 
     bool clean:1;
+    bool confined:1;
     bool have_fg:1;
     bool have_bg:1;
     uint32_t selected:2;
     bool url:1;
-    uint32_t reserved:2;
+    uint32_t reserved:1;
     uint32_t bg:24;
 };
 static_assert(sizeof(struct attributes) == 8, "VT attribute struct too large");
@@ -264,6 +266,7 @@ struct url {
     enum url_action action;
     bool url_mode_dont_change_url_attr; /* Entering/exiting URL mode doesn’t touch the cells’ attr.url */
     bool osc8;
+    bool duplicate;
 };
 typedef tll(struct url) url_list_t;
 
@@ -377,11 +380,12 @@ struct terminal {
         bool ime:1;
         bool app_sync_updates:1;
 
-        bool sixel_scrolling:1;
+        bool sixel_display_mode:1;
         bool sixel_private_palette:1;
         bool sixel_cursor_right_of_graphics:1;
     } xtsave;
 
+    bool window_title_has_been_set;
     char *window_title;
     tll(char *) window_title_stack;
 
@@ -472,6 +476,15 @@ struct terminal {
     enum term_surface active_surface;
 
     struct {
+        struct {
+            struct buffer_chain *grid;
+            struct buffer_chain *search;
+            struct buffer_chain *scrollback_indicator;
+            struct buffer_chain *render_timer;
+            struct buffer_chain *url;
+            struct buffer_chain *csd;
+        } chains;
+
         /* Scheduled for rendering, as soon-as-possible */
         struct {
             bool grid;
@@ -649,6 +662,7 @@ void term_damage_scroll(
 
 void term_erase(
     struct terminal *term, const struct coord *start, const struct coord *end);
+void term_erase_scrollback(struct terminal *term);
 
 int term_row_rel_to_abs(const struct terminal *term, int row);
 void term_cursor_home(struct terminal *term);

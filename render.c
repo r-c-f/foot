@@ -437,6 +437,20 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
     }
 }
 
+static inline void
+render_cell_prepass(struct terminal *term, struct row *row, int col)
+{
+    for (; col < term->cols - 1; col++) {
+        if (row->cells[col].attrs.confined ||
+            (row->cells[col].attrs.clean == row->cells[col + 1].attrs.clean)) {
+            break;
+        }
+
+        row->cells[col].attrs.clean = 0;
+        row->cells[col + 1].attrs.clean = 0;
+    }
+}
+
 static int
 render_cell(struct terminal *term, pixman_image_t *pix,
             struct row *row, int col, int row_no, bool has_cursor)
@@ -446,6 +460,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         return 0;
 
     cell->attrs.clean = 1;
+    cell->attrs.confined = true;
 
     int width = term->cell_width;
     int height = term->cell_height;
@@ -458,7 +473,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     uint32_t _fg = 0;
     uint32_t _bg = 0;
 
-    bool apply_alpha = false;
+    uint16_t alpha = 0xffff;
 
     if (is_selected && term->colors.use_custom_selection) {
         _fg = term->colors.selection_fg;
@@ -472,14 +487,14 @@ render_cell(struct terminal *term, pixman_image_t *pix,
             uint32_t swap = _fg;
             _fg = _bg;
             _bg = swap;
-        } else
-            apply_alpha = !cell->attrs.have_bg;
+        } else if (!cell->attrs.have_bg)
+            alpha = term->colors.alpha;
     }
 
     if (unlikely(is_selected && _fg == _bg)) {
         /* Invert bg when selected/highlighted text has same fg/bg */
         _bg = ~_bg;
-        apply_alpha = false;
+        alpha = 0xffff;
     }
 
     if (cell->attrs.dim)
@@ -491,8 +506,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         _fg = color_dim(_fg);
 
     pixman_color_t fg = color_hex_to_pixman(_fg);
-    pixman_color_t bg = color_hex_to_pixman_with_alpha(
-        _bg, apply_alpha ? term->colors.alpha : 0xffff);
+    pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, alpha);
 
     if (term->is_searching && !is_selected) {
         color_dim_for_search(&fg);
@@ -598,51 +612,32 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     cell_cols = max(1, min(cell_cols, cols_left));
 
     /*
-     * Hack!
-     *
-     * Deal with double-width glyphs for which wcwidth() returns
-     * 1. Typically Unicode private usage area characters,
-     * e.g. powerline, or nerd hack fonts.
-     *
-     * Users can enable a tweak option that lets this glyphs
-     * overflow/bleed into the neighbouring cell.
-     *
-     * We only apply this workaround if:
-     *  - the user has explicitly enabled this feature
-     *  - the *character* width is 1
-     *  - the *glyph* width is at least 1.5 cells
-     *  - the *glyph* width is less than 3 cells
-     *  - *this* column isn’t the last column
-     *  - *this* cells is followed by an empty cell, or a space
+     * Determine cells that will bleed into their right neighbor and remember
+     * them for cleanup in the next frame.
      */
-    if (term->conf->tweak.allow_overflowing_double_width_glyphs &&
-        ((glyph_count > 0 &&
-          cell_cols == 1 &&
-          glyphs[0]->width >= term->cell_width * 15 / 10 &&
-          glyphs[0]->width < 3 * term->cell_width &&
-          col < term->cols - 1) ||
-         (term->conf->tweak.pua_double_width &&
-          ((base >= 0x00e000 && base <= 0x00f8ff) ||
-           (base >= 0x0f0000 && base <= 0x0ffffd) ||
-           (base >= 0x100000 && base <= 0x10fffd)))) &&
-        (row->cells[col + 1].wc == 0 || row->cells[col + 1].wc == L' '))
+    int render_width = cell_cols * width;
+    if (term->conf->tweak.overflowing_glyphs &&
+        glyph_count > 0)
     {
-        cell_cols = 2;
+        int glyph_width = 0, advance = 0;
+        for (size_t i = 0; i < glyph_count; i++) {
+            glyph_width = max(glyph_width,
+                              advance + glyphs[i]->x + glyphs[i]->width);
+            advance += glyphs[i]->advance.x;
+        }
 
-        /*
-         * Ensure the cell we’re overflowing into gets re-rendered, to
-         * ensure it is erased if *this* cell is erased. Note that we
-         * do *not* mark the row as dirty - we don’t need to re-render
-         * the cell if nothing else on the row has changed.
-         */
-        row->cells[col].attrs.clean = 0;
-        row->cells[col + 1].attrs.clean = 0;
+        if (glyph_width > render_width) {
+            render_width = min(glyph_width, render_width + width);
+
+            for (int i = 0; i < cell_cols; i++)
+                row->cells[col + i].attrs.confined = false;
+        }
     }
 
     pixman_region32_t clip;
     pixman_region32_init_rect(
         &clip, x, y,
-        cell_cols * term->cell_width, term->cell_height);
+        render_width, term->cell_height);
     pixman_image_set_clip_region32(pix, &clip);
 
     /* Background */
@@ -772,6 +767,10 @@ static void
 render_row(struct terminal *term, pixman_image_t *pix, struct row *row,
            int row_no, int cursor_col)
 {
+    if (term->conf->tweak.overflowing_glyphs)
+        for (int col = term->cols - 1; col >= 0; col--)
+            render_cell_prepass(term, row, col);
+
     for (int col = term->cols - 1; col >= 0; col--)
         render_cell(term, pix, row, col, row_no, cursor_col == col);
 }
@@ -816,13 +815,10 @@ render_margin(struct terminal *term, struct buffer *buf,
     const int line_count = end_line - start_line;
 
     uint32_t _bg = !term->reverse ? term->colors.bg : term->colors.fg;
-    if (term->is_searching)
-        _bg = color_dim(_bg);
+    pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, term->colors.alpha);
 
-    pixman_color_t bg = color_hex_to_pixman_with_alpha(
-        _bg,
-        (_bg == (term->reverse ? term->colors.fg : term->colors.bg)
-         ? term->colors.alpha : 0xffff));
+    if (term->is_searching)
+        color_dim_for_search(&bg);
 
     pixman_image_fill_rectangles(
         PIXMAN_OP_SRC, buf->pix[0], &bg, 4,
@@ -947,7 +943,7 @@ grid_render_scroll(struct terminal *term, struct buffer *buf,
 
     if (try_shm_scroll) {
         did_shm_scroll = shm_scroll(
-            term->wl->shm, buf, dmg->lines * term->cell_height,
+            buf, dmg->lines * term->cell_height,
             term->margins.top, dmg->region.start * term->cell_height,
             term->margins.bottom, (term->rows - dmg->region.end) * term->cell_height);
     }
@@ -958,7 +954,7 @@ grid_render_scroll(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.end - dmg->lines, term->rows, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -1012,7 +1008,7 @@ grid_render_scroll_reverse(struct terminal *term, struct buffer *buf,
 
     if (try_shm_scroll) {
         did_shm_scroll = shm_scroll(
-            term->wl->shm, buf, -dmg->lines * term->cell_height,
+            buf, -dmg->lines * term->cell_height,
             term->margins.top, dmg->region.start * term->cell_height,
             term->margins.bottom, (term->rows - dmg->region.end) * term->cell_height);
     }
@@ -1023,7 +1019,7 @@ grid_render_scroll_reverse(struct terminal *term, struct buffer *buf,
             term, buf, dmg->region.start, dmg->region.start + dmg->lines, false);
     } else {
         /* Fallback for when we either cannot do SHM scrolling, or it failed */
-        uint8_t *raw = buf->mmapped;
+        uint8_t *raw = buf->data;
         memmove(raw + dst_y * buf->stride,
                 raw + src_y * buf->stride,
                 height * buf->stride);
@@ -1196,8 +1192,10 @@ render_sixel(struct terminal *term, pixman_image_t *pix,
                         (last_col_needs_erase && last_col))
                     {
                         render_cell(term, pix, row, col, term_row_no, cursor_col == col);
-                    } else
+                    } else {
                         cell->attrs.clean = 1;
+                        cell->attrs.confined = 1;
+                    }
                 }
             }
         }
@@ -1577,21 +1575,16 @@ render_csd_part(struct terminal *term,
 }
 
 static void
-render_csd_title(struct terminal *term)
+render_csd_title(struct terminal *term, const struct csd_data *info,
+                 struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    struct csd_data info = get_csd_data(term, CSD_SURF_TITLE);
     struct wl_surface *surf = term->window->csd.surface[CSD_SURF_TITLE].surf;
+    xassert(info->width > 0 && info->height > 0);
 
-    xassert(info.width > 0 && info.height > 0);
-
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    unsigned long cookie = shm_cookie_csd(term, CSD_SURF_TITLE);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     uint32_t _color = term->conf->colors.fg;
     uint16_t alpha = 0xffff;
@@ -1605,31 +1598,27 @@ render_csd_title(struct terminal *term)
         _color = color_dim(_color);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
     csd_commit(term, surf, buf);
 }
 
 static void
-render_csd_border(struct terminal *term, enum csd_surface surf_idx)
+render_csd_border(struct terminal *term, enum csd_surface surf_idx,
+                  const struct csd_data *info, struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
     xassert(surf_idx >= CSD_SURF_LEFT && surf_idx <= CSD_SURF_BOTTOM);
 
-    struct csd_data info = get_csd_data(term, surf_idx);
     struct wl_surface *surf = term->window->csd.surface[surf_idx].surf;
 
-    if (info.width == 0 || info.height == 0)
+    if (info->width == 0 || info->height == 0)
         return;
 
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    unsigned long cookie = shm_cookie_csd(term, surf_idx);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(0, 0);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
     csd_commit(term, surf, buf);
 }
 
@@ -1796,23 +1785,19 @@ render_csd_button_close(struct terminal *term, struct buffer *buf)
 }
 
 static void
-render_csd_button(struct terminal *term, enum csd_surface surf_idx)
+render_csd_button(struct terminal *term, enum csd_surface surf_idx,
+                  const struct csd_data *info, struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
     xassert(surf_idx >= CSD_SURF_MINIMIZE && surf_idx <= CSD_SURF_CLOSE);
 
-    struct csd_data info = get_csd_data(term, surf_idx);
     struct wl_surface *surf = term->window->csd.surface[surf_idx].surf;
 
-    if (info.width == 0 || info.height == 0)
+    if (info->width == 0 || info->height == 0)
         return;
 
-    xassert(info.width % term->scale == 0);
-    xassert(info.height % term->scale == 0);
-
-    unsigned long cookie = shm_cookie_csd(term, surf_idx);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, info.width, info.height, cookie, false, 1);
+    xassert(info->width % term->scale == 0);
+    xassert(info->height % term->scale == 0);
 
     uint32_t _color;
     uint16_t alpha = 0xffff;
@@ -1861,7 +1846,7 @@ render_csd_button(struct terminal *term, enum csd_surface surf_idx)
         _color = color_dim(_color);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info.width, info.height, &color);
+    render_csd_part(term, surf, buf, info->width, info->height, &color);
 
     switch (surf_idx) {
     case CSD_SURF_MINIMIZE: render_csd_button_minimize(term, buf); break;
@@ -1885,12 +1870,16 @@ render_csd(struct terminal *term)
     if (term->window->is_fullscreen)
         return;
 
+    struct csd_data infos[CSD_SURF_COUNT];
+    int widths[CSD_SURF_COUNT];
+    int heights[CSD_SURF_COUNT];
+
     for (size_t i = 0; i < CSD_SURF_COUNT; i++) {
-        struct csd_data info = get_csd_data(term, i);
-        const int x = info.x;
-        const int y = info.y;
-        const int width = info.width;
-        const int height = info.height;
+        infos[i] = get_csd_data(term, i);
+        const int x = infos[i].x;
+        const int y = infos[i].y;
+        const int width = infos[i].width;
+        const int height = infos[i].height;
 
         struct wl_surface *surf = term->window->csd.surface[i].surf;
         struct wl_subsurface *sub = term->window->csd.surface[i].sub;
@@ -1899,20 +1888,27 @@ render_csd(struct terminal *term)
         xassert(sub != NULL);
 
         if (width == 0 || height == 0) {
+            widths[i] = heights[i] = 0;
             wl_subsurface_set_position(sub, 0, 0);
             wl_surface_attach(surf, NULL, 0, 0);
             wl_surface_commit(surf);
             continue;
         }
 
+        widths[i] = width;
+        heights[i] = height;
+
         wl_subsurface_set_position(sub, x / term->scale, y / term->scale);
     }
 
+    struct buffer *bufs[CSD_SURF_COUNT];
+    shm_get_many(term->render.chains.csd, CSD_SURF_COUNT, widths, heights, bufs);
+
     for (size_t i = CSD_SURF_LEFT; i <= CSD_SURF_BOTTOM; i++)
-        render_csd_border(term, i);
+        render_csd_border(term, i, &infos[i], bufs[i]);
     for (size_t i = CSD_SURF_MINIMIZE; i <= CSD_SURF_CLOSE; i++)
-        render_csd_button(term, i);
-    render_csd_title(term);
+        render_csd_button(term, i, &infos[i], bufs[i]);
+    render_csd_title(term, &infos[CSD_SURF_TITLE], bufs[CSD_SURF_TITLE]);
 }
 
 static void
@@ -2051,10 +2047,6 @@ render_scrollback_position(struct terminal *term)
     const int height =
         (2 * margin + term->cell_height + scale - 1) / scale * scale;
 
-    unsigned long cookie = shm_cookie_scrollback_indicator(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, width, height, cookie, false, 1);
-
     /* *Where* to render - parent relative coordinates */
     int surf_top = 0;
     switch (term->conf->scrollback.indicator.position) {
@@ -2072,18 +2064,29 @@ render_scrollback_position(struct terminal *term)
             /* Make sure we don't collide with the scrollback search box */
             lines--;
         }
-        xassert(lines > 0);
 
-        int pixels = lines * term->cell_height - height + 2 * margin;
+        lines = max(lines, 0);
+
+        int pixels = max(lines * term->cell_height - height + 2 * margin, 0);
         surf_top = term->cell_height - margin + (int)(percent * pixels);
         break;
     }
     }
 
+    const int x = (term->width - margin - width) / scale * scale;
+    const int y = (term->margins.top + surf_top) / scale * scale;
+
+    if (y + height > term->height) {
+        wl_surface_attach(win->scrollback_indicator.surf, NULL, 0, 0);
+        wl_surface_commit(win->scrollback_indicator.surf);
+        return;
+    }
+
+    struct buffer_chain *chain = term->render.chains.scrollback_indicator;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
+
     wl_subsurface_set_position(
-        win->scrollback_indicator.sub,
-        (term->width - margin - width) / scale,
-        (term->margins.top + surf_top) / scale);
+        win->scrollback_indicator.sub, x / scale, y / scale);
 
     render_osd(
         term,
@@ -2092,7 +2095,6 @@ render_scrollback_position(struct terminal *term)
         buf, text,
         term->colors.table[0], term->colors.table[8 + 4],
         width - margin - wcslen(text) * term->cell_width, margin);
-
 }
 
 static void
@@ -2112,9 +2114,8 @@ render_render_timer(struct terminal *term, struct timeval render_time)
     const int height =
         (2 * margin + term->cell_height + scale - 1) / scale * scale;
 
-    unsigned long cookie = shm_cookie_render_timer(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, width, height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.render_timer;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
 
     wl_subsurface_set_position(
         win->render_timer.sub,
@@ -2157,7 +2158,7 @@ reapply_old_damage(struct terminal *term, struct buffer *new, struct buffer *old
     }
 
     if (new->age > 1) {
-        memcpy(new->mmapped, old->mmapped, new->size);
+        memcpy(new->data, old->data, new->height * new->stride);
         return;
     }
 
@@ -2287,9 +2288,8 @@ grid_render(struct terminal *term)
     xassert(term->width > 0);
     xassert(term->height > 0);
 
-    unsigned long cookie = shm_cookie_grid(term);
-    struct buffer *buf = shm_get_buffer(
-        term->wl->shm, term->width, term->height, cookie, true, 1 + term->render.workers.count);
+    struct buffer_chain *chain = term->render.chains.grid;
+    struct buffer *buf = shm_get_buffer(chain, term->width, term->height);
 
     /* Dirty old and current cursor cell, to ensure they’re repainted */
     dirty_old_cursor(term);
@@ -2306,7 +2306,7 @@ grid_render(struct terminal *term)
     }
 
     else if (buf->age > 0) {
-        LOG_DBG("buffer age: %u", buf->age);
+        LOG_DBG("buffer age: %u (%p)", buf->age, (void *)buf);
 
         xassert(term->render.last_buf != NULL);
         xassert(term->render.last_buf != buf);
@@ -2319,17 +2319,18 @@ grid_render(struct terminal *term)
     }
 
     if (term->render.last_buf != NULL) {
-        free(term->render.last_buf->scroll_damage);
-        term->render.last_buf->scroll_damage = NULL;
+        shm_unref(term->render.last_buf);
+        term->render.last_buf = NULL;
     }
 
     term->render.last_buf = buf;
     term->render.was_flashing = term->flash.active;
     term->render.was_searching = term->is_searching;
 
+    shm_addref(buf);
     buf->age = 0;
 
-    xassert(buf->scroll_damage == NULL);
+    free(term->render.last_buf->scroll_damage);
     buf->scroll_damage_count = tll_length(term->grid->scroll_damage);
     buf->scroll_damage = xmalloc(
         buf->scroll_damage_count * sizeof(buf->scroll_damage[0]));
@@ -2620,8 +2621,14 @@ render_search_box(struct terminal *term)
     const size_t visible_cells = (visible_width - 2 * margin) / term->cell_width;
     size_t glyph_offset = term->render.search_glyph_offset;
 
-    unsigned long cookie = shm_cookie_search(term);
-    struct buffer *buf = shm_get_buffer(term->wl->shm, width, height, cookie, false, 1);
+    struct buffer_chain *chain = term->render.chains.search;
+    struct buffer *buf = shm_get_buffer(chain, width, height);
+
+    pixman_region32_t clip;
+    pixman_region32_init_rect(&clip, 0, 0, width, height);
+    pixman_image_set_clip_region32(buf->pix[0], &clip);
+    pixman_region32_fini(&clip);
+
 
 #define WINDOW_X(x) (margin + x)
 #define WINDOW_Y(y) (term->height - margin - height + y)
@@ -2875,6 +2882,10 @@ render_urls(struct terminal *term)
     struct wl_window *win = term->window;
     xassert(tll_length(win->urls) > 0);
 
+    const int scale = term->scale;
+    const int x_margin = 2 * scale;
+    const int y_margin = 1 * scale;
+
     /* Calculate view start, counted from the *current* scrollback start */
     const int scrollback_end
         = (term->grid->offset + term->rows) & (term->grid->num_rows - 1);
@@ -2885,6 +2896,45 @@ render_urls(struct terminal *term)
     const int view_end = view_start + term->rows - 1;
 
     const bool show_url = term->urls_show_uri_on_jump_label;
+
+    /*
+     * There can potentially be a lot of URLs.
+     *
+     * Since each URL is a separate sub-surface, and requires its own
+     * SHM buffer, we may be allocating a lot of buffers.
+     *
+     * SHM buffers normally have their own, private SHM buffer
+     * pool. Each pool is mmapped, and thus allocates *at least*
+     * 4K. Since URL labels are typically small, we end up using an
+     * excessive amount of both virtual and physical memory.
+     *
+     * For this reason, we instead use shm_get_many(), which uses a
+     * single, shared pool for all buffers.
+     *
+     * To be able to use it, we need to have all the *all* the buffer
+     * dimensions up front.
+     *
+     * Thus, the first iteration through the URLs do the heavy
+     * lifting: builds the label contents and calculates both its
+     * position and size. But instead of rendering the label
+     * immediately, we store the calculated data, and then do a second
+     * pass, where we first get all our buffers, and then render to
+     * them.
+     */
+
+    /* Positioning data + label contents */
+    struct {
+        const struct wl_url *url;
+        wchar_t *text;
+        int x;
+        int y;
+    } info[tll_length(win->urls)];
+
+    /* For shm_get_many() */
+    int widths[tll_length(win->urls)];
+    int heights[tll_length(win->urls)];
+
+    size_t render_count = 0;
 
     tll_foreach(win->urls, it) {
         const struct url *url = it->item.url;
@@ -2942,6 +2992,7 @@ render_urls(struct terminal *term)
         /* Maximum width of label, in pixels */
         const int max_width =
             term->width - term->margins.left - term->margins.right - x;
+        const int max_cols = max_width / term->cell_width;
 
         const size_t key_len = wcslen(key);
 
@@ -2979,10 +3030,6 @@ render_urls(struct terminal *term)
          * Do it in a way such that we don’t cut the label in the
          * middle of a double-width character.
          */
-        const int scale = term->scale;
-        const int x_margin = 2 * scale;
-        const int y_margin = 1 * scale;
-        const int max_cols = max_width / term->cell_width;
 
         int cols = 0;
 
@@ -3010,23 +3057,48 @@ render_urls(struct terminal *term)
         const int height =
             (2 * y_margin + term->cell_height + scale - 1) / scale * scale;
 
-        struct buffer *buf = shm_get_buffer(
-            term->wl->shm, width, height, shm_cookie_url(url), false, 1);
+        info[render_count].url = &it->item;
+        info[render_count].text = xwcsdup(label);
+        info[render_count].x = x;
+        info[render_count].y = y;
+
+        widths[render_count] = width;
+        heights[render_count] = height;
+
+        render_count++;
+    }
+
+    struct buffer_chain *chain = term->render.chains.url;
+    struct buffer *bufs[render_count];
+    shm_get_many(chain, render_count, widths, heights, bufs);
+
+    uint32_t fg = term->conf->colors.use_custom.jump_label
+        ? term->conf->colors.jump_label.fg
+        : term->colors.table[0];
+    uint32_t bg = term->conf->colors.use_custom.jump_label
+        ? term->conf->colors.jump_label.bg
+        : term->colors.table[3];
+
+    for (size_t i = 0; i < render_count; i++) {
+        struct wl_surface *surf = info[i].url->surf.surf;
+        struct wl_subsurface *sub_surf = info[i].url->surf.sub;
+
+        const wchar_t *label = info[i].text;
+        const int x = info[i].x;
+        const int y = info[i].y;
+
+        xassert(surf != NULL);
+        xassert(sub_surf != NULL);
 
         wl_subsurface_set_position(
             sub_surf,
             (term->margins.left + x) / term->scale,
             (term->margins.top + y) / term->scale);
 
-        uint32_t fg = term->conf->colors.use_custom.jump_label
-            ? term->conf->colors.jump_label.fg
-            : term->colors.table[0];
-        uint32_t bg = term->conf->colors.use_custom.jump_label
-            ? term->conf->colors.jump_label.bg
-            : term->colors.table[3];
-
         render_osd(
-            term, surf, sub_surf, buf, label, fg, bg, x_margin, y_margin);
+            term, surf, sub_surf, bufs[i], label, fg, bg, x_margin, y_margin);
+
+        free(info[i].text);
     }
 }
 
@@ -3119,8 +3191,10 @@ fdm_tiocswinsz(struct fdm *fdm, int fd, int events, void *data)
     if (events & EPOLLIN)
         tiocswinsz(term);
 
-    fdm_del(fdm, fd);
-    term->window->resize_timeout_fd = -1;
+    if (term->window->resize_timeout_fd >= 0) {
+        fdm_del(fdm, term->window->resize_timeout_fd);
+        term->window->resize_timeout_fd = -1;
+    }
     return true;
 }
 
@@ -3405,6 +3479,7 @@ damage_view:
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 
+    shm_unref(term->render.last_buf);
     term->render.last_buf = NULL;
     term_damage_view(term);
     render_refresh_csd(term);
