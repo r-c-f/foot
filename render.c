@@ -617,7 +617,8 @@ render_cell(struct terminal *term, pixman_image_t *pix,
      */
     int render_width = cell_cols * width;
     if (term->conf->tweak.overflowing_glyphs &&
-        glyph_count > 0)
+        glyph_count > 0 &&
+        cols_left > cell_cols)
     {
         int glyph_width = 0, advance = 0;
         for (size_t i = 0; i < glyph_count; i++) {

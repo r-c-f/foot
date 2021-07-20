@@ -35,6 +35,11 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Rendering into the right margin area with `tweak.overflowing-glyphs`
+  enabled.
+
+
 ### Security
 ### Contributors
 
