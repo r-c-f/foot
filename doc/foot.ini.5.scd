@@ -518,6 +518,10 @@ component.
 	Titlebar AARRGGBB color. Default: use the default _foreground_
 	color.
 
+*font*
+	Font to use for the title bar. This is a list of fonts, similar to
+	the main *font* option. Default: _primary font_.
+
 *button-width*
 	Width, in pixels (subject to output scaling), of the
 	minimize/maximize/close buttons. Default: _26_.

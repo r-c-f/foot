@@ -228,6 +228,8 @@ struct config {
             uint32_t maximize;
             uint32_t close;
         } color;
+
+        struct config_font_list font;
     } csd;
 
     size_t render_worker_count;

@@ -46,15 +46,18 @@ csd_reload_font(struct wl_window *win, int old_scale)
 
     fcft_destroy(win->csd.font);
 
+    const char *patterns[conf->csd.font.count];
+    for (size_t i = 0; i < conf->csd.font.count; i++)
+        patterns[i] = conf->csd.font.arr[i].pattern;
+
     char pixelsize[32];
     snprintf(pixelsize, sizeof(pixelsize),
              "pixelsize=%u", conf->csd.title_height * scale * 1 / 2);
 
     LOG_DBG("loading CSD font \"%s:%s\" (old-scale=%d, scale=%d)",
-            conf->fonts->arr[0].pattern, pixelsize, old_scale, scale);
+            patterns[0], pixelsize, old_scale, scale);
 
-    win->csd.font = fcft_from_name(
-        1, &(const char *){conf->fonts->arr[0].pattern}, pixelsize);
+    win->csd.font = fcft_from_name(conf->csd.font.count, patterns, pixelsize);
 }
 
 static void
