@@ -31,6 +31,11 @@
 
 ## Unreleased
 ### Added
+
+* Window title in the CSDs
+  (https://codeberg.org/dnkl/foot/issues/638).
+
+
 ### Changed
 ### Deprecated
 ### Removed
