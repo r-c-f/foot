@@ -612,8 +612,8 @@ All _OSC_ sequences begin with *\\E]*, sometimes abbreviated _OSC_.
 :  xterm
 :  Send clipboard data. _Pc_ can be either *c*, *s* or *p*. *c* uses
    the clipboard as source, and *s* and *p* uses the primary
-   selection. The response is *OSC 52 ; Pc ; <base64-encoded data>*,
-   where _Pc_ denotes the source used.
+   selection. The response is *\\E] 52 ; Pc ; <base64-encoded data>
+   \E\\*, where _Pc_ denotes the source used.
 |  \\E] 52 ; _Pc_ ; _Pd_ \\E\\ 
 :  xterm
 :  Copy _Pd_ (base64 encoded text) to the clipboard. _Pc_ denotes the
