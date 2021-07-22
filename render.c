@@ -1597,14 +1597,39 @@ render_osd(struct terminal *term,
     pixman_color_t fg = color_hex_to_pixman(_fg);
     const int x_ofs = term->font_x_ofs;
 
+    const size_t len = wcslen(text);
+    struct fcft_text_run *text_run = NULL;
+    const struct fcft_glyph **glyphs = NULL;
+    const struct fcft_glyph *_glyphs[len];
+    size_t glyph_count = 0;
+
+    if (fcft_capabilities() & FCFT_CAPABILITY_TEXT_RUN_SHAPING) {
+        text_run = fcft_text_run_rasterize(font, len, text, term->font_subpixel);
+
+        if (text_run != NULL) {
+            glyphs = text_run->glyphs;
+            glyph_count = text_run->count;
+        }
+    }
+
+    if (glyphs == NULL) {
+        for (size_t i = 0; i < len; i++) {
+            const struct fcft_glyph *glyph = fcft_glyph_rasterize(
+                font, text[i], term->font_subpixel);
+
+            if (glyph == NULL)
+                continue;
+
+            _glyphs[glyph_count++] = glyph;
+        }
+
+        glyphs = _glyphs;
+    }
+
     pixman_image_t *src = pixman_image_create_solid_fill(&fg);
 
-    for (size_t i = 0; i < wcslen(text); i++) {
-        const struct fcft_glyph *glyph = fcft_glyph_rasterize(
-            font, text[i], term->font_subpixel);
-
-        if (glyph == NULL)
-            continue;
+    for (size_t i = 0; i < glyph_count; i++) {
+        const struct fcft_glyph *glyph = glyphs[i];
 
         if (pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8) {
             pixman_image_composite32(
@@ -1621,6 +1646,7 @@ render_osd(struct terminal *term,
         x += glyph->advance.x;
     }
 
+    fcft_text_run_destroy(text_run);
     pixman_image_unref(src);
     pixman_image_set_clip_region32(buf->pix[0], NULL);
 
