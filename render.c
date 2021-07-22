@@ -1643,26 +1643,40 @@ render_csd_title(struct terminal *term, const struct csd_data *info,
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    struct wl_surface *surf = term->window->csd.surface[CSD_SURF_TITLE].surf;
+    struct wl_surf_subsurf *surf = &term->window->csd.surface[CSD_SURF_TITLE];
     xassert(info->width > 0 && info->height > 0);
 
     xassert(info->width % term->scale == 0);
     xassert(info->height % term->scale == 0);
 
-    uint32_t _color = term->conf->colors.fg;
-    uint16_t alpha = 0xffff;
+    uint32_t bg = term->conf->csd.color.title_set
+        ? term->conf->csd.color.title
+        : 0xffu << 24 | term->conf->colors.fg;
+    uint32_t fg = term->conf->csd.color.buttons_set
+        ? term->conf->csd.color.buttons
+        : term->conf->colors.bg;
 
-    if (term->conf->csd.color.title_set) {
-        _color = term->conf->csd.color.title;
-        alpha = _color >> 24 | (_color >> 24 << 8);
+    if (!term->visual_focus) {
+        bg = color_dim(bg);
+        fg = color_dim(fg);
     }
 
-    if (!term->visual_focus)
-        _color = color_dim(_color);
+    const wchar_t *title_text = L"";
+    wchar_t *_title_text = NULL;
 
-    pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info->width, info->height, &color);
-    csd_commit(term, surf, buf);
+    int chars = mbstowcs(NULL, term->window_title, 0);
+    if (chars >= 0) {
+        _title_text = xmalloc((chars + 1) * sizeof(wchar_t));
+        mbstowcs(_title_text, term->window_title, chars + 1);
+        title_text = _title_text;
+    }
+
+    const int margin = 10 * term->scale;
+    render_osd(term, surf->surf, surf->sub, buf, title_text, fg, bg,
+               margin, (buf->height - term->fonts[0]->height) / 2);
+
+    csd_commit(term, surf->surf, buf);
+    free(_title_text);
 }
 
 static void
