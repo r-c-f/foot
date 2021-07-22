@@ -1577,6 +1577,67 @@ render_csd_part(struct terminal *term,
 }
 
 static void
+render_osd(struct terminal *term,
+           struct wl_surface *surf, struct wl_subsurface *sub_surf,
+           struct buffer *buf,
+           const wchar_t *text, uint32_t _fg, uint32_t _bg,
+           unsigned x, unsigned y)
+{
+    pixman_region32_t clip;
+    pixman_region32_init_rect(&clip, 0, 0, buf->width, buf->height);
+    pixman_image_set_clip_region32(buf->pix[0], &clip);
+    pixman_region32_fini(&clip);
+
+    uint16_t alpha = _bg >> 24 | (_bg >> 24 << 8);
+    pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, alpha);
+    pixman_image_fill_rectangles(
+        PIXMAN_OP_SRC, buf->pix[0], &bg, 1,
+        &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
+
+    struct fcft_font *font = term->fonts[0];
+    pixman_color_t fg = color_hex_to_pixman(_fg);
+
+    const int x_ofs = term->font_x_ofs;
+
+    for (size_t i = 0; i < wcslen(text); i++) {
+        const struct fcft_glyph *glyph = fcft_glyph_rasterize(
+            font, text[i], term->font_subpixel);
+
+        if (glyph == NULL)
+            continue;
+
+        pixman_image_t *src = pixman_image_create_solid_fill(&fg);
+        pixman_image_composite32(
+            PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
+            x + x_ofs + glyph->x, y + font_baseline(term) - glyph->y,
+            glyph->width, glyph->height);
+        pixman_image_unref(src);
+
+        x += term->cell_width;
+    }
+
+    pixman_image_set_clip_region32(buf->pix[0], NULL);
+
+    xassert(buf->width % term->scale == 0);
+    xassert(buf->height % term->scale == 0);
+
+    quirk_weston_subsurface_desync_on(sub_surf);
+    wl_surface_attach(surf, buf->wl_buf, 0, 0);
+    wl_surface_damage_buffer(surf, 0, 0, buf->width, buf->height);
+    wl_surface_set_buffer_scale(surf, term->scale);
+
+    struct wl_region *region = wl_compositor_create_region(term->wl->compositor);
+    if (region != NULL) {
+        wl_region_add(region, 0, 0, buf->width, buf->height);
+        wl_surface_set_opaque_region(surf, region);
+        wl_region_destroy(region);
+    }
+
+    wl_surface_commit(surf);
+    quirk_weston_subsurface_desync_off(sub_surf);
+}
+
+static void
 render_csd_title(struct terminal *term, const struct csd_data *info,
                  struct buffer *buf)
 {
@@ -1911,59 +1972,6 @@ render_csd(struct terminal *term)
     for (size_t i = CSD_SURF_MINIMIZE; i <= CSD_SURF_CLOSE; i++)
         render_csd_button(term, i, &infos[i], bufs[i]);
     render_csd_title(term, &infos[CSD_SURF_TITLE], bufs[CSD_SURF_TITLE]);
-}
-
-static void
-render_osd(struct terminal *term,
-           struct wl_surface *surf, struct wl_subsurface *sub_surf,
-           struct buffer *buf,
-           const wchar_t *text, uint32_t _fg, uint32_t _bg,
-           unsigned x, unsigned y)
-{
-    pixman_color_t bg = color_hex_to_pixman(_bg);
-    pixman_image_fill_rectangles(
-        PIXMAN_OP_SRC, buf->pix[0], &bg, 1,
-        &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
-
-    struct fcft_font *font = term->fonts[0];
-    pixman_color_t fg = color_hex_to_pixman(_fg);
-
-    const int x_ofs = term->font_x_ofs;
-
-    for (size_t i = 0; i < wcslen(text); i++) {
-        const struct fcft_glyph *glyph = fcft_glyph_rasterize(
-            font, text[i], term->font_subpixel);
-
-        if (glyph == NULL)
-            continue;
-
-        pixman_image_t *src = pixman_image_create_solid_fill(&fg);
-        pixman_image_composite32(
-            PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
-            x + x_ofs + glyph->x, y + font_baseline(term) - glyph->y,
-            glyph->width, glyph->height);
-        pixman_image_unref(src);
-
-        x += term->cell_width;
-    }
-
-    xassert(buf->width % term->scale == 0);
-    xassert(buf->height % term->scale == 0);
-
-    quirk_weston_subsurface_desync_on(sub_surf);
-    wl_surface_attach(surf, buf->wl_buf, 0, 0);
-    wl_surface_damage_buffer(surf, 0, 0, buf->width, buf->height);
-    wl_surface_set_buffer_scale(surf, term->scale);
-
-    struct wl_region *region = wl_compositor_create_region(term->wl->compositor);
-    if (region != NULL) {
-        wl_region_add(region, 0, 0, buf->width, buf->height);
-        wl_surface_set_opaque_region(surf, region);
-        wl_region_destroy(region);
-    }
-
-    wl_surface_commit(surf);
-    quirk_weston_subsurface_desync_off(sub_surf);
 }
 
 static void
