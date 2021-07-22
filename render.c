@@ -2103,7 +2103,7 @@ render_scrollback_position(struct terminal *term)
         win->scrollback_indicator.surf,
         win->scrollback_indicator.sub,
         buf, text,
-        term->colors.table[0], term->colors.table[8 + 4],
+        term->colors.table[0], 0xffu << 24 | term->colors.table[8 + 4],
         width - margin - wcslen(text) * term->cell_width, margin);
 }
 
@@ -2137,7 +2137,7 @@ render_render_timer(struct terminal *term, struct timeval render_time)
         win->render_timer.surf,
         win->render_timer.sub,
         buf, text,
-        term->colors.table[0], term->colors.table[8 + 1],
+        term->colors.table[0], 0xffu << 24 | term->colors.table[8 + 1],
         margin, margin);
 }
 
@@ -2639,7 +2639,6 @@ render_search_box(struct terminal *term)
     pixman_image_set_clip_region32(buf->pix[0], &clip);
     pixman_region32_fini(&clip);
 
-
 #define WINDOW_X(x) (margin + x)
 #define WINDOW_Y(y) (term->height - margin - height + y)
 
@@ -3106,7 +3105,8 @@ render_urls(struct terminal *term)
             (term->margins.top + y) / term->scale);
 
         render_osd(
-            term, surf, sub_surf, bufs[i], label, fg, bg, x_margin, y_margin);
+            term, surf, sub_surf, bufs[i], label,
+            fg, 0xffu << 24 | bg, x_margin, y_margin);
 
         free(info[i].text);
     }
