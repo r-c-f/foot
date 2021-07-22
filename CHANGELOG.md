@@ -39,6 +39,9 @@
 * Rendering into the right margin area with `tweak.overflowing-glyphs`
   enabled.
 * PGO builds with clang (https://codeberg.org/dnkl/foot/issues/642).
+* Crash in scrollback search mode when selection has been canceled due
+  to terminal content updates
+  (https://codeberg.org/dnkl/foot/issues/644).
 
 
 ### Security
