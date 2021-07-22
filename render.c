@@ -1597,6 +1597,7 @@ render_osd(struct terminal *term,
     pixman_color_t fg = color_hex_to_pixman(_fg);
     const int x_ofs = term->font_x_ofs;
 
+    pixman_image_t *src = pixman_image_create_solid_fill(&fg);
 
     for (size_t i = 0; i < wcslen(text); i++) {
         const struct fcft_glyph *glyph = fcft_glyph_rasterize(
@@ -1615,6 +1616,7 @@ render_osd(struct terminal *term,
         x += glyph->advance.x;
     }
 
+    pixman_image_unref(src);
     pixman_image_set_clip_region32(buf->pix[0], NULL);
 
     xassert(buf->width % term->scale == 0);
