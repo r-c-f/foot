@@ -1675,9 +1675,14 @@ render_csd_title(struct terminal *term, const struct csd_data *info,
         title_text = _title_text;
     }
 
-    const int margin = 10 * term->scale;
-    render_osd(term, surf->surf, surf->sub, buf, title_text, fg, bg,
-               margin, (buf->height - term->fonts[0]->height) / 2);
+    struct wl_window *win = term->window;
+    const int margin = win->csd.font->space_advance.x > 0
+        ? win->csd.font->space_advance.x
+        : win->csd.font->max_advance.x;
+
+    render_osd(term, surf->surf, surf->sub, win->csd.font,
+               buf, title_text, fg, bg, margin,
+               (buf->height - win->csd.font->height) / 2);
 
     csd_commit(term, surf->surf, buf);
     free(_title_text);

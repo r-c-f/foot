@@ -31,6 +31,33 @@
 #include "xmalloc.h"
 
 static void
+csd_reload_font(struct wl_window *win, int old_scale)
+{
+    struct terminal *term = win->term;
+    const struct config *conf = term->conf;
+
+    const int scale = term->scale;
+
+    bool enable_csd = win->csd_mode == CSD_YES && !win->is_fullscreen;
+    if (!enable_csd)
+        return;
+    if (win->csd.font != NULL && scale == old_scale)
+        return;
+
+    fcft_destroy(win->csd.font);
+
+    char pixelsize[32];
+    snprintf(pixelsize, sizeof(pixelsize),
+             "pixelsize=%u", conf->csd.title_height * scale * 1 / 2);
+
+    LOG_DBG("loading CSD font \"%s:%s\" (old-scale=%d, scale=%d)",
+            conf->fonts->arr[0].pattern, pixelsize, old_scale, scale);
+
+    win->csd.font = fcft_from_name(
+        1, &(const char *){conf->fonts->arr[0].pattern}, pixelsize);
+}
+
+static void
 csd_instantiate(struct wl_window *win)
 {
     struct wayland *wayl = win->term->wl;
@@ -46,12 +73,17 @@ csd_instantiate(struct wl_window *win)
             win, win->csd.surface[CSD_SURF_TITLE].surf, &win->csd.surface[i]);
         xassert(ret);
     }
+
+    csd_reload_font(win, -1);
 }
 
 static void
 csd_destroy(struct wl_window *win)
 {
     struct terminal *term = win->term;
+
+    fcft_destroy(term->window->csd.font);
+    term->window->csd.font = NULL;
 
     for (size_t i = 0; i < ALEN(win->csd.surface); i++)
         wayl_win_subsurface_destroy(&win->csd.surface[i]);
@@ -294,6 +326,7 @@ update_term_for_output_change(struct terminal *term)
     render_resize(term, term->width / term->scale, term->height / term->scale);
     term_font_dpi_changed(term, old_scale);
     term_font_subpixel_changed(term);
+    csd_reload_font(term->window, old_scale);
 }
 
 static void
