@@ -38,6 +38,7 @@
 
 * Rendering into the right margin area with `tweak.overflowing-glyphs`
   enabled.
+* PGO builds with clang (https://codeberg.org/dnkl/foot/issues/642).
 
 
 ### Security
