@@ -1606,12 +1606,17 @@ render_osd(struct terminal *term,
         if (glyph == NULL)
             continue;
 
-        pixman_image_t *src = pixman_image_create_solid_fill(&fg);
-        pixman_image_composite32(
-            PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
-            x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
-            glyph->width, glyph->height);
-        pixman_image_unref(src);
+        if (pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8) {
+            pixman_image_composite32(
+                PIXMAN_OP_OVER, glyph->pix, NULL, buf->pix[0], 0, 0, 0, 0,
+                x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
+                glyph->width, glyph->height);
+        } else {
+            pixman_image_composite32(
+                PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
+                x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
+                glyph->width, glyph->height);
+        }
 
         x += glyph->advance.x;
     }
