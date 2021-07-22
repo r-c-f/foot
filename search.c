@@ -160,6 +160,7 @@ search_selection_cancelled(struct terminal *term)
 {
     term->search.match = (struct coord){-1, -1};
     term->search.match_len = 0;
+    render_refresh_search(term);
 }
 
 static void
