@@ -520,7 +520,9 @@ component.
 
 *font*
 	Font to use for the title bar. This is a list of fonts, similar to
-	the main *font* option. Default: _primary font_.
+	the main *font* option. Note that the font will be sized using the
+	title bar size. That is, all *:size* and *:pixelsize* attributes
+	will be ignored. Default: _primary font_.
 
 *button-width*
 	Width, in pixels (subject to output scaling), of the
