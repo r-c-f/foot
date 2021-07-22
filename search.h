@@ -11,3 +11,5 @@ void search_input(
     const xkb_keysym_t *raw_syms, size_t raw_count,
     uint32_t serial);
 void search_add_chars(struct terminal *term, const char *text, size_t len);
+
+void search_selection_cancelled(struct terminal *term);

@@ -21,6 +21,7 @@
 #include "grid.h"
 #include "misc.h"
 #include "render.h"
+#include "search.h"
 #include "uri.h"
 #include "util.h"
 #include "vt.h"
@@ -1058,6 +1059,8 @@ selection_cancel(struct terminal *term)
     term->selection.pivot.end = (struct coord){-1, -1};
     term->selection.direction = SELECTION_UNDIR;
     term->selection.ongoing = false;
+
+    search_selection_cancelled(term);
 }
 
 bool
