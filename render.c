@@ -3141,7 +3141,6 @@ render_update_title(struct terminal *term)
 
     xdg_toplevel_set_title(term->window->xdg_toplevel, title);
     free(copy);
-    render_refresh_csd(term);
 }
 
 static void
@@ -3691,6 +3690,8 @@ render_refresh_title(struct terminal *term)
         term->render.title.last_update = now;
         render_update_title(term);
     }
+
+    render_refresh_csd(term);
 }
 
 void
