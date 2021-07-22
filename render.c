@@ -1579,7 +1579,7 @@ render_csd_part(struct terminal *term,
 static void
 render_osd(struct terminal *term,
            struct wl_surface *surf, struct wl_subsurface *sub_surf,
-           struct buffer *buf,
+           struct fcft_font *font, struct buffer *buf,
            const wchar_t *text, uint32_t _fg, uint32_t _bg,
            unsigned x, unsigned y)
 {
@@ -1594,10 +1594,14 @@ render_osd(struct terminal *term,
         PIXMAN_OP_SRC, buf->pix[0], &bg, 1,
         &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
 
-    struct fcft_font *font = term->fonts[0];
     pixman_color_t fg = color_hex_to_pixman(_fg);
-
     const int x_ofs = term->font_x_ofs;
+
+    const int advance =
+        (font->space_advance.x > 0
+         ? font->space_advance.x
+         : font->max_advance.x)
+        + term_pt_or_px_as_pixels(term, &term->conf->letter_spacing);
 
     for (size_t i = 0; i < wcslen(text); i++) {
         const struct fcft_glyph *glyph = fcft_glyph_rasterize(
@@ -1609,11 +1613,11 @@ render_osd(struct terminal *term,
         pixman_image_t *src = pixman_image_create_solid_fill(&fg);
         pixman_image_composite32(
             PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
-            x + x_ofs + glyph->x, y + font_baseline(term) - glyph->y,
+            x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
             glyph->width, glyph->height);
         pixman_image_unref(src);
 
-        x += term->cell_width;
+        x += advance;
     }
 
     pixman_image_set_clip_region32(buf->pix[0], NULL);
