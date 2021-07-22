@@ -246,9 +246,10 @@ color_hex_to_pixman(uint32_t color)
 static inline uint32_t
 color_dim(uint32_t color)
 {
+    uint32_t alpha = color & 0xff000000;
     int hue, sat, lum;
     rgb_to_hsl(color, &hue, &sat, &lum);
-    return hsl_to_rgb(hue, sat, lum / 1.5);
+    return alpha | hsl_to_rgb(hue, sat, lum / 1.5);
 }
 
 static inline uint32_t
