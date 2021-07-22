@@ -142,6 +142,16 @@ void reaper_del(struct reaper *reaper, pid_t pid) {}
 
 void urls_reset(struct terminal *term) {}
 
+void shm_unref(struct buffer *buf) {}
+void shm_chain_free(struct buffer_chain *chain) {}
+
+struct buffer_chain *
+shm_chain_new(struct wl_shm *shm, bool scrollable, size_t pix_instances)
+{
+    return NULL;
+}
+
+
 int
 main(int argc, const char *const *argv)
 {
