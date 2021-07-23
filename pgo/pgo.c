@@ -152,6 +152,8 @@ shm_chain_new(struct wl_shm *shm, bool scrollable, size_t pix_instances)
 }
 
 
+void search_selection_cancelled(struct terminal *term) {}
+
 int
 main(int argc, const char *const *argv)
 {
