@@ -20,6 +20,7 @@
  #include <xdg-activation-v1.h>
 #endif
 
+#include <fcft/fcft.h>
 #include <tllist.h>
 
 #include "fdm.h"
@@ -402,6 +403,7 @@ struct wl_window {
 
     struct {
         struct wl_surf_subsurf surface[CSD_SURF_COUNT];
+        struct fcft_font *font;
         int move_timeout_fd;
         uint32_t serial;
     } csd;

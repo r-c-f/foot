@@ -246,9 +246,10 @@ color_hex_to_pixman(uint32_t color)
 static inline uint32_t
 color_dim(uint32_t color)
 {
+    uint32_t alpha = color & 0xff000000;
     int hue, sat, lum;
     rgb_to_hsl(color, &hue, &sat, &lum);
-    return hsl_to_rgb(hue, sat, lum / 1.5);
+    return alpha | hsl_to_rgb(hue, sat, lum / 1.5);
 }
 
 static inline uint32_t
@@ -1576,31 +1577,143 @@ render_csd_part(struct terminal *term,
 }
 
 static void
+render_osd(struct terminal *term,
+           struct wl_surface *surf, struct wl_subsurface *sub_surf,
+           struct fcft_font *font, struct buffer *buf,
+           const wchar_t *text, uint32_t _fg, uint32_t _bg,
+           unsigned x, unsigned y)
+{
+    pixman_region32_t clip;
+    pixman_region32_init_rect(&clip, 0, 0, buf->width, buf->height);
+    pixman_image_set_clip_region32(buf->pix[0], &clip);
+    pixman_region32_fini(&clip);
+
+    uint16_t alpha = _bg >> 24 | (_bg >> 24 << 8);
+    pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, alpha);
+    pixman_image_fill_rectangles(
+        PIXMAN_OP_SRC, buf->pix[0], &bg, 1,
+        &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
+
+    pixman_color_t fg = color_hex_to_pixman(_fg);
+    const int x_ofs = term->font_x_ofs;
+
+    const size_t len = wcslen(text);
+    struct fcft_text_run *text_run = NULL;
+    const struct fcft_glyph **glyphs = NULL;
+    const struct fcft_glyph *_glyphs[len];
+    size_t glyph_count = 0;
+
+    if (fcft_capabilities() & FCFT_CAPABILITY_TEXT_RUN_SHAPING) {
+        text_run = fcft_text_run_rasterize(font, len, text, term->font_subpixel);
+
+        if (text_run != NULL) {
+            glyphs = text_run->glyphs;
+            glyph_count = text_run->count;
+        }
+    }
+
+    if (glyphs == NULL) {
+        for (size_t i = 0; i < len; i++) {
+            const struct fcft_glyph *glyph = fcft_glyph_rasterize(
+                font, text[i], term->font_subpixel);
+
+            if (glyph == NULL)
+                continue;
+
+            _glyphs[glyph_count++] = glyph;
+        }
+
+        glyphs = _glyphs;
+    }
+
+    pixman_image_t *src = pixman_image_create_solid_fill(&fg);
+
+    for (size_t i = 0; i < glyph_count; i++) {
+        const struct fcft_glyph *glyph = glyphs[i];
+
+        if (pixman_image_get_format(glyph->pix) == PIXMAN_a8r8g8b8) {
+            pixman_image_composite32(
+                PIXMAN_OP_OVER, glyph->pix, NULL, buf->pix[0], 0, 0, 0, 0,
+                x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
+                glyph->width, glyph->height);
+        } else {
+            pixman_image_composite32(
+                PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
+                x + x_ofs + glyph->x, y + term->font_y_ofs + font->ascent - glyph->y,
+                glyph->width, glyph->height);
+        }
+
+        x += glyph->advance.x;
+    }
+
+    fcft_text_run_destroy(text_run);
+    pixman_image_unref(src);
+    pixman_image_set_clip_region32(buf->pix[0], NULL);
+
+    xassert(buf->width % term->scale == 0);
+    xassert(buf->height % term->scale == 0);
+
+    quirk_weston_subsurface_desync_on(sub_surf);
+    wl_surface_attach(surf, buf->wl_buf, 0, 0);
+    wl_surface_damage_buffer(surf, 0, 0, buf->width, buf->height);
+    wl_surface_set_buffer_scale(surf, term->scale);
+
+    struct wl_region *region = wl_compositor_create_region(term->wl->compositor);
+    if (region != NULL) {
+        wl_region_add(region, 0, 0, buf->width, buf->height);
+        wl_surface_set_opaque_region(surf, region);
+        wl_region_destroy(region);
+    }
+
+    wl_surface_commit(surf);
+    quirk_weston_subsurface_desync_off(sub_surf);
+}
+
+static void
 render_csd_title(struct terminal *term, const struct csd_data *info,
                  struct buffer *buf)
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    struct wl_surface *surf = term->window->csd.surface[CSD_SURF_TITLE].surf;
+    struct wl_surf_subsurf *surf = &term->window->csd.surface[CSD_SURF_TITLE];
     xassert(info->width > 0 && info->height > 0);
 
     xassert(info->width % term->scale == 0);
     xassert(info->height % term->scale == 0);
 
-    uint32_t _color = term->conf->colors.fg;
-    uint16_t alpha = 0xffff;
+    uint32_t bg = term->conf->csd.color.title_set
+        ? term->conf->csd.color.title
+        : 0xffu << 24 | term->conf->colors.fg;
+    uint32_t fg = term->conf->csd.color.buttons_set
+        ? term->conf->csd.color.buttons
+        : term->conf->colors.bg;
 
-    if (term->conf->csd.color.title_set) {
-        _color = term->conf->csd.color.title;
-        alpha = _color >> 24 | (_color >> 24 << 8);
+    if (!term->visual_focus) {
+        bg = color_dim(bg);
+        fg = color_dim(fg);
     }
 
-    if (!term->visual_focus)
-        _color = color_dim(_color);
+    const wchar_t *title_text = L"";
+    wchar_t *_title_text = NULL;
 
-    pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
-    render_csd_part(term, surf, buf, info->width, info->height, &color);
-    csd_commit(term, surf, buf);
+    int chars = mbstowcs(NULL, term->window_title, 0);
+    if (chars >= 0) {
+        _title_text = xmalloc((chars + 1) * sizeof(wchar_t));
+        mbstowcs(_title_text, term->window_title, chars + 1);
+        title_text = _title_text;
+    }
+
+    struct wl_window *win = term->window;
+    const int margin = win->csd.font->space_advance.x > 0
+        ? win->csd.font->space_advance.x
+        : win->csd.font->max_advance.x;
+
+    render_osd(term, surf->surf, surf->sub, win->csd.font,
+               buf, title_text, fg, bg, margin,
+               (buf->height - win->csd.font->height) / 2);
+
+    csd_commit(term, surf->surf, buf);
+    free(_title_text);
 }
 
 static void
@@ -1913,59 +2026,6 @@ render_csd(struct terminal *term)
 }
 
 static void
-render_osd(struct terminal *term,
-           struct wl_surface *surf, struct wl_subsurface *sub_surf,
-           struct buffer *buf,
-           const wchar_t *text, uint32_t _fg, uint32_t _bg,
-           unsigned x, unsigned y)
-{
-    pixman_color_t bg = color_hex_to_pixman(_bg);
-    pixman_image_fill_rectangles(
-        PIXMAN_OP_SRC, buf->pix[0], &bg, 1,
-        &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
-
-    struct fcft_font *font = term->fonts[0];
-    pixman_color_t fg = color_hex_to_pixman(_fg);
-
-    const int x_ofs = term->font_x_ofs;
-
-    for (size_t i = 0; i < wcslen(text); i++) {
-        const struct fcft_glyph *glyph = fcft_glyph_rasterize(
-            font, text[i], term->font_subpixel);
-
-        if (glyph == NULL)
-            continue;
-
-        pixman_image_t *src = pixman_image_create_solid_fill(&fg);
-        pixman_image_composite32(
-            PIXMAN_OP_OVER, src, glyph->pix, buf->pix[0], 0, 0, 0, 0,
-            x + x_ofs + glyph->x, y + font_baseline(term) - glyph->y,
-            glyph->width, glyph->height);
-        pixman_image_unref(src);
-
-        x += term->cell_width;
-    }
-
-    xassert(buf->width % term->scale == 0);
-    xassert(buf->height % term->scale == 0);
-
-    quirk_weston_subsurface_desync_on(sub_surf);
-    wl_surface_attach(surf, buf->wl_buf, 0, 0);
-    wl_surface_damage_buffer(surf, 0, 0, buf->width, buf->height);
-    wl_surface_set_buffer_scale(surf, term->scale);
-
-    struct wl_region *region = wl_compositor_create_region(term->wl->compositor);
-    if (region != NULL) {
-        wl_region_add(region, 0, 0, buf->width, buf->height);
-        wl_surface_set_opaque_region(surf, region);
-        wl_region_destroy(region);
-    }
-
-    wl_surface_commit(surf);
-    quirk_weston_subsurface_desync_off(sub_surf);
-}
-
-static void
 render_scrollback_position(struct terminal *term)
 {
     if (term->conf->scrollback.indicator.position == SCROLLBACK_INDICATOR_POSITION_NONE)
@@ -2093,8 +2153,8 @@ render_scrollback_position(struct terminal *term)
         term,
         win->scrollback_indicator.surf,
         win->scrollback_indicator.sub,
-        buf, text,
-        term->colors.table[0], term->colors.table[8 + 4],
+        term->fonts[0], buf, text,
+        term->colors.table[0], 0xffu << 24 | term->colors.table[8 + 4],
         width - margin - wcslen(text) * term->cell_width, margin);
 }
 
@@ -2127,8 +2187,8 @@ render_render_timer(struct terminal *term, struct timeval render_time)
         term,
         win->render_timer.surf,
         win->render_timer.sub,
-        buf, text,
-        term->colors.table[0], term->colors.table[8 + 1],
+        term->fonts[0], buf, text,
+        term->colors.table[0], 0xffu << 24 | term->colors.table[8 + 1],
         margin, margin);
 }
 
@@ -2630,7 +2690,6 @@ render_search_box(struct terminal *term)
     pixman_image_set_clip_region32(buf->pix[0], &clip);
     pixman_region32_fini(&clip);
 
-
 #define WINDOW_X(x) (margin + x)
 #define WINDOW_Y(y) (term->height - margin - height + y)
 
@@ -3097,7 +3156,8 @@ render_urls(struct terminal *term)
             (term->margins.top + y) / term->scale);
 
         render_osd(
-            term, surf, sub_surf, bufs[i], label, fg, bg, x_margin, y_margin);
+            term, surf, sub_surf, term->fonts[0], bufs[i], label,
+            fg, 0xffu << 24 | bg, x_margin, y_margin);
 
         free(info[i].text);
     }
@@ -3667,6 +3727,8 @@ render_refresh_title(struct terminal *term)
         term->render.title.last_update = now;
         render_update_title(term);
     }
+
+    render_refresh_csd(term);
 }
 
 void

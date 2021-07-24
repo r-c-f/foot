@@ -503,6 +503,52 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
     return true;
 }
 
+static struct config_font_list NOINLINE
+str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
+             const char *section, const char *key)
+{
+    size_t count = 0;
+    size_t size = 0;
+    struct config_font *fonts = NULL;
+
+    char *copy = xstrdup(s);
+    for (const char *font = strtok(copy, ",");
+         font != NULL;
+         font = strtok(NULL, ","))
+    {
+        /* Trim spaces, strictly speaking not necessary, but looks nice :) */
+        while (*font != '\0' && isspace(*font))
+            font++;
+
+        if (font[0] == '\0')
+            continue;
+
+        struct config_font font_data;
+        if (!config_font_parse(font, &font_data)) {
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [%s]: %s: invalid font specification: %s",
+                path, lineno, section, key, font);
+            goto err;
+        }
+
+        if (count + 1 > size) {
+            size += 4;
+            fonts = xrealloc(fonts, size * sizeof(fonts[0]));
+        }
+
+        xassert(count + 1 <= size);
+        fonts[count++] = font_data;
+    }
+
+    free(copy);
+    return (struct config_font_list){.arr = fonts, .count = count};
+
+err:
+    free(copy);
+    free(fonts);
+    return (struct config_font_list){.arr = NULL, .count = 0};
+}
+
 static void NOINLINE
 free_argv(struct argv *argv)
 {
@@ -804,8 +850,9 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
             struct config_font font_data;
             if (!config_font_parse(font, &font_data)) {
-                LOG_ERR("%s:%d: [default]: %s: invalid font specification",
-                        path, lineno, key);
+                LOG_AND_NOTIFY_ERR(
+                    "%s:%d: [default]: %s: invalid font specification: %s",
+                    path, lineno, key, font);
                 free(copy);
                 return false;
             }
@@ -1326,6 +1373,17 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
                 "'server', 'client' or 'none'", path, lineno);
             return false;
         }
+    }
+
+    else if (strcmp(key, "font") == 0) {
+        struct config_font_list new_list = str_to_fonts(
+            value, conf, path, lineno, "csd", "font");
+
+        if (new_list.arr == NULL)
+            return false;
+
+        config_font_list_destroy(&conf->csd.font);
+        conf->csd.font = new_list;
     }
 
     else if (strcmp(key, "color") == 0) {
@@ -2706,6 +2764,20 @@ add_default_mouse_bindings(struct config *conf)
     memcpy(conf->bindings.mouse.arr, bindings, sizeof(bindings));
 }
 
+static void NOINLINE
+config_font_list_clone(struct config_font_list *dst,
+                       const struct config_font_list *src)
+{
+    dst->count = src->count;
+    dst->arr = xmalloc(dst->count * sizeof(dst->arr[0]));
+
+    for (size_t j = 0; j < dst->count; j++) {
+        dst->arr[j].pt_size = src->arr[j].pt_size;
+        dst->arr[j].px_size = src->arr[j].px_size;
+        dst->arr[j].pattern = xstrdup(src->arr[j].pattern);
+    }
+}
+
 bool
 config_load(struct config *conf, const char *conf_path,
             user_notifications_t *initial_user_notifications,
@@ -2811,6 +2883,7 @@ config_load(struct config *conf, const char *conf_path,
         },
         .csd = {
             .preferred = CONF_CSD_PREFER_SERVER,
+            .font = {0},
             .title_height = 26,
             .border_width = 5,
             .button_width = 26,
@@ -2954,6 +3027,9 @@ out:
             conf->fonts[0].arr[0] = font;
         }
     }
+
+    if (ret && conf->csd.font.count == 0)
+        config_font_list_clone(&conf->csd.font, &conf->fonts[0]);
 
 #if defined(_DEBUG)
     for (size_t i = 0; i < conf->bindings.key.count; i++)
@@ -3107,19 +3183,9 @@ config_clone(const struct config *old)
     spawn_template_clone(&conf->bell.command, &old->bell.command);
     spawn_template_clone(&conf->notify, &old->notify);
 
-    for (size_t i = 0; i < ALEN(conf->fonts); i++) {
-        struct config_font_list *dst = &conf->fonts[i];
-        const struct config_font_list *src = &old->fonts[i];
-
-        dst->count = src->count;
-        dst->arr = xmalloc(dst->count * sizeof(dst->arr[0]));
-
-        for (size_t j = 0; j < dst->count; j++) {
-            dst->arr[j].pt_size = src->arr[j].pt_size;
-            dst->arr[j].px_size = src->arr[j].px_size;
-            dst->arr[j].pattern = xstrdup(src->arr[j].pattern);
-        }
-    }
+    for (size_t i = 0; i < ALEN(conf->fonts); i++)
+        config_font_list_clone(&conf->fonts[i], &old->fonts[i]);
+    config_font_list_clone(&conf->csd.font, &old->csd.font);
 
     conf->url.label_letters = xwcsdup(old->url.label_letters);
     spawn_template_clone(&conf->url.launch, &old->url.launch);
@@ -3181,6 +3247,8 @@ config_free(struct config conf)
     for (size_t i = 0; i < ALEN(conf.fonts); i++)
         config_font_list_destroy(&conf.fonts[i]);
     free(conf.server_socket_path);
+
+    config_font_list_destroy(&conf.csd.font);
 
     free(conf.url.label_letters);
     spawn_template_free(&conf.url.launch);
