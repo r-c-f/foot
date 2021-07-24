@@ -1163,7 +1163,15 @@ fdm_wayl(struct fdm *fdm, int fd, int events, void *data)
 
     if (events & EPOLLHUP) {
         LOG_WARN("disconnected from Wayland");
-        wl_display_cancel_read(wayl->display);
+        /*
+         * Do *not* call wl_display_cancel_read() here.
+         *
+         * Doing so causes later calls to wayl_roundtrip() (called
+         * from term_destroy() -> wayl_win_destroy()) to hang
+         * indefinitely.
+         *
+         * https://codeberg.org/dnkl/foot/issues/651
+         */
         return false;
     }
 
