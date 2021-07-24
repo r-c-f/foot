@@ -378,6 +378,7 @@ with the terminal emulator itself. Foot implements the following OSCs:
 * `OSC 4` - change color palette
 * `OSC 7` - report CWD
 * `OSC 8` - hyperlink
+* `OSC 9` - desktop notification
 * `OSC 10` - change (default) foreground color
 * `OSC 11` - change (default) background color
 * `OSC 12` - change cursor color
