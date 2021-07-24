@@ -239,19 +239,24 @@ else
 endif
 
 install_data(
-  'LICENSE', 'README.md', 'CHANGELOG.md',
-  install_dir: join_paths(get_option('datadir'), 'doc', 'foot'))
-install_data(
   'foot.desktop', 'foot-server.desktop',
   install_dir: join_paths(get_option('datadir'), 'applications'))
-install_data('foot.ini', install_dir: join_paths(get_option('datadir'), 'foot'))
+
+scdoc = dependency('scdoc', native: true, required: get_option('docs'))
+if scdoc.found()
+  install_data(
+    'LICENSE', 'README.md', 'CHANGELOG.md',
+    install_dir: join_paths(get_option('datadir'), 'doc', 'foot'))
+  install_data('foot.ini', install_dir: join_paths(get_option('datadir'), 'foot'))
+  subdir('doc')
+endif
 
 subdir('completions')
-subdir('doc')
 subdir('icons')
 
 summary(
   {
+    'Documentation': scdoc.found(),
     'IME': get_option('ime'),
     'Grapheme clustering': utf8proc.found(),
     'Terminfo': tic.found(),

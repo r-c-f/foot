@@ -34,6 +34,7 @@
 
 * Window title in the CSDs
   (https://codeberg.org/dnkl/foot/issues/638).
+* `-Ddocs=disabled|enabled|auto` meson command line option.
 
 
 ### Changed

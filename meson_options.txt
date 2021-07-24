@@ -1,3 +1,5 @@
+option('docs', type: 'feature', description: 'Build and install documentation (man pages, example foot.ini, readme, changelog, license etc).')
+
 option('ime', type: 'boolean', value: true, description: 'IME (Input Method Editor) support')
 
 option('grapheme-clustering', type: 'feature',

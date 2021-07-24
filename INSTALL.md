@@ -64,7 +64,7 @@ In addition to the dev variant of the packages above, you need:
 * ninja
 * wayland protocols
 * ncurses (needed to generate terminfo)
-* scdoc (for man page generation)
+* scdoc (for man page generation, not needed if documentation is disabled)
 * llvm (for PGO builds with Clang)
 * [tllist](https://codeberg.org/dnkl/tllist) [^1]
 
@@ -130,10 +130,14 @@ Available compile-time options:
 
 | Option                        | Type    | Default               | Description                           | Extra dependencies |
 |-------------------------------|---------|-----------------------|---------------------------------------|--------------------|
+| `-Ddocs`                      | feature | `auto`                | Builds and install documentation      | scdoc              |
 | `-Dime`                       | bool    | `true`                | Enables IME support                   | None               |
 | `-Dgrapheme-clustering`       | feature | `auto`                | Enables grapheme clustering           | libutf8proc        |
 | `-Dterminfo`                  | feature | `auto`                | Build terminfo files                  | `tic` (ncurses)    |
 | `-Dterminfo-install-location` | string  | `${datadir}/terminfo` | Where to  install the terminfo files  | None               |
+
+Documentation includes the man pages, the example `foot.ini`, readme,
+changelog and license files.
 
 The two `terminfo` options are related, but control different aspects
 of how the terminfo files are built, installed and used.
