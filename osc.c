@@ -600,7 +600,7 @@ osc_dispatch(struct terminal *term)
         param += c - '0';
     }
 
-    LOG_DBG("OCS: %.*s (param = %d)",
+    LOG_DBG("OSC: %.*s (param = %d)",
             (int)term->vt.osc.idx, term->vt.osc.data, param);
 
     char *string = (char *)&term->vt.osc.data[data_ofs];
