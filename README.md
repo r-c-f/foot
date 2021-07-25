@@ -424,6 +424,11 @@ parse the response (which in foot will consist of all three DA
 responses, all at once) to determine which requests the terminal
 emulator actually responded to.
 
+Starting with version 1.7.0, foot also implements `XTVERSION`, to
+which it will reply with `\EP>|foot(version)\E\\`. Version is
+e.g. “1.8.2” for a regular release, or “1.8.2-36-g7db8e06f” for a git
+build.
+
 
 # Credits
 
