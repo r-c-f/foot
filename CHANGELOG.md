@@ -48,6 +48,8 @@
 * Crash in scrollback search mode when selection has been canceled due
   to terminal content updates
   (https://codeberg.org/dnkl/foot/issues/644).
+* Foot process not terminating when the Wayland connection is broken
+  (https://codeberg.org/dnkl/foot/issues/651).
 
 
 ### Security
