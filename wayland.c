@@ -964,6 +964,7 @@ handle_global(void *data, struct wl_registry *registry,
         tll_push_back(
             wayl->monitors,
             ((struct monitor){.wayl = wayl, .output = output, .wl_name = name,
+             .scale = 1,
              .use_output_release = version >= WL_OUTPUT_RELEASE_SINCE_VERSION}));
 
         struct monitor *mon = &tll_back(wayl->monitors);
