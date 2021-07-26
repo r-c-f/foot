@@ -50,10 +50,15 @@
   (https://codeberg.org/dnkl/foot/issues/644).
 * Foot process not terminating when the Wayland connection is broken
   (https://codeberg.org/dnkl/foot/issues/651).
+* Output scale being zero on compositors that does not advertise a
+  scaling factor.
 
 
 ### Security
+
 ### Contributors
+
+* Nihal Jere
 
 
 ## 1.8.2
