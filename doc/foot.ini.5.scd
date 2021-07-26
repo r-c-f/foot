@@ -240,8 +240,8 @@ in this order:
 	
 	If set to *palette-based*, rather than a simple *yes|true*, colors
 	matching one of the 8 regular palette colors will be brightened
-	using the corresponding bright palette color. Other colors will be
-	brightened by increasing the luminance.
+	using the corresponding bright palette color. Other colors will
+	not be brightened.
 	
 	Default: _no_.
 

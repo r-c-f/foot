@@ -38,6 +38,10 @@
 
 
 ### Changed
+
+* `bold-text-in-bright=palette-based` now only brightens colors from palette
+
+
 ### Deprecated
 ### Removed
 ### Fixed
@@ -59,6 +63,7 @@
 ### Contributors
 
 * Nihal Jere
+* [nowrep](https://codeberg.org/nowrep)
 
 
 ## 1.8.2

@@ -264,6 +264,7 @@ color_brighten(const struct terminal *term, uint32_t color)
             if (term->colors.table[i] == color)
                 return term->colors.table[i + 8];
         }
+        return color;
     }
 
     int hue, sat, lum;
