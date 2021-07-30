@@ -70,13 +70,11 @@ in this order:
 	The import file has its own section scope. I.e. the including
 	configuration is still in the default section after the include,
 	regardless of which section the included file ends in.
-
-	The path must be an absolute path.
 	
-	Multiple include directives are allowed, but only one path per
-	directive.
-	
-	Nested imports are allowed.
+		- The path must be an absolute path, or start with *~/*.
+		- Multiple include directives are allowed, but only one path per
+		  directive.
+		- Nested imports are allowed.
 	
 	Default: _not set_.
 
