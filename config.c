@@ -644,12 +644,24 @@ parse_section_main(const char *key, const char *value, struct config *conf,
                    const char *path, unsigned lineno, bool errors_are_fatal)
 {
     if (strcmp(key, "include") == 0) {
-        const char *include_path = value;
+        char *_include_path = NULL;
+        const char *include_path = NULL;
+
+        if (value[0] == '~' && value[1] == '/') {
+            const char *home_dir = get_user_home_dir();
+
+            int chars = snprintf(NULL, 0, "%s/%s", home_dir, &value[2]);
+            _include_path = malloc(chars + 1);
+            snprintf(_include_path, chars + 1, "%s/%s", home_dir, &value[2]);
+            include_path = _include_path;
+        } else
+            include_path = value;
 
         if (include_path[0] != '/') {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [default]: %s: not an absolute path",
                 path, lineno, include_path);
+            free(_include_path);
             return false;
         }
 
@@ -659,6 +671,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             LOG_AND_NOTIFY_ERRNO(
                 "%s:%d: [default]: %s: failed to open",
                 path, lineno, include_path);
+            free(_include_path);
             return false;
         }
 
@@ -667,6 +680,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         fclose(include);
 
         LOG_INFO("imported sub-configuration from %s", include_path);
+        free(_include_path);
         return ret;
     }
 
