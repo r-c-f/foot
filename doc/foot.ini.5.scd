@@ -12,9 +12,9 @@ with a _[section]_).
 foot will search for a configuration file in the following locations,
 in this order:
 
-- *XDG_CONFIG_HOME/foot/foot.ini*
-- *~/.config/foot/foot.ini*
-- *XDG_CONFIG_DIRS/foot/foot.ini*
+	- *XDG_CONFIG_HOME/foot/foot.ini*
+	- *~/.config/foot/foot.ini*
+	- *XDG_CONFIG_DIRS/foot/foot.ini*
 
 # SECTION: default
 
@@ -39,9 +39,9 @@ in this order:
 	font size.
 	
 	Examples:
-	- Dina:weight=bold:slant=italic
-	- Courier New:size=12
-	- Fantasque Sans Mono:fontfeatures=ss01
+		- Dina:weight=bold:slant=italic
+		- Courier New:size=12
+		- Fantasque Sans Mono:fontfeatures=ss01
 	
 	For each option, the first font is the primary font. The remaining
 	fonts are fallback fonts that will be used whenever a glyph cannot
@@ -262,7 +262,7 @@ in this order:
 	
 	Applications can trigger notifications in the following ways:
 	
-	- OSC 777: *\\e]777;notify;<title>;<body>\\e\\\\*
+		- OSC 777: *\\e]777;notify;<title>;<body>\\e\\\\*
 	
 	Notifications are *inhibited* if the foot window has keyboard
 	focus.
@@ -989,13 +989,13 @@ any of these options.
 	This is an experimental feature with the following requirements
 	and limitations:
 	
-	- foot must have been compiled with utf8proc support
-	- fcft must have been compiled with HarfBuzz support
-	- This option must be set to true
-	- Foot will use *wcswidth*(3) to calculate a cluster's display
-	  width. This will typically _not_ match the shaped glyph's width,
-	  but is necessary to not break cursor synchronization with the
-	  application running in foot.
+		- foot must have been compiled with utf8proc support
+		- fcft must have been compiled with HarfBuzz support
+		- This option must be set to true
+		- Foot will use *wcswidth*(3) to calculate a cluster's display
+	      width. This will typically _not_ match the shaped glyph's
+	      width, but is necessary to not break cursor synchronization
+	      with the application running in foot.
 	
 	See also: *grapheme-width-method*.
 	
