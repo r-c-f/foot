@@ -650,6 +650,13 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         if (value[0] == '~' && value[1] == '/') {
             const char *home_dir = get_user_home_dir();
 
+            if (home_dir == NULL) {
+                LOG_AND_NOTIFY_ERRNO(
+                    "%s:%d: [default]: include: %s: failed to expand '~'",
+                    path, lineno, value);
+                return false;
+            }
+
             int chars = snprintf(NULL, 0, "%s/%s", home_dir, &value[2]);
             _include_path = malloc(chars + 1);
             snprintf(_include_path, chars + 1, "%s/%s", home_dir, &value[2]);
@@ -659,7 +666,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
         if (include_path[0] != '/') {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [default]: %s: not an absolute path",
+                "%s:%d: [default]: include: %s: not an absolute path",
                 path, lineno, include_path);
             free(_include_path);
             return false;
@@ -669,7 +676,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
         if (include == NULL) {
             LOG_AND_NOTIFY_ERRNO(
-                "%s:%d: [default]: %s: failed to open",
+                "%s:%d: [default]: include: %s: failed to open",
                 path, lineno, include_path);
             free(_include_path);
             return false;
