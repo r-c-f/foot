@@ -657,9 +657,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
                 return false;
             }
 
-            int chars = snprintf(NULL, 0, "%s/%s", home_dir, &value[2]);
-            _include_path = malloc(chars + 1);
-            snprintf(_include_path, chars + 1, "%s/%s", home_dir, &value[2]);
+            _include_path = xasprintf("%s/%s", home_dir, value + 2);
             include_path = _include_path;
         } else
             include_path = value;
