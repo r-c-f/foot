@@ -593,12 +593,15 @@ struct terminal {
     bool ime_enabled;
 #endif
 
-    bool is_shutting_down;
-    bool slave_has_been_reaped;
-    int slave_terminate_timeout_fd;
-    int exit_status;
-    void (*shutdown_cb)(void *data, int exit_code);
-    void *shutdown_data;
+    struct {
+        bool in_progress;
+        bool client_has_terminated;
+        int terminate_timeout_fd;
+        int exit_status;
+
+        void (*cb)(void *data, int exit_code);
+        void *cb_data;
+    } shutdown;
 
     char *foot_exe;
     char *cwd;

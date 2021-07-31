@@ -19,7 +19,7 @@
 #include <xdg-shell.h>
 
 #define LOG_MODULE "terminal"
-#define LOG_ENABLE_DBG 0
+#define LOG_ENABLE_DBG 1
 #include "log.h"
 
 #include "async.h"
@@ -1166,9 +1166,11 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
             .max_width = SIXEL_MAX_WIDTH,
             .max_height = SIXEL_MAX_HEIGHT,
         },
-        .slave_terminate_timeout_fd = -1,
-        .shutdown_cb = shutdown_cb,
-        .shutdown_data = shutdown_data,
+        .shutdown = {
+            .terminate_timeout_fd = -1,
+            .cb = shutdown_cb,
+            .cb_data = shutdown_data,
+        },
         .foot_exe = xstrdup(foot_exe),
         .cwd = xstrdup(cwd),
 #if defined(FOOT_IME_ENABLED) && FOOT_IME_ENABLED
@@ -1243,7 +1245,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
     return term;
 
 err:
-    term->is_shutting_down = true;
+    term->shutdown.in_progress = true;
     term_destroy(term);
     return NULL;
 
@@ -1263,7 +1265,7 @@ void
 term_window_configured(struct terminal *term)
 {
     /* Enable ptmx FDM callback */
-    if (!term->is_shutting_down) {
+    if (!term->shutdown.in_progress) {
         xassert(term->window->is_configured);
         fdm_add(term->fdm, term->ptmx, EPOLLIN, &fdm_ptmx, term);
     }
@@ -1336,10 +1338,11 @@ term_window_configured(struct terminal *term)
 static void
 shutdown_maybe_done(struct terminal *term)
 {
-    bool shutdown_done = term->window == NULL && term->slave_has_been_reaped;
+    bool shutdown_done =
+        term->window == NULL && term->shutdown.client_has_terminated;
 
     LOG_DBG("window=%p, slave-has-been-reaped=%d --> %s",
-            (void *)term->window, term->slave_has_been_reaped,
+            (void *)term->window, term->shutdown.client_has_terminated,
             (shutdown_done
              ? "shutdown done, calling term_destroy()"
              : "no action"));
@@ -1347,8 +1350,8 @@ shutdown_maybe_done(struct terminal *term)
     if (!shutdown_done)
         return;
 
-    void (*cb)(void *, int) = term->shutdown_cb;
-    void *cb_data = term->shutdown_data;
+    void (*cb)(void *, int) = term->shutdown.cb;
+    void *cb_data = term->shutdown.cb_data;
 
     int exit_code = term_destroy(term);
     if (cb != NULL)
@@ -1361,15 +1364,15 @@ fdm_client_terminated(struct reaper *reaper, pid_t pid, int status, void *data)
     struct terminal *term = data;
     LOG_DBG("slave (PID=%u) died", pid);
 
-    term->slave_has_been_reaped = true;
-    term->exit_status = status;
+    term->shutdown.client_has_terminated = true;
+    term->shutdown.exit_status = status;
 
-    if (term->slave_terminate_timeout_fd >= 0) {
-        fdm_del(term->fdm, term->slave_terminate_timeout_fd);
-        term->slave_terminate_timeout_fd = -1;
+    if (term->shutdown.terminate_timeout_fd >= 0) {
+        fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
+        term->shutdown.terminate_timeout_fd = -1;
     }
 
-    if (term->is_shutting_down)
+    if (term->shutdown.in_progress)
         shutdown_maybe_done(term);
     else if (!term->conf->hold_at_exit)
         term_shutdown(term);
@@ -1418,7 +1421,7 @@ fdm_terminate_timeout(struct fdm *fdm, int fd, int events, void *data)
     }
 
     struct terminal *term = data;
-    xassert(!term->slave_has_been_reaped);
+    xassert(!term->shutdown.client_has_terminated);
 
     LOG_DBG("slave (PID=%u) has not terminated, sending SIGKILL (%d)",
             term->slave, SIGKILL);
@@ -1430,10 +1433,10 @@ fdm_terminate_timeout(struct fdm *fdm, int fd, int events, void *data)
 bool
 term_shutdown(struct terminal *term)
 {
-    if (term->is_shutting_down)
+    if (term->shutdown.in_progress)
         return true;
 
-    term->is_shutting_down = true;
+    term->shutdown.in_progress = true;
 
     /*
      * Close FDs then postpone self-destruction to the next poll
@@ -1456,7 +1459,7 @@ term_shutdown(struct terminal *term)
     else
         close(term->ptmx);
 
-    if (!term->slave_has_been_reaped) {
+    if (!term->shutdown.client_has_terminated) {
         LOG_DBG("initiating asynchronous terminate of slave (PID=%u)",
                 term->slave);
 
@@ -1475,8 +1478,8 @@ term_shutdown(struct terminal *term)
             return false;
         }
 
-        xassert(term->slave_terminate_timeout_fd < 0);
-        term->slave_terminate_timeout_fd = timeout_fd;
+        xassert(term->shutdown.terminate_timeout_fd < 0);
+        term->shutdown.terminate_timeout_fd = timeout_fd;
     }
 
     term->selection.auto_scroll.fd = -1;
@@ -1539,7 +1542,8 @@ term_destroy(struct terminal *term)
     fdm_del(term->fdm, term->blink.fd);
     fdm_del(term->fdm, term->flash.fd);
     fdm_del(term->fdm, term->ptmx);
-    xassert(term->slave_terminate_timeout_fd < 0);
+    if (term->shutdown.terminate_timeout_fd >= 0)
+        fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
 
     if (term->window != NULL) {
         wayl_win_destroy(term->window);
@@ -1635,8 +1639,8 @@ term_destroy(struct terminal *term)
 
         int exit_status;
 
-        if (term->slave_has_been_reaped)
-            exit_status = term->exit_status;
+        if (term->shutdown.client_has_terminated)
+            exit_status = term->shutdown.exit_status;
         else {
             LOG_DBG("initiating blocking terminate of slave (PID=%u)",
                     term->slave);
@@ -2448,11 +2452,11 @@ void
 term_cursor_blink_update(struct terminal *term)
 {
     bool enable = term->cursor_blink.decset || term->cursor_blink.deccsusr;
-    bool activate = !term->is_shutting_down && enable && term->kbd_focus;
+    bool activate = !term->shutdown.in_progress && enable && term->kbd_focus;
 
     LOG_DBG("decset=%d, deccsrusr=%d, focus=%d, shutting-down=%d, enable=%d, activate=%d",
             term->cursor_blink.decset, term->cursor_blink.deccsusr,
-            term->kbd_focus, term->is_shutting_down,
+            term->kbd_focus, term->shutdown.in_progress,
             enable, activate);
 
     if (activate && term->cursor_blink.fd < 0) {
