@@ -1426,7 +1426,7 @@ fdm_terminate_timeout(struct fdm *fdm, int fd, int events, void *data)
     LOG_DBG("slave (PID=%u) has not terminated, sending SIGKILL (%d)",
             term->slave, SIGKILL);
 
-    kill(term->slave, SIGKILL);
+    kill(-term->slave, SIGKILL);
     return true;
 }
 
@@ -1460,10 +1460,10 @@ term_shutdown(struct terminal *term)
         close(term->ptmx);
 
     if (!term->shutdown.client_has_terminated) {
-        LOG_DBG("initiating asynchronous terminate of slave (PID=%u)",
-                term->slave);
+        LOG_DBG("initiating asynchronous terminate of slave; "
+                "sending SIGTERM to PID=%u", term->slave);
 
-        kill(term->slave, SIGTERM);
+        kill(-term->slave, SIGTERM);
 
         const struct itimerspec timeout = {.it_value = {.tv_sec = 60}};
 
@@ -1642,10 +1642,10 @@ term_destroy(struct terminal *term)
         if (term->shutdown.client_has_terminated)
             exit_status = term->shutdown.exit_status;
         else {
-            LOG_DBG("initiating blocking terminate of slave (PID=%u)",
-                    term->slave);
+            LOG_DBG("initiating blocking terminate of slave; "
+                    "sending SIGTERM to PID=%u", term->slave);
 
-            kill(term->slave, SIGTERM);
+            kill(-term->slave, SIGTERM);
 
             /*
              * we’ve closed the ptxm, and sent SIGTERM to the client
@@ -1680,7 +1680,7 @@ term_destroy(struct terminal *term)
                             "slave (PID=%u) has not terminate yet, "
                             "sending: SIGKILL (%d)", term->slave, SIGKILL);
 
-                        kill(term->slave, SIGKILL);
+                        kill(-term->slave, SIGKILL);
                     }
                 }
             }

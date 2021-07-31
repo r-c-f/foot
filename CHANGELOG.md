@@ -46,6 +46,8 @@
   terminating the client application) from 4 to 60 seconds.
 * When terminating the client application, foot now sends `SIGTERM` immediately
   after closing the PTY, instead of waiting 2 seconds.
+* Foot now sends `SIGTERM`/`SIGKILL` to the client application’s process group,
+  instead of just to the client application’s process.
 
 
 ### Deprecated
