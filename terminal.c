@@ -982,7 +982,8 @@ load_fonts_from_conf(struct terminal *term)
     return reload_fonts(term);
 }
 
-static void slave_died(struct reaper *reaper, pid_t pid, int status, void *data);
+static void fdm_client_terminated(
+    struct reaper *reaper, pid_t pid, int status, void *data);
 
 struct terminal *
 term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
@@ -1196,7 +1197,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         goto err;
     }
 
-    reaper_add(term->reaper, term->slave, &slave_died, term);
+    reaper_add(term->reaper, term->slave, &fdm_client_terminated, term);
 
     /* Guess scale; we're not mapped yet, so we don't know on which
      * output we'll be. Pick highest scale we find for now */
@@ -1291,8 +1292,8 @@ term_window_configured(struct terminal *term)
  *   completed. When it determines that *both* tasks are done, it calls
  *   term_destroy() and the user provided shutdown callback.
  *
- * - slave_died(): reaper callback, called when the client application has
- *   terminated.
+ * - fdm_client_terminated(): reaper callback, called when the client
+ *   application has terminated.
  *
  *     + Kills the “terminate” timeout timer
  *     + Calls shutdown_maybe_done() if the shutdown procedure has already
@@ -1355,7 +1356,7 @@ shutdown_maybe_done(struct terminal *term)
 }
 
 static void
-slave_died(struct reaper *reaper, pid_t pid, int status, void *data)
+fdm_client_terminated(struct reaper *reaper, pid_t pid, int status, void *data)
 {
     struct terminal *term = data;
     LOG_DBG("slave (PID=%u) died", pid);
