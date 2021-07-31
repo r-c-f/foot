@@ -3640,7 +3640,7 @@ fdm_hook_refresh_pending_terminals(struct fdm *fdm, void *data)
     tll_foreach(renderer->wayl->terms, it) {
         struct terminal *term = it->item;
 
-        if (unlikely(!term->window->is_configured))
+        if (unlikely(term->is_shutting_down || !term->window->is_configured))
             continue;
 
         bool grid = term->render.refresh.grid;

@@ -595,6 +595,7 @@ struct terminal {
 
     bool is_shutting_down;
     bool slave_has_been_reaped;
+    int slave_terminate_timeout_fd;
     int exit_status;
     void (*shutdown_cb)(void *data, int exit_code);
     void *shutdown_data;
