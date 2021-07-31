@@ -2024,9 +2024,10 @@ term_font_subpixel_changed(struct terminal *term)
         [FCFT_SUBPIXEL_VERTICAL_RGB] = "V-RGB",
         [FCFT_SUBPIXEL_VERTICAL_BGR] = "V-BGR",
     };
-#endif
 
     LOG_DBG("subpixel mode changed: %s -> %s", str[term->font_subpixel], str[subpixel]);
+#endif
+
     term->font_subpixel = subpixel;
     term_damage_view(term);
     render_refresh(term);
