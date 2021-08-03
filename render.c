@@ -538,18 +538,15 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                  */
 
                 /* Unicode 13 sextants */
-                (base >= 0x1fb00 && base <= 0x1fb3b) ||
-
-                /* Unicode 13 partial blocks */
-                /* TODO: there's more here! */
-                (base >= 0x1fb70 && base <= 0x1fb8b)) &&
+                (base >= 0x1fb00 && base <= 0x1fb8b) ||
+                (base >= 0x1fb9a && base <= 0x1fb9b)) &&
 
             likely(!term->conf->box_drawings_uses_font_glyphs))
         {
             /* Box drawing characters */
             size_t idx = base >= 0x1fb00
-                ? (base >= 0x1fb70
-                   ? base - 0x1fb70 + 220
+                ? (base >= 0x1fb9a
+                   ? base - 0x1fb9a + 300
                    : base - 0x1fb00 + 160)
                 : base - 0x2500;
             xassert(idx < ALEN(term->box_drawing));
