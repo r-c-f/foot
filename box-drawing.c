@@ -1831,7 +1831,7 @@ draw_dark_shade(struct buf *buf)
     }
 }
 
-static void
+static void NOINLINE
 draw_horizontal_one_eighth_block_n(struct buf *buf, int n)
 {
     double y = round((double)n * buf->height / 8.);
