@@ -19,7 +19,7 @@
 #include <xdg-shell.h>
 
 #define LOG_MODULE "terminal"
-#define LOG_ENABLE_DBG 0
+#define LOG_ENABLE_DBG 1
 #include "log.h"
 
 #include "async.h"
@@ -982,18 +982,8 @@ load_fonts_from_conf(struct terminal *term)
     return reload_fonts(term);
 }
 
-static void
-slave_died(struct reaper *reaper, pid_t pid, int status, void *data)
-{
-    struct terminal *term = data;
-    LOG_DBG("slave (PID=%u) died", pid);
-
-    term->slave_has_been_reaped = true;
-    term->exit_status = status;
-
-    if (!term->conf->hold_at_exit)
-        term_shutdown(term);
-}
+static void fdm_client_terminated(
+    struct reaper *reaper, pid_t pid, int status, void *data);
 
 struct terminal *
 term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
@@ -1176,8 +1166,11 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
             .max_width = SIXEL_MAX_WIDTH,
             .max_height = SIXEL_MAX_HEIGHT,
         },
-        .shutdown_cb = shutdown_cb,
-        .shutdown_data = shutdown_data,
+        .shutdown = {
+            .terminate_timeout_fd = -1,
+            .cb = shutdown_cb,
+            .cb_data = shutdown_data,
+        },
         .foot_exe = xstrdup(foot_exe),
         .cwd = xstrdup(cwd),
 #if defined(FOOT_IME_ENABLED) && FOOT_IME_ENABLED
@@ -1206,7 +1199,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         goto err;
     }
 
-    reaper_add(term->reaper, term->slave, &slave_died, term);
+    reaper_add(term->reaper, term->slave, &fdm_client_terminated, term);
 
     /* Guess scale; we're not mapped yet, so we don't know on which
      * output we'll be. Pick highest scale we find for now */
@@ -1252,7 +1245,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
     return term;
 
 err:
-    term->is_shutting_down = true;
+    term->shutdown.in_progress = true;
     term_destroy(term);
     return NULL;
 
@@ -1272,16 +1265,122 @@ void
 term_window_configured(struct terminal *term)
 {
     /* Enable ptmx FDM callback */
-    if (!term->is_shutting_down) {
+    if (!term->shutdown.in_progress) {
         xassert(term->window->is_configured);
         fdm_add(term->fdm, term->ptmx, EPOLLIN, &fdm_ptmx, term);
     }
 }
 
+/*
+ * Shutdown logic
+ *
+ * A foot instance can be terminated in two ways:
+ *
+ *  - the client application terminates (user types ‘exit’, or pressed C-d in the
+ *    shell, etc)
+ *  - the foot window is closed
+ *
+ * Both variants need to trigger to “other” action. I.e. if the client
+ * application is terminated, then we need to close the window. If the window is
+ * closed, we need to terminate the client application.
+ *
+ * Only when *both* tasks have completed do we consider ourselves fully
+ * shutdown. This is when we can call term_destroy(), and the user provided
+ * shutdown callback.
+ *
+ * The functions involved with this are:
+ *
+ * - shutdown_maybe_done(): called after any of the two tasks above have
+ *   completed. When it determines that *both* tasks are done, it calls
+ *   term_destroy() and the user provided shutdown callback.
+ *
+ * - fdm_client_terminated(): reaper callback, called when the client
+ *   application has terminated.
+ *
+ *     + Kills the “terminate” timeout timer
+ *     + Calls shutdown_maybe_done() if the shutdown procedure has already
+ *       started (i.e. the window being closed initiated the shutdown)
+ *    -OR-
+ *       Initiates the shutdown itself, by calling term_shutdown() (client
+ *       application termination initiated the shutdown).
+ *
+ * - term_shutdown(): unregisters all FDM callbacks, sends SIGTERM to the client
+ *   application and installs a “terminate” timeout timer (if it hasn’t already
+ *   terminated). Finally registers an event FD with the FDM, which is
+ *   immediately triggered. This is done to ensure any pending FDM events are
+ *   handled before shutting down.
+ *
+ * - fdm_shutdown(): FDM callback, triggered by the event FD in
+ *   term_shutdown(). Unmaps and destroys the window resources, and ensures the
+ *   seats’ focused pointers don’t reference us. Finally calls
+ *   shutdown_maybe_done().
+ *
+ * - fdm_terminate_timeout(): FDM callback for the “terminate” timeout
+ *   timer. This function is called when the client application hasn’t
+ *   terminated after 60 seconds (after the SIGTERM). Sends SIGKILL to the
+ *   client application.
+ *
+ * - term_destroy(): normally called from shutdown_maybe_done(), when both the
+ *   window has been unmapped, and the client application has terminated. In
+ *   this case, it simply destroys all resources.
+ *
+ *   It may however also be called without term_shutdown() having been called
+ *   (typically in error code paths - for example, when the Wayland connection
+ *   is closed by the compositor). In this case, the client application is
+ *   typically still running, and we can’t assume the FDM is running. To handle
+ *   this, we install configure a 60 second SIGALRM, send SIGTERM to the client
+ *   application, and then enter a blocking waitpid().
+ *
+ *   If the alarm triggers, we send SIGKILL and once again enter a blocking
+ *   waitpid().
+ */
+
+static void
+shutdown_maybe_done(struct terminal *term)
+{
+    bool shutdown_done =
+        term->window == NULL && term->shutdown.client_has_terminated;
+
+    LOG_DBG("window=%p, slave-has-been-reaped=%d --> %s",
+            (void *)term->window, term->shutdown.client_has_terminated,
+            (shutdown_done
+             ? "shutdown done, calling term_destroy()"
+             : "no action"));
+
+    if (!shutdown_done)
+        return;
+
+    void (*cb)(void *, int) = term->shutdown.cb;
+    void *cb_data = term->shutdown.cb_data;
+
+    int exit_code = term_destroy(term);
+    if (cb != NULL)
+        cb(cb_data, exit_code);
+}
+
+static void
+fdm_client_terminated(struct reaper *reaper, pid_t pid, int status, void *data)
+{
+    struct terminal *term = data;
+    LOG_DBG("slave (PID=%u) died", pid);
+
+    term->shutdown.client_has_terminated = true;
+    term->shutdown.exit_status = status;
+
+    if (term->shutdown.terminate_timeout_fd >= 0) {
+        fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
+        term->shutdown.terminate_timeout_fd = -1;
+    }
+
+    if (term->shutdown.in_progress)
+        shutdown_maybe_done(term);
+    else if (!term->conf->hold_at_exit)
+        term_shutdown(term);
+}
+
 static bool
 fdm_shutdown(struct fdm *fdm, int fd, int events, void *data)
 {
-    LOG_DBG("FDM shutdown");
     struct terminal *term = data;
 
     /* Kill the event FD */
@@ -1307,23 +1406,37 @@ fdm_shutdown(struct fdm *fdm, int fd, int events, void *data)
             it->item.mouse_focus = NULL;
     }
 
-    void (*cb)(void *, int) = term->shutdown_cb;
-    void *cb_data = term->shutdown_data;
+    shutdown_maybe_done(term);
+    return true;
+}
 
-    int exit_code = term_destroy(term);
-    if (cb != NULL)
-        cb(cb_data, exit_code);
+static bool
+fdm_terminate_timeout(struct fdm *fdm, int fd, int events, void *data)
+{
+    uint64_t unused;
+    ssize_t bytes = read(fd, &unused, sizeof(unused));
+    if (bytes < 0) {
+        LOG_ERRNO("failed to read from slave terminate timeout FD");
+        return false;
+    }
 
+    struct terminal *term = data;
+    xassert(!term->shutdown.client_has_terminated);
+
+    LOG_DBG("slave (PID=%u) has not terminated, sending SIGKILL (%d)",
+            term->slave, SIGKILL);
+
+    kill(-term->slave, SIGKILL);
     return true;
 }
 
 bool
 term_shutdown(struct terminal *term)
 {
-    if (term->is_shutting_down)
+    if (term->shutdown.in_progress)
         return true;
 
-    term->is_shutting_down = true;
+    term->shutdown.in_progress = true;
 
     /*
      * Close FDs then postpone self-destruction to the next poll
@@ -1341,13 +1454,33 @@ term_shutdown(struct terminal *term)
     fdm_del(term->fdm, term->blink.fd);
     fdm_del(term->fdm, term->flash.fd);
 
-    /* We’ll deal with this explicitly */
-    reaper_del(term->reaper, term->slave);
-
     if (term->window != NULL && term->window->is_configured)
         fdm_del(term->fdm, term->ptmx);
     else
         close(term->ptmx);
+
+    if (!term->shutdown.client_has_terminated) {
+        LOG_DBG("initiating asynchronous terminate of slave; "
+                "sending SIGTERM to PID=%u", term->slave);
+
+        kill(-term->slave, SIGTERM);
+
+        const struct itimerspec timeout = {.it_value = {.tv_sec = 60}};
+
+        int timeout_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+        if (timeout_fd < 0 ||
+            timerfd_settime(timeout_fd, 0, &timeout, NULL) < 0 ||
+            !fdm_add(term->fdm, timeout_fd, EPOLLIN, &fdm_terminate_timeout, term))
+        {
+            if (timeout_fd >= 0)
+                close(timeout_fd);
+            LOG_ERRNO("failed to create slave terminate timeout FD");
+            return false;
+        }
+
+        xassert(term->shutdown.terminate_timeout_fd < 0);
+        term->shutdown.terminate_timeout_fd = timeout_fd;
+    }
 
     term->selection.auto_scroll.fd = -1;
     term->render.app_sync_updates.timer_fd = -1;
@@ -1409,6 +1542,8 @@ term_destroy(struct terminal *term)
     fdm_del(term->fdm, term->blink.fd);
     fdm_del(term->fdm, term->flash.fd);
     fdm_del(term->fdm, term->ptmx);
+    if (term->shutdown.terminate_timeout_fd >= 0)
+        fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
 
     if (term->window != NULL) {
         wayl_win_destroy(term->window);
@@ -1499,24 +1634,29 @@ term_destroy(struct terminal *term)
     int ret = EXIT_SUCCESS;
 
     if (term->slave > 0) {
+        /* We’ll deal with this explicitly */
+        reaper_del(term->reaper, term->slave);
+
         int exit_status;
 
-        if (term->slave_has_been_reaped)
-            exit_status = term->exit_status;
+        if (term->shutdown.client_has_terminated)
+            exit_status = term->shutdown.exit_status;
         else {
-            LOG_DBG("waiting for slave (PID=%u) to die", term->slave);
+            LOG_DBG("initiating blocking terminate of slave; "
+                    "sending SIGTERM to PID=%u", term->slave);
+
+            kill(-term->slave, SIGTERM);
 
             /*
-             * Note: we've closed ptmx, so the slave *should* exit...
+             * we’ve closed the ptxm, and sent SIGTERM to the client
+             * application. It *should* exit...
              *
              * But, since it is possible to write clients that ignore
              * this, we need to handle it in *some* way.
              *
-             * So, what we do is register a SIGALRM handler, and configure
-             * a 2 second alarm. If the slave hasn't died after this time,
-             * we send it a SIGTERM, then wait another 2 seconds (using
-             * the same alarm mechanism). If it still hasn't died, we send
-             * it a SIGKILL.
+             * So, what we do is register a SIGALRM handler, and configure a 30
+             * second alarm. If the slave hasn't died after this time, we send
+             * it a SIGKILL,
              *
              * Note that this solution is *not* asynchronous, and any
              * other events etc will be ignored during this time. This of
@@ -1524,9 +1664,7 @@ term_destroy(struct terminal *term)
              * there might be other terminals running.
              */
             sigaction(SIGALRM, &(const struct sigaction){.sa_handler = &sig_alarm}, NULL);
-            alarm(2);
-
-            int kill_signal = SIGTERM;
+            alarm(60);
 
             while (true) {
                 int r = waitpid(term->slave, &exit_status, 0);
@@ -1538,18 +1676,11 @@ term_destroy(struct terminal *term)
                     xassert(errno == EINTR);
 
                     if (alarm_raised) {
-                        LOG_DBG("slave hasn't died yet, sending: %s (%d)",
-                                kill_signal == SIGTERM ? "SIGTERM" : "SIGKILL",
-                                kill_signal);
+                        LOG_DBG(
+                            "slave (PID=%u) has not terminate yet, "
+                            "sending: SIGKILL (%d)", term->slave, SIGKILL);
 
-                        kill(term->slave, kill_signal);
-
-                        alarm_raised = 0;
-                        if (kill_signal != SIGKILL)
-                            alarm(2);
-
-                        kill_signal = SIGKILL;
-
+                        kill(-term->slave, SIGKILL);
                     }
                 }
             }
@@ -1893,9 +2024,10 @@ term_font_subpixel_changed(struct terminal *term)
         [FCFT_SUBPIXEL_VERTICAL_RGB] = "V-RGB",
         [FCFT_SUBPIXEL_VERTICAL_BGR] = "V-BGR",
     };
-#endif
 
     LOG_DBG("subpixel mode changed: %s -> %s", str[term->font_subpixel], str[subpixel]);
+#endif
+
     term->font_subpixel = subpixel;
     term_damage_view(term);
     render_refresh(term);
@@ -2321,11 +2453,11 @@ void
 term_cursor_blink_update(struct terminal *term)
 {
     bool enable = term->cursor_blink.decset || term->cursor_blink.deccsusr;
-    bool activate = !term->is_shutting_down && enable && term->kbd_focus;
+    bool activate = !term->shutdown.in_progress && enable && term->kbd_focus;
 
     LOG_DBG("decset=%d, deccsrusr=%d, focus=%d, shutting-down=%d, enable=%d, activate=%d",
             term->cursor_blink.decset, term->cursor_blink.deccsusr,
-            term->kbd_focus, term->is_shutting_down,
+            term->kbd_focus, term->shutdown.in_progress,
             enable, activate);
 
     if (activate && term->cursor_blink.fd < 0) {

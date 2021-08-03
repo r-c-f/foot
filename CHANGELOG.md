@@ -42,6 +42,12 @@
 ### Changed
 
 * `bold-text-in-bright=palette-based` now only brightens colors from palette
+* Raised grace period between closing the PTY and sending `SIGKILL` (when
+  terminating the client application) from 4 to 60 seconds.
+* When terminating the client application, foot now sends `SIGTERM` immediately
+  after closing the PTY, instead of waiting 2 seconds.
+* Foot now sends `SIGTERM`/`SIGKILL` to the client application’s process group,
+  instead of just to the client application’s process.
 
 
 ### Deprecated
@@ -58,6 +64,8 @@
   (https://codeberg.org/dnkl/foot/issues/651).
 * Output scale being zero on compositors that does not advertise a
   scaling factor.
+* Slow-to-terminate client applications causing other footclient instances to
+  freeze when closing a footclient window.
 
 
 ### Security

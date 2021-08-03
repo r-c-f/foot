@@ -1471,7 +1471,7 @@ wl_pointer_leave(void *data, struct wl_pointer *wl_pointer,
         case TERM_SURF_BUTTON_MINIMIZE:
         case TERM_SURF_BUTTON_MAXIMIZE:
         case TERM_SURF_BUTTON_CLOSE:
-            if (old_moused->is_shutting_down)
+            if (old_moused->shutdown.in_progress)
                 break;
 
             render_refresh_csd(old_moused);

@@ -2340,7 +2340,7 @@ dirty_cursor(struct terminal *term)
 static void
 grid_render(struct terminal *term)
 {
-    if (term->is_shutting_down)
+    if (term->shutdown.in_progress)
         return;
 
     struct timeval start_time, start_double_buffering = {0}, stop_double_buffering = {0};
@@ -3318,7 +3318,7 @@ send_dimensions_to_client(struct terminal *term)
 static bool
 maybe_resize(struct terminal *term, int width, int height, bool force)
 {
-    if (term->is_shutting_down)
+    if (term->shutdown.in_progress)
         return false;
 
     if (!term->window->is_configured)
@@ -3640,7 +3640,7 @@ fdm_hook_refresh_pending_terminals(struct fdm *fdm, void *data)
     tll_foreach(renderer->wayl->terms, it) {
         struct terminal *term = it->item;
 
-        if (unlikely(!term->window->is_configured))
+        if (unlikely(term->shutdown.in_progress || !term->window->is_configured))
             continue;
 
         bool grid = term->render.refresh.grid;
