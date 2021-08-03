@@ -1887,131 +1887,103 @@ draw_right_one_eighth_block(struct buf *buf)
     rect(buf->width - round(buf->width / 8.), 0, buf->width, buf->height);
 }
 
-static void NOINLINE
+static void
 quad_upper_left(struct buf *buf)
 {
     rect(0, 0, ceil(buf->width / 2.), ceil(buf->height / 2.));
 }
 
-static void NOINLINE
+static void
 quad_upper_right(struct buf *buf)
 {
     rect(floor(buf->width / 2.), 0, buf->width, ceil(buf->height / 2.));
 }
 
-static void NOINLINE
+static void
 quad_lower_left(struct buf *buf)
 {
     rect(0, floor(buf->height / 2.), ceil(buf->width / 2.), buf->height);
 }
 
-static void NOINLINE
+static void
 quad_lower_right(struct buf *buf)
 {
     rect(floor(buf->width / 2.), floor(buf->height / 2.), buf->width, buf->height);
 }
 
-static void NOINLINE
-draw_quadrant_lower_left(struct buf *buf)
+static void
+draw_quadrant(struct buf *buf, wchar_t wc)
 {
-    quad_lower_left(buf);
-}
+    enum {
+        UPPER_LEFT = 1 << 0,
+        UPPER_RIGHT = 1 << 1,
+        LOWER_LEFT = 1 << 2,
+        LOWER_RIGHT = 1 << 3,
+    };
 
-static void NOINLINE
-draw_quadrant_lower_right(struct buf *buf)
-{
-    quad_lower_right(buf);
+    static const uint8_t matrix[10] = {
+        LOWER_LEFT,
+        LOWER_RIGHT,
+        UPPER_LEFT,
+        UPPER_LEFT | LOWER_LEFT | LOWER_RIGHT,
+        UPPER_LEFT | LOWER_RIGHT,
+        UPPER_LEFT | UPPER_RIGHT | LOWER_LEFT,
+        UPPER_LEFT | UPPER_RIGHT | LOWER_RIGHT,
+        UPPER_RIGHT,
+        UPPER_RIGHT | LOWER_LEFT,
+        UPPER_RIGHT | LOWER_LEFT | LOWER_RIGHT,
+    };
+
+    xassert(wc >= 0x2596 && wc <= 0x259f);
+    const size_t idx = wc - 0x2596;
+
+    xassert(idx < ALEN(matrix));
+    uint8_t encoded = matrix[idx];
+
+    if (encoded & UPPER_LEFT)
+        quad_upper_left(buf);
+
+    if (encoded & UPPER_RIGHT)
+        quad_upper_right(buf);
+
+    if (encoded & LOWER_LEFT)
+        quad_lower_left(buf);
+
+    if (encoded & LOWER_RIGHT)
+        quad_lower_right(buf);
 }
 
 static void
-draw_quadrant_upper_left(struct buf *buf)
-{
-    quad_upper_left(buf);
-}
-
-static void
-draw_quadrant_upper_left_and_lower_left_and_lower_right(struct buf *buf)
-{
-    quad_upper_left(buf);
-    quad_lower_left(buf);
-    quad_lower_right(buf);
-}
-
-static void
-draw_quadrant_upper_left_and_lower_right(struct buf *buf)
-{
-    quad_upper_left(buf);
-    quad_lower_right(buf);
-}
-
-static void
-draw_quadrant_upper_left_and_upper_right_and_lower_left(struct buf *buf)
-{
-    quad_upper_left(buf);
-    quad_upper_right(buf);
-    quad_lower_left(buf);
-}
-
-static void
-draw_quadrant_upper_left_and_upper_right_and_lower_right(struct buf *buf)
-{
-    quad_upper_left(buf);
-    quad_upper_right(buf);
-    quad_lower_right(buf);
-}
-
-static void
-draw_quadrant_upper_right(struct buf *buf)
-{
-    quad_upper_right(buf);
-}
-
-static void
-draw_quadrant_upper_right_and_lower_left(struct buf *buf)
-{
-    quad_upper_right(buf);
-    quad_lower_left(buf);
-}
-
-static void
-draw_quadrant_upper_right_and_lower_left_and_lower_right(struct buf *buf)
-{
-    quad_upper_right(buf);
-    quad_lower_left(buf);
-    quad_lower_right(buf);
-}
-
-static void NOINLINE
 sextant_upper_left(struct buf *buf)
 {
     rect(0, 0, round(buf->width / 2.), round(buf->height / 3.));
 }
 
-static void NOINLINE
+static void
 sextant_middle_left(struct buf *buf)
 {
     rect(0, buf->height / 3, round(buf->width / 2.), round(2. * buf->height / 3.));
 }
 
-static void NOINLINE
+static void
 sextant_lower_left(struct buf *buf)
 {
     rect(0, 2 * buf->height / 3, round(buf->width / 2.), buf->height);
 }
 
-static void NOINLINE
+static void
 sextant_upper_right(struct buf *buf)
 {
     rect(buf->width / 2, 0, buf->width, round(buf->height / 3.));
 }
 
-static void NOINLINE
+static void
 sextant_middle_right(struct buf *buf)
 {
     rect(buf->width / 2, buf->height / 3, buf->width, round(2. * buf->height / 3.));
 }
 
-static void NOINLINE
+static void
 sextant_lower_right(struct buf *buf)
 {
     rect(buf->width / 2, 2 * buf->height / 3, buf->width, buf->height);
@@ -2676,16 +2648,7 @@ draw_glyph(struct buf *buf, wchar_t wc)
     case 0x2593: draw_dark_shade(buf); break;
     case 0x2594: draw_upper_one_eighth_block(buf); break;
     case 0x2595: draw_right_one_eighth_block(buf); break;
-    case 0x2596: draw_quadrant_lower_left(buf); break;
-    case 0x2597: draw_quadrant_lower_right(buf); break;
-    case 0x2598: draw_quadrant_upper_left(buf); break;
-    case 0x2599: draw_quadrant_upper_left_and_lower_left_and_lower_right(buf); break;
-    case 0x259a: draw_quadrant_upper_left_and_lower_right(buf); break;
-    case 0x259b: draw_quadrant_upper_left_and_upper_right_and_lower_left(buf); break;
-    case 0x259c: draw_quadrant_upper_left_and_upper_right_and_lower_right(buf); break;
-    case 0x259d: draw_quadrant_upper_right(buf); break;
-    case 0x259e: draw_quadrant_upper_right_and_lower_left(buf); break;
-    case 0x259f: draw_quadrant_upper_right_and_lower_left_and_lower_right(buf); break;
+    case 0x2596 ... 0x259f: draw_quadrant(buf, wc); break;
 
     case 0x1fb00 ... 0x1fb3b: draw_sextant(buf, wc); break;
 
