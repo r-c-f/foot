@@ -29,7 +29,12 @@ struct buf {
     float cell_size;
     float base_thickness;
     bool solid_shades;
+
     int thickness[2];
+
+    /* For sextants and wedges */
+    int x_halfs[2];
+    int y_thirds[4];
 };
 
 static const pixman_color_t white = {0xffff, 0xffff, 0xffff, 0xffff};
@@ -1956,37 +1961,37 @@ draw_quadrant(struct buf *buf, wchar_t wc)
 static void
 sextant_upper_left(struct buf *buf)
 {
-    rect(0, 0, round(buf->width / 2.), round(buf->height / 3.));
+    rect(0, 0, buf->x_halfs[0], buf->y_thirds[0]);
 }
 
 static void
 sextant_middle_left(struct buf *buf)
 {
-    rect(0, buf->height / 3, round(buf->width / 2.), round(2. * buf->height / 3.));
+    rect(0, buf->y_thirds[1], buf->x_halfs[0], buf->y_thirds[2]);
 }
 
 static void
 sextant_lower_left(struct buf *buf)
 {
-    rect(0, 2 * buf->height / 3, round(buf->width / 2.), buf->height);
+    rect(0, buf->y_thirds[3], buf->x_halfs[0], buf->height);
 }
 
 static void
 sextant_upper_right(struct buf *buf)
 {
-    rect(buf->width / 2, 0, buf->width, round(buf->height / 3.));
+    rect(buf->x_halfs[1], 0, buf->width, buf->y_thirds[0]);
 }
 
 static void
 sextant_middle_right(struct buf *buf)
 {
-    rect(buf->width / 2, buf->height / 3, buf->width, round(2. * buf->height / 3.));
+    rect(buf->x_halfs[1], buf->y_thirds[1], buf->width, buf->y_thirds[2]);
 }
 
 static void
 sextant_lower_right(struct buf *buf)
 {
-    rect(buf->width / 2, 2 * buf->height / 3, buf->width, buf->height);
+    rect(buf->x_halfs[1], buf->y_thirds[3], buf->width, buf->height);
 }
 
 static void
@@ -2758,6 +2763,14 @@ box_drawing(const struct terminal *term, wchar_t wc)
 
     buf.thickness[LIGHT] = _thickness(&buf, LIGHT);
     buf.thickness[HEAVY] = _thickness(&buf, HEAVY);
+
+    buf.x_halfs[0] = round(width / 2.); /* End point first half */
+    buf.x_halfs[1] = width / 2;         /* Start point second half */
+
+    buf.y_thirds[0] = round(height / 3.);      /* End point first third */
+    buf.y_thirds[1] = height / 3;              /* Start point second third */
+    buf.y_thirds[2] = round(2. * height / 3.); /* End point second third */
+    buf.y_thirds[3] = 2 * height / 3;          /* Start point last third */
 
     LOG_DBG("LIGHT=%d, HEAVY=%d",
             _thickness(&buf, LIGHT), _thickness(&buf, HEAVY));
