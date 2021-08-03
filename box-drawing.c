@@ -1432,7 +1432,7 @@ draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
     }
 }
 
-static void
+static void NOINLINE
 draw_box_drawings_light_diagonal_upper_right_to_lower_left(struct buf *buf)
 {
     pixman_trapezoid_t trap = {
@@ -1463,7 +1463,7 @@ draw_box_drawings_light_diagonal_upper_right_to_lower_left(struct buf *buf)
     pixman_rasterize_trapezoid(buf->pix, &trap, 0, 0);
 }
 
-static void
+static void NOINLINE
 draw_box_drawings_light_diagonal_upper_left_to_lower_right(struct buf *buf)
 {
     pixman_trapezoid_t trap = {
