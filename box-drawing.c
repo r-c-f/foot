@@ -2145,96 +2145,150 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     int p1_x, p1_y, p2_x, p2_y, p3_x, p3_y;
 
-    IGNORE_WARNING("-Wpedantic");
-
     switch (wc) {
-    /* Lower left */
-    case 0x1fb3c ... 0x1fb40: {
-        size_t idx = wc - 0x1fb3c;
-        p1_x = 0; p1_y = (idx < 2 ? 2 * height / 3 :
-                          idx < 4 ? height / 3 :
-                          0);
-        p2_x = 0; p2_y = height;
-        p3_x = idx % 2 ? width : round(width_f / 2.); p3_y = height;
+    case 0x1fb3c:  /* 🬼 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
         break;
-    }
 
-    /* Lower right */
-    case 0x1fb47 ... 0x1fb4b: {
-        size_t idx = wc - 0x1fb47;
-        p1_x = width; p1_y = (idx < 2 ? 2 * height / 3 :
-                              idx < 4 ? height / 3 :
-                              0);
-        p2_x = width; p2_y = height;
-        p3_x = idx % 2 ? 0 : width / 2; p3_y = height;
+    case 0x1fb3d:  /* 🬽 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
         break;
-    }
 
-    /* Upper left */
-    case 0x1fb57 ... 0x1fb5b: {
-        size_t idx = wc - 0x1fb57;
-        p1_x = 0; p1_y = 0;
-        p2_x = 0; p2_y = (idx < 2 ? round(height_f / 3.) :
-                          idx < 4 ? round(2. * height_f / 3.) :
-                          height);
-        p3_x = idx % 2 ? width : round(width_f / 2.); p3_y = 0;
+    case 0x1fb3e: /* 🬾 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = height / 3; p2_y = p3_y = height;
         break;
-    }
 
-    /* Upper right */
-    case 0x1fb62 ... 0x1fb66: {
-        size_t idx = wc - 0x1fb62;
-        p1_x = width; p1_y = 0;
-        p2_x = width; p2_y = (idx < 2 ? round(height_f / 3.) :
-                          idx < 4 ? round(2. * height_f / 3.) :
-                          height);
-        p3_x = idx % 2 ? 0 : width / 2; p3_y = 0;
+    case 0x1fb3f: /* 🬿 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = height / 3; p2_y = p3_y = height;
         break;
-    }
 
-    case 0x1fb46:
+    case 0x1fb40:  /* 🭀 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = 0; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb47: /* 🭇 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb48: /* 🭈 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb49: /* 🭉 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb4a: /* 🭊 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb4b: /* 🭋 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = 0; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb57: /* 🭗 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb58: /* 🭘 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb59: /* 🭙 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb5a: /* 🭚 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb5b: /* 🭛 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = height;
+        break;
+
+    case 0x1fb62: /* 🭢 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb63: /* 🭣 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb64: /* 🭤 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb65: /* 🭥 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb66: /* 🭦 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = height;
+        break;
+
+    case 0x1fb46: /* 🭆 */
         p1_x = 0; p1_y = round(2. * height_f / 3.);
         p2_x = width; p2_y = height / 3;
         p3_x = width; p3_y = p1_y;
         break;
 
-    case 0x1fb51:
+    case 0x1fb51: /* 🭑 */
         p1_x = 0; p1_y = height / 3;
         p2_x = 0; p2_y = round(2. * height_f / 3.);
         p3_x = width; p3_y = p2_y;
         break;
 
-    case 0x1fb5c:
+    case 0x1fb5c: /* 🭜 */
         p1_x = 0; p1_y = height / 3;
         p2_x = 0; p2_y = round(2. * height_f / 3.);
         p3_x = width; p3_y = p1_y;
         break;
 
-    case 0x1fb67:
+    case 0x1fb67: /* 🭧 */
         p1_x = 0; p1_y = height / 3;
         p2_x = width; p2_y = p1_y;
         p3_x = width; p3_y = round(2. * height_f / 3.);
         break;
 
-    case 0x1fb6c:
+    case 0x1fb6c: /* 🭬 */
         p1_x = 0; p1_y = 0;
         p2_x = round(width_f / 2.); p2_y = round(height_f / 2.);
         p3_x = 0; p3_y = height;
         break;
 
-    case 0x1fb6d:
+    case 0x1fb6d: /* 🭭 */
         p1_x = 0; p1_y = 0;
         p2_x = width / 2; p2_y = round(height_f / 2.);
         p3_x = width; p3_y = 0;
         break;
 
-    case 0x1fb6e:
+    case 0x1fb6e: /* 🭮 */
         p1_x = width; p1_y = 0;
         p2_x = width / 2; p2_y = round(height_f / 2.);
         p3_x = width; p3_y = height;
         break;
 
-    case 0x1fb6f:
+    case 0x1fb6f: /* 🭯 */
         p1_x = 0; p1_y = height;
         p2_x = width / 2; p2_y = round(height_f / 2.);
         p3_x = width; p3_y = height;
@@ -2244,8 +2298,6 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
         BUG("unimplemented Unicode codepoint");
         break;
     }
-
-    UNIGNORE_WARNINGS;
 
     const pixman_triangle_t tri = {
         .p1 = {.x = pixman_int_to_fixed(p1_x), .y = pixman_int_to_fixed(p1_y)},
