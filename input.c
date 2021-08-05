@@ -1449,7 +1449,8 @@ wl_pointer_leave(void *data, struct wl_pointer *wl_pointer,
     seat->mouse.count = 0;
     seat->mouse.last_released_button = 0;
     memset(&seat->mouse.last_time, 0, sizeof(seat->mouse.last_time));
-    seat->mouse.axis_aggregated = 0.0;
+    for (size_t i = 0; i < ALEN(seat->mouse.aggregated); i++)
+        seat->mouse.aggregated[i] = 0.0;
     seat->mouse.have_discrete = false;
 
     seat->mouse_focus = NULL;
@@ -2069,12 +2070,14 @@ alternate_scroll(struct seat *seat, int amount, int button)
 }
 
 static void
-mouse_scroll(struct seat *seat, int amount)
+mouse_scroll(struct seat *seat, int amount, enum wl_pointer_axis axis)
 {
     struct terminal *term = seat->mouse_focus;
     xassert(term != NULL);
 
-    int button = amount < 0 ? BTN_BACK : BTN_FORWARD;
+    int button = axis == WL_POINTER_AXIS_VERTICAL_SCROLL
+        ? amount < 0 ? BTN_BACK : BTN_FORWARD
+        : amount < 0 ? BTN_WHEEL_LEFT : BTN_WHEEL_RIGHT;
     amount = abs(amount);
 
     if (term->mouse_tracking == MOUSE_NONE) {
@@ -2109,15 +2112,13 @@ static void
 wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
                 uint32_t time, uint32_t axis, wl_fixed_t value)
 {
-    if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
-        return;
-
     struct seat *seat = data;
 
     if (seat->mouse.have_discrete)
         return;
 
     xassert(seat->mouse_focus != NULL);
+    xassert(axis < ALEN(seat->mouse.aggregated));
 
     /*
      * Aggregate scrolled amount until we get at least 1.0
@@ -2125,27 +2126,32 @@ wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
      * Without this, very slow scrolling will never actually scroll
      * anything.
      */
-    seat->mouse.axis_aggregated
+    seat->mouse.aggregated[axis]
         += seat->wayl->conf->scrollback.multiplier * wl_fixed_to_double(value);
 
-    if (fabs(seat->mouse.axis_aggregated) < seat->mouse_focus->cell_height)
+    if (fabs(seat->mouse.aggregated[axis]) < seat->mouse_focus->cell_height)
         return;
 
-    int lines = seat->mouse.axis_aggregated / seat->mouse_focus->cell_height;
-    mouse_scroll(seat, lines);
-    seat->mouse.axis_aggregated -= (double)lines * seat->mouse_focus->cell_height;
+    int lines = seat->mouse.aggregated[axis] / seat->mouse_focus->cell_height;
+    mouse_scroll(seat, lines, axis);
+    seat->mouse.aggregated[axis] -= (double)lines * seat->mouse_focus->cell_height;
 }
 
 static void
 wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer,
                          uint32_t axis, int32_t discrete)
 {
-    if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
-        return;
-
     struct seat *seat = data;
     seat->mouse.have_discrete = true;
-    mouse_scroll(seat, seat->wayl->conf->scrollback.multiplier * discrete);
+
+    int amount = discrete;
+
+    if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL) {
+        /* Treat mouse wheel left/right as regular buttons */
+    } else
+        amount *= seat->wayl->conf->scrollback.multiplier;
+
+    mouse_scroll(seat, amount, axis);
 }
 
 static void
@@ -2165,11 +2171,10 @@ static void
 wl_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer,
                      uint32_t time, uint32_t axis)
 {
-    if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
-        return;
-
     struct seat *seat = data;
-    seat->mouse.axis_aggregated = 0.;
+
+    xassert(axis < ALEN(seat->mouse.aggregated));
+    seat->mouse.aggregated[axis] = 0.;
 }
 
 const struct wl_pointer_listener pointer_listener = {

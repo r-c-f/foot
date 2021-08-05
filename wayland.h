@@ -242,7 +242,7 @@ struct seat {
         struct timeval last_time;
 
         /* We used a discrete axis event in the current pointer frame */
-        double axis_aggregated;
+        double aggregated[2];
         bool have_discrete;
 
         mouse_binding_list_t bindings;

@@ -41,6 +41,7 @@
   of box drawing characters rendered by foot itself (rather than using
   font glyphs) (https://codeberg.org/dnkl/foot/issues/474).
 * `XM`+`xm` to terminfo.
+* Mouse buttons 6/7 (mouse wheel left/right).
 
 
 ### Changed
