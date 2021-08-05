@@ -1261,7 +1261,7 @@ set_a1_bit(uint8_t *data, size_t ofs, size_t bit_no)
 #endif
 }
 
-static void
+static void NOINLINE
 draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
 {
     const pixman_format_code_t fmt = buf->format;
@@ -1916,7 +1916,7 @@ quad_lower_right(struct buf *buf)
     rect(floor(buf->width / 2.), floor(buf->height / 2.), buf->width, buf->height);
 }
 
-static void
+static void NOINLINE
 draw_quadrant(struct buf *buf, wchar_t wc)
 {
     enum {
@@ -1994,7 +1994,7 @@ sextant_lower_right(struct buf *buf)
     rect(buf->x_halfs[1], buf->y_thirds[3], buf->width, buf->height);
 }
 
-static void
+static void NOINLINE
 draw_sextant(struct buf *buf, wchar_t wc)
 {
     /*
@@ -2381,7 +2381,7 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
     pixman_image_unref(src);
 }
 
-static void
+static void NOINLINE
 draw_wedge_triangle_inverted(struct buf *buf, wchar_t wc)
 {
     draw_wedge_triangle(buf, wc);
@@ -2391,7 +2391,7 @@ draw_wedge_triangle_inverted(struct buf *buf, wchar_t wc)
     pixman_image_unref(src);
 }
 
-static void
+static void NOINLINE
 draw_wedge_triangle_and_box(struct buf *buf, wchar_t wc)
 {
     draw_wedge_triangle(buf, wc);
