@@ -334,11 +334,11 @@ struct terminal {
     enum fcft_subpixel font_subpixel;
 
     /*
-     *   0-159: U+250U+259F
-     * 160-219: U+1FB00-1FB3B
-     * 220-247: U+1FB70-1FB8B
+     *   0-159: U+02500+0259F
+     * 160-299: U+1FB00-1FB8B
+     * 300-301: U+1FB9A-1FB9B
      */
-    struct fcft_glyph *box_drawing[248];
+    struct fcft_glyph *box_drawing[302];
 
     bool is_sending_paste_data;
     ptmx_buffer_list_t ptmx_buffers;

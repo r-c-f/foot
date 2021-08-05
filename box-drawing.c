@@ -21,6 +21,7 @@ enum thickness {
 struct buf {
     uint8_t *data;
     pixman_image_t *pix;
+    pixman_format_code_t format;
     int width;
     int height;
     int stride;
@@ -52,6 +53,7 @@ change_buffer_format(struct buf *buf, pixman_format_code_t new_format)
 
     buf->data = new_data;
     buf->pix = new_pix;
+    buf->format = new_format;
     buf->stride = stride;
 }
 
@@ -1257,7 +1259,7 @@ set_a1_bit(uint8_t *data, size_t ofs, size_t bit_no)
 static void
 draw_box_drawings_light_arc(struct buf *buf, wchar_t wc)
 {
-    const pixman_format_code_t fmt = pixman_image_get_format(buf->pix);
+    const pixman_format_code_t fmt = buf->format;
     const int supersample = fmt == PIXMAN_a8 ? 4 : 1;
     const int height = buf->height * supersample;
     const int width = buf->width * supersample;
@@ -1763,7 +1765,7 @@ draw_pixman_shade(struct buf *buf, uint16_t v)
 static void
 draw_light_shade(struct buf *buf)
 {
-    pixman_format_code_t fmt = pixman_image_get_format(buf->pix);
+    pixman_format_code_t fmt = buf->format;
 
     if (buf->solid_shades && fmt == PIXMAN_a1)
         change_buffer_format(buf, PIXMAN_a8);
@@ -1786,7 +1788,7 @@ draw_light_shade(struct buf *buf)
 static void
 draw_medium_shade(struct buf *buf)
 {
-    pixman_format_code_t fmt = pixman_image_get_format(buf->pix);
+    pixman_format_code_t fmt = buf->format;
 
     if (buf->solid_shades && fmt == PIXMAN_a1)
         change_buffer_format(buf, PIXMAN_a8);
@@ -1809,7 +1811,7 @@ draw_medium_shade(struct buf *buf)
 static void
 draw_dark_shade(struct buf *buf)
 {
-    pixman_format_code_t fmt = pixman_image_get_format(buf->pix);
+    pixman_format_code_t fmt = buf->format;
 
     if (buf->solid_shades && fmt == PIXMAN_a1)
         change_buffer_format(buf, PIXMAN_a8);
@@ -2133,6 +2135,311 @@ draw_sextant(struct buf *buf, wchar_t wc)
         sextant_lower_right(buf);
 }
 
+static void NOINLINE
+draw_wedge_triangle(struct buf *buf, wchar_t wc)
+{
+    const int width = buf->width;
+    const int height = buf->height;
+    const double width_f = width;
+    const double height_f = height;
+
+    int p1_x, p1_y, p2_x, p2_y, p3_x, p3_y;
+
+    switch (wc) {
+    case 0x1fb3c:  /* 🬼 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb52:  /* 🭒 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = round(2. * height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb3d:  /* 🬽 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb53:  /* 🭓 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = round(2. * height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb3e: /* 🬾 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb54: /* 🭔 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = round(height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb3f: /* 🬿 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb55: /* 🭕 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = round(height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb40:  /* 🭀 */
+    case 0x1fb56:  /* 🭖 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = 0; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb47:  /* 🭇 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb5d:  /* 🭝 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = round(2. * height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb48:  /* 🭈 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = 2 * height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb5e:  /* 🭞 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = round(2. * height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb49:  /* 🭉 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb5f:  /* 🭟 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = round(height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb4a:  /* 🭊 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = height / 3; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb60:  /* 🭠 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = round(height_f / 3.); p2_y = p3_y = height;
+        break;
+
+    case 0x1fb4b:  /* 🭋 */
+    case 0x1fb61:  /* 🭡 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = 0; p2_y = p3_y = height;
+        break;
+
+    case 0x1fb57:  /* 🭗 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb41:  /* 🭁 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = height / 3;
+        break;
+
+    case 0x1fb58:  /* 🭘 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb42:  /* 🭂 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = height / 3;
+        break;
+
+    case 0x1fb59:  /* 🭙 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb43:  /* 🭃 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = 2 * height / 3;
+        break;
+
+    case 0x1fb5a:  /* 🭚 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb44:  /* 🭄 */
+        p1_x = p2_x = 0; p3_x = width;
+        p1_y = p3_y = 0; p2_y = 2 * height / 3;
+        break;
+
+    case 0x1fb5b:  /* 🭛 */
+    case 0x1fb45:  /* 🭅 */
+        p1_x = p2_x = 0; p3_x = round(width_f / 2.);
+        p1_y = p3_y = 0; p2_y = height;
+        break;
+
+    case 0x1fb62:  /* 🭢 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb4c:  /* 🭌 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = height / 3;
+        break;
+
+    case 0x1fb63: /* 🭣 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = round(height_f / 3.);
+        break;
+
+    case 0x1fb4d:  /* 🭍 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = height / 3;
+        break;
+
+    case 0x1fb64:  /* 🭤 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb4e:  /* 🭎 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = 2 * height / 3;
+        break;
+
+    case 0x1fb65:  /* 🭥 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb4f:  /* 🭏 */
+        p1_x = p2_x = width; p3_x = 0;
+        p1_y = p3_y = 0; p2_y = 2 * height / 3;
+        break;
+
+    case 0x1fb66: /* 🭦 */
+    case 0x1fb50: /* 🭐 */
+        p1_x = p2_x = width; p3_x = width / 2;
+        p1_y = p3_y = 0; p2_y = height;
+        break;
+
+    case 0x1fb46:  /* 🭆 */
+        p1_x = 0; p1_y = round(2. * height_f / 3.);
+        p2_x = width; p2_y = height / 3;
+        p3_x = width; p3_y = p1_y;
+        break;
+
+    case 0x1fb51:  /* 🭑 */
+        p1_x = 0; p1_y = height / 3;
+        p2_x = 0; p2_y = round(2. * height_f / 3.);
+        p3_x = width; p3_y = p2_y;
+        break;
+
+    case 0x1fb5c:  /* 🭜 */
+        p1_x = 0; p1_y = height / 3;
+        p2_x = 0; p2_y = round(2. * height_f / 3.);
+        p3_x = width; p3_y = p1_y;
+        break;
+
+    case 0x1fb67:  /* 🭧 */
+        p1_x = 0; p1_y = height / 3;
+        p2_x = width; p2_y = p1_y;
+        p3_x = width; p3_y = round(2. * height_f / 3.);
+        break;
+
+    case 0x1fb6c:  /* 🭬 */
+    case 0x1fb68:  /* 🭨 */
+        p1_x = 0; p1_y = 0;
+        p2_x = round(width_f / 2.); p2_y = round(height_f / 2.);
+        p3_x = 0; p3_y = height;
+        break;
+
+    case 0x1fb6d:  /* 🭭 */
+    case 0x1fb69:  /* 🭩 */
+        p1_x = 0; p1_y = 0;
+        p2_x = width / 2; p2_y = round(height_f / 2.);
+        p3_x = width; p3_y = 0;
+        break;
+
+    case 0x1fb6e:  /* 🭮 */
+    case 0x1fb6a:  /* 🭪 */
+        p1_x = width; p1_y = 0;
+        p2_x = width / 2; p2_y = round(height_f / 2.);
+        p3_x = width; p3_y = height;
+        break;
+
+    case 0x1fb6f:  /* 🭯 */
+    case 0x1fb6b:  /* 🭫 */
+        p1_x = 0; p1_y = height;
+        p2_x = width / 2; p2_y = round(height_f / 2.);
+        p3_x = width; p3_y = height;
+        break;
+
+    default:
+        BUG("unimplemented Unicode codepoint");
+        break;
+    }
+
+    const pixman_triangle_t tri = {
+        .p1 = {.x = pixman_int_to_fixed(p1_x), .y = pixman_int_to_fixed(p1_y)},
+        .p2 = {.x = pixman_int_to_fixed(p2_x), .y = pixman_int_to_fixed(p2_y)},
+        .p3 = {.x = pixman_int_to_fixed(p3_x), .y = pixman_int_to_fixed(p3_y)},
+    };
+
+    pixman_image_t *src = pixman_image_create_solid_fill(&white);
+    pixman_composite_triangles(
+        PIXMAN_OP_OVER, src, buf->pix, buf->format, 0, 0, 0, 0, 1, &tri);
+    pixman_image_unref(src);
+}
+
+static void
+draw_wedge_triangle_inverted(struct buf *buf, wchar_t wc)
+{
+    draw_wedge_triangle(buf, wc);
+
+    pixman_image_t *src = pixman_image_create_solid_fill(&white);
+    pixman_image_composite(PIXMAN_OP_OUT, src, NULL, buf->pix, 0, 0, 0, 0, 0, 0, buf->width, buf->height);
+    pixman_image_unref(src);
+}
+
+static void
+draw_wedge_triangle_and_box(struct buf *buf, wchar_t wc)
+{
+    draw_wedge_triangle(buf, wc);
+
+    const int width = buf->width;
+    const int height = buf->height;
+
+    pixman_box32_t box;
+
+    switch (wc) {
+    case 0x1fb46:
+    case 0x1fb51:
+        box = (pixman_box32_t){
+            .x1 = 0, .y1 = round(2. * height / 3.),
+            .x2 = width, .y2 = height,
+        };
+        break;
+
+    case 0x1fb5c:
+    case 0x1fb67:
+        box = (pixman_box32_t){
+            .x1 = 0, .y1 = 0,
+            .x2 = width, .y2 = height / 3,
+        };
+        break;
+    }
+
+    pixman_image_fill_boxes(PIXMAN_OP_SRC, buf->pix, &white, 1, &box);
+}
+
 static void
 draw_left_and_lower_one_eighth_block(struct buf *buf)
 {
@@ -2382,6 +2689,39 @@ draw_glyph(struct buf *buf, wchar_t wc)
 
     case 0x1fb00 ... 0x1fb3b: draw_sextant(buf, wc); break;
 
+    case 0x1fb3c ... 0x1fb40:
+    case 0x1fb47 ... 0x1fb4b:
+    case 0x1fb57 ... 0x1fb5b:
+    case 0x1fb62 ... 0x1fb66:
+    case 0x1fb6c ... 0x1fb6f:
+        draw_wedge_triangle(buf, wc);
+        break;
+
+    case 0x1fb41 ... 0x1fb45:
+    case 0x1fb4c ... 0x1fb50:
+    case 0x1fb52 ... 0x1fb56:
+    case 0x1fb5d ... 0x1fb61:
+    case 0x1fb68 ... 0x1fb6b:
+        draw_wedge_triangle_inverted(buf, wc);
+        break;
+
+    case 0x1fb46:
+    case 0x1fb51:
+    case 0x1fb5c:
+    case 0x1fb67:
+        draw_wedge_triangle_and_box(buf, wc);
+        break;
+
+    case 0x1fb9a:
+        draw_wedge_triangle(buf, 0x1fb6d);
+        draw_wedge_triangle(buf, 0x1fb6f);
+        break;
+
+    case 0x1fb9b:
+        draw_wedge_triangle(buf, 0x1fb6c);
+        draw_wedge_triangle(buf, 0x1fb6e);
+        break;
+
     case 0x1fb70: draw_vertical_one_eighth_block_2(buf); break;
     case 0x1fb71: draw_vertical_one_eighth_block_3(buf); break;
     case 0x1fb72: draw_vertical_one_eighth_block_4(buf); break;
@@ -2443,6 +2783,7 @@ box_drawing(const struct terminal *term, wchar_t wc)
     struct buf buf = {
         .data = data,
         .pix = pix,
+        .format = fmt,
         .width = width,
         .height = height,
         .stride = stride,
