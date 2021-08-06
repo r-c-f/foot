@@ -41,6 +41,7 @@
   of box drawing characters rendered by foot itself (rather than using
   font glyphs) (https://codeberg.org/dnkl/foot/issues/474).
 * `ich1=\E[@` to terminfo.
+* `XM`+`xm` to terminfo.
 
 
 ### Changed
@@ -52,6 +53,7 @@
   after closing the PTY, instead of waiting 2 seconds.
 * Foot now sends `SIGTERM`/`SIGKILL` to the client application’s process group,
   instead of just to the client application’s process.
+* `kmous` terminfo capability from `\E[M` to `\E[<`.
 
 
 ### Deprecated
