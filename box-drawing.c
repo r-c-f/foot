@@ -2771,7 +2771,7 @@ box_drawing(const struct terminal *term, wchar_t wc)
     buf.x_halfs[0] = round(width / 2.); /* Endpoint first half */
     buf.x_halfs[1] = width / 2;         /* Startpoint second half */
 
-    int y0, y1;
+    int y0 = 0, y1 = 0;
     switch (height % 3) {
     case 0:
         y0 = height / 3;
