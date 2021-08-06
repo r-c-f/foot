@@ -1019,12 +1019,12 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
 #if defined(_DEBUG) && defined(LOG_ENABLE_DBG) && LOG_ENABLE_DBG
     char sym_name[100];
     xkb_keysym_get_name(sym, sym_name, sizeof(sym_name));
-#endif
 
     LOG_DBG("%s (%u/0x%x): seat=%s, term=%p, serial=%u, "
             "mods=0x%08x, consumed=0x%08x, repeats=%d",
             sym_name, sym, sym, seat->name, (void *)term, serial,
             mods, consumed, should_repeat);
+#endif
 
     /*
      * User configurable bindings
@@ -1360,6 +1360,8 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     LOG_DBG("pointer-enter: pointer=%p, serial=%u, surface = %p, new-moused = %p",
             (void *)wl_pointer, serial, (void *)surface, (void *)term);
 
+    xassert(tll_length(seat->mouse.buttons) == 0);
+
     /* Scale may have changed */
     wayl_reload_xcursor_theme(seat, term->scale);
 
@@ -1690,6 +1692,50 @@ fdm_csd_move(struct fdm *fdm, int fd, int events, void *data)
     }
 
     struct wl_window *win = seat->mouse_focus->window;
+
+    /*
+     * Workaround GNOME bug
+     *
+     * Dragging the window, then stopping the drag (releasing the
+     * mouse button), *without* moving the mouse, and then clicking
+     * twice, waiting for the CSD timer, and finally clicking once
+     * more, results in the follwing sequence (keyboard and other
+     * irrelevant events filtered out, unless they’re needed to prove
+     * a point):
+     *
+     * dbg: input.c:1551: cancelling drag timer, moving window
+     * dbg: input.c:759: keyboard_leave: keyboard=0x607000003580, serial=873, surface=0x6070000036d0
+     * dbg: input.c:1432: seat0: pointer-leave: pointer=0x607000003660, serial=874, surface = 0x6070000396e0, old-moused = 0x622000006100
+     *
+     * --> drag stopped here
+     *
+     * --> LMB clicked first time after the drag (generates the enter event on *release*, but no button events)
+     * dbg: input.c:1360: pointer-enter: pointer=0x607000003660, serial=876, surface = 0x6070000396e0, new-moused = 0x622000006100
+     *
+     * --> LMB clicked, and held until the timer times out, second time after the drag
+     * dbg: input.c:1712: BUTTON: pointer=0x607000003660, serial=877, button=110, state=1
+     * dbg: input.c:1806: starting move timer
+     * dbg: input.c:1692: move timer timed out
+     * dbg: input.c:759: keyboard_leave: keyboard=0x607000003580, serial=878, surface=0x6070000036d0
+     *
+     * --> NOTE: ^^ no pointer leave event this time, only the keyboard leave
+     *
+     * --> LMB clicked one last time
+     * dbg: input.c:697: seat0: keyboard_enter: keyboard=0x607000003580, serial=879, surface=0x6070000036d0
+     * dbg: input.c:1712: BUTTON: pointer=0x607000003660, serial=880, button=110, state=1
+     * err: input.c:1741: BUG in wl_pointer_button(): assertion failed: 'it->item.button != button'
+     *
+     * What are we seeing?
+     *
+     * - GNOME does *not* send a pointer *enter* event after the drag
+     *   has stopped
+     * - The second drag does *not* generate a pointer *leave* event
+     * - The missing leave event means we’re still tracking LMB as
+     *   being held down in our seat struct.
+     * - This leads to an assert (debug builds) when LMB is clicked
+     *   again (seat’s button list already contains LMB).
+     */
+    tll_free(seat->mouse.buttons);
 
     win->csd.move_timeout_fd = -1;
     xdg_toplevel_move(win->xdg_toplevel, seat->wl_seat, win->csd.serial);
