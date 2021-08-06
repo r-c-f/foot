@@ -1699,7 +1699,7 @@ fdm_csd_move(struct fdm *fdm, int fd, int events, void *data)
      * Dragging the window, then stopping the drag (releasing the
      * mouse button), *without* moving the mouse, and then clicking
      * twice, waiting for the CSD timer, and finally clicking once
-     * more, results in the follwing sequence (keyboard and other
+     * more, results in the following sequence (keyboard and other
      * irrelevant events filtered out, unless they’re needed to prove
      * a point):
      *
