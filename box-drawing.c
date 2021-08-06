@@ -34,7 +34,7 @@ struct buf {
 
     /* For sextants and wedges */
     int x_halfs[2];
-    int y_thirds[4];
+    int y_thirds[2];
 };
 
 static const pixman_color_t white = {0xffff, 0xffff, 0xffff, 0xffff};
@@ -1967,13 +1967,13 @@ sextant_upper_left(struct buf *buf)
 static void
 sextant_middle_left(struct buf *buf)
 {
-    rect(0, buf->y_thirds[1], buf->x_halfs[0], buf->y_thirds[2]);
+    rect(0, buf->y_thirds[0], buf->x_halfs[0], buf->y_thirds[1]);
 }
 
 static void
 sextant_lower_left(struct buf *buf)
 {
-    rect(0, buf->y_thirds[3], buf->x_halfs[0], buf->height);
+    rect(0, buf->y_thirds[1], buf->x_halfs[0], buf->height);
 }
 
 static void
@@ -1985,13 +1985,13 @@ sextant_upper_right(struct buf *buf)
 static void
 sextant_middle_right(struct buf *buf)
 {
-    rect(buf->x_halfs[1], buf->y_thirds[1], buf->width, buf->y_thirds[2]);
+    rect(buf->x_halfs[1], buf->y_thirds[0], buf->width, buf->y_thirds[1]);
 }
 
 static void
 sextant_lower_right(struct buf *buf)
 {
-    rect(buf->x_halfs[1], buf->y_thirds[3], buf->width, buf->height);
+    rect(buf->x_halfs[1], buf->y_thirds[1], buf->width, buf->height);
 }
 
 static void NOINLINE
@@ -2122,35 +2122,33 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
     int halfs1 = buf->x_halfs[1];
     int thirds0 = buf->y_thirds[0];
     int thirds1 = buf->y_thirds[1];
-    int thirds2 = buf->y_thirds[2];
-    int thirds3 = buf->y_thirds[3];
 
     int p1_x, p1_y, p2_x, p2_y, p3_x, p3_y;
 
     switch (wc) {
     case 0x1fb3c:  /* 🬼 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = thirds3; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb52:  /* 🭒 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = thirds2; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb3d:  /* 🬽 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = thirds3; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb53:  /* 🭓 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = thirds2; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb3e: /* 🬾 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = thirds1; p2_y = p3_y = height;
+        p1_y = thirds0; p2_y = p3_y = height;
         break;
 
     case 0x1fb54: /* 🭔 */
@@ -2160,7 +2158,7 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb3f: /* 🬿 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = thirds1; p2_y = p3_y = height;
+        p1_y = thirds0; p2_y = p3_y = height;
         break;
 
     case 0x1fb55: /* 🭕 */
@@ -2176,27 +2174,27 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb47:  /* 🭇 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = thirds3; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb5d:  /* 🭝 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = thirds2; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb48:  /* 🭈 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = thirds3; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb5e:  /* 🭞 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = thirds2; p2_y = p3_y = height;
+        p1_y = thirds1; p2_y = p3_y = height;
         break;
 
     case 0x1fb49:  /* 🭉 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = thirds1; p2_y = p3_y = height;
+        p1_y = thirds0; p2_y = p3_y = height;
         break;
 
     case 0x1fb5f:  /* 🭟 */
@@ -2206,7 +2204,7 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb4a:  /* 🭊 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = thirds1; p2_y = p3_y = height;
+        p1_y = thirds0; p2_y = p3_y = height;
         break;
 
     case 0x1fb60:  /* 🭠 */
@@ -2227,7 +2225,7 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb41:  /* 🭁 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = p3_y = 0; p2_y = thirds1;
+        p1_y = p3_y = 0; p2_y = thirds0;
         break;
 
     case 0x1fb58:  /* 🭘 */
@@ -2237,27 +2235,27 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb42:  /* 🭂 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = p3_y = 0; p2_y = thirds1;
+        p1_y = p3_y = 0; p2_y = thirds0;
         break;
 
     case 0x1fb59:  /* 🭙 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = p3_y = 0; p2_y = thirds2;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb43:  /* 🭃 */
         p1_x = p2_x = 0; p3_x = halfs0;
-        p1_y = p3_y = 0; p2_y = thirds3;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb5a:  /* 🭚 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = p3_y = 0; p2_y = thirds2;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb44:  /* 🭄 */
         p1_x = p2_x = 0; p3_x = width;
-        p1_y = p3_y = 0; p2_y = thirds3;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb5b:  /* 🭛 */
@@ -2273,7 +2271,7 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb4c:  /* 🭌 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = p3_y = 0; p2_y = thirds1;
+        p1_y = p3_y = 0; p2_y = thirds0;
         break;
 
     case 0x1fb63: /* 🭣 */
@@ -2283,27 +2281,27 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
 
     case 0x1fb4d:  /* 🭍 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = p3_y = 0; p2_y = thirds1;
+        p1_y = p3_y = 0; p2_y = thirds0;
         break;
 
     case 0x1fb64:  /* 🭤 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = p3_y = 0; p2_y = thirds2;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb4e:  /* 🭎 */
         p1_x = p2_x = width; p3_x = halfs1;
-        p1_y = p3_y = 0; p2_y = thirds3;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb65:  /* 🭥 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = p3_y = 0; p2_y = thirds2;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb4f:  /* 🭏 */
         p1_x = p2_x = width; p3_x = 0;
-        p1_y = p3_y = 0; p2_y = thirds3;
+        p1_y = p3_y = 0; p2_y = thirds1;
         break;
 
     case 0x1fb66: /* 🭦 */
@@ -2313,27 +2311,27 @@ draw_wedge_triangle(struct buf *buf, wchar_t wc)
         break;
 
     case 0x1fb46:  /* 🭆 */
-        p1_x = 0; p1_y = thirds2;
-        p2_x = width; p2_y = thirds1;
+        p1_x = 0; p1_y = thirds1;
+        p2_x = width; p2_y = thirds0;
         p3_x = width; p3_y = p1_y;
         break;
 
     case 0x1fb51:  /* 🭑 */
-        p1_x = 0; p1_y = thirds1;
-        p2_x = 0; p2_y = thirds2;
+        p1_x = 0; p1_y = thirds0;
+        p2_x = 0; p2_y = thirds1;
         p3_x = width; p3_y = p2_y;
         break;
 
     case 0x1fb5c:  /* 🭜 */
-        p1_x = 0; p1_y = thirds1;
-        p2_x = 0; p2_y = thirds2;
+        p1_x = 0; p1_y = thirds0;
+        p2_x = 0; p2_y = thirds1;
         p3_x = width; p3_y = p1_y;
         break;
 
     case 0x1fb67:  /* 🭧 */
-        p1_x = 0; p1_y = thirds1;
+        p1_x = 0; p1_y = thirds0;
         p2_x = width; p2_y = p1_y;
-        p3_x = width; p3_y = thirds2;
+        p3_x = width; p3_y = thirds1;
         break;
 
     case 0x1fb6c:  /* 🭬 */
@@ -2405,7 +2403,7 @@ draw_wedge_triangle_and_box(struct buf *buf, wchar_t wc)
     case 0x1fb46:
     case 0x1fb51:
         box = (pixman_box32_t){
-            .x1 = 0, .y1 = buf->y_thirds[2],
+            .x1 = 0, .y1 = buf->y_thirds[1],
             .x2 = width, .y2 = height,
         };
         break;
@@ -2414,7 +2412,7 @@ draw_wedge_triangle_and_box(struct buf *buf, wchar_t wc)
     case 0x1fb67:
         box = (pixman_box32_t){
             .x1 = 0, .y1 = 0,
-            .x2 = width, .y2 = buf->y_thirds[1],
+            .x2 = width, .y2 = buf->y_thirds[0],
         };
         break;
     }
@@ -2769,13 +2767,30 @@ box_drawing(const struct terminal *term, wchar_t wc)
     buf.thickness[LIGHT] = _thickness(&buf, LIGHT);
     buf.thickness[HEAVY] = _thickness(&buf, HEAVY);
 
-    buf.x_halfs[0] = round(width / 2.); /* End point first half */
-    buf.x_halfs[1] = width / 2;         /* Start point second half */
+    /* Overlap when width is odd */
+    buf.x_halfs[0] = round(width / 2.); /* Endpoint first half */
+    buf.x_halfs[1] = width / 2;         /* Startpoint second half */
 
-    buf.y_thirds[0] = round(height / 3.);      /* End point first third */
-    buf.y_thirds[1] = height / 3;              /* Start point second third */
-    buf.y_thirds[2] = round(2. * height / 3.); /* End point second third */
-    buf.y_thirds[3] = 2 * height / 3;          /* Start point last third */
+    int y0 = 0, y1 = 0;
+    switch (height % 3) {
+    case 0:
+        y0 = height / 3;
+        y1 = 2 * height / 3;
+        break;
+
+    case 1:
+        y0 = height / 3;
+        y1 = 2 * height / 3 + 1;
+        break;
+
+    case 2:
+        y0 = height / 3 + 1;
+        y1 = y0 + height / 3;
+        break;
+    }
+
+    buf.y_thirds[0] = y0;  /* Endpoint first third, start point second third */
+    buf.y_thirds[1] = y1;  /* Endpoint second third, start point last third */
 
     LOG_DBG("LIGHT=%d, HEAVY=%d",
             _thickness(&buf, LIGHT), _thickness(&buf, HEAVY));
