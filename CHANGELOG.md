@@ -40,6 +40,7 @@
 * Unicode 13 characters U+1FB3C - U+1FB6F, U+1FB9A and U+1FB9B to list
   of box drawing characters rendered by foot itself (rather than using
   font glyphs) (https://codeberg.org/dnkl/foot/issues/474).
+* `ich1=\E[@` to terminfo.
 
 
 ### Changed
