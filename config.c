@@ -2832,7 +2832,7 @@ config_load(struct config *conf, const char *conf_path,
     enum fcft_capabilities fcft_caps = fcft_capabilities();
 
     *conf = (struct config) {
-        .term = xstrdup(DEFAULT_TERM),
+        .term = xstrdup(FOOT_DEFAULT_TERM),
         .shell = get_shell(),
         .title = xstrdup("foot"),
         .app_id = xstrdup("foot"),

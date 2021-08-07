@@ -17,6 +17,7 @@
          1. [Use the generated PGO data](#use-the-generated-pgo-data)
       1. [Profile Guided Optimization](#profile-guided-optimization)
    1. [Debug build](#debug-build)
+   1. [Terminfo](#terminfo)
    1. [Running the new build](#running-the-new-build)
 
 
@@ -116,6 +117,35 @@ I also recommend taking a look at the bundled Arch
 you intend to install a release build of foot, in which case you might
 be interested in the compiler flags used there.
 
+A note on terminfo; the terminfo database exposes terminal
+capabilities to the applications running inside the terminal. As such,
+it is important that the terminfo used reflects the actual
+terminal. Using the `xterm-256color` terminfo will, in many cases,
+work, but I still recommend using foot’s own terminfo. There are two
+reasons for this:
+
+* foot’s terminfo contains a couple of non-standard capabilities,
+  used by e.g. tmux.
+* New capabilities added to the `xterm-256color` terminfo could
+  potentially break foot.
+
+As of ncurses 2021-07-31, ncurses ships a version of foot’s
+terminfo. I still recommend building and installing the version
+shipped with foot, since:
+
+* It will be more up to date (and more importantly, guaranteed to
+  match the installed version of foot).
+* The ncurses version is missing several of the non-standard capabilities.
+
+Foot’s terminfo will by default be built, and installed along with
+foot itself. This can be disabled (for example, to simplify packaging
+when the terminfo definitions are packaged in a separate
+package). Instructions on how to do so is in [terminfo](#terminfo).
+
+I recommend packaging foot’s terminfo files in a separate package, to
+allow them to be installed on remote systems without having to install
+foot itself.
+
 
 ### Setup
 
@@ -128,38 +158,64 @@ mkdir -p bld/release && cd bld/release
 
 Available compile-time options:
 
-| Option                        | Type    | Default               | Description                           | Extra dependencies |
-|-------------------------------|---------|-----------------------|---------------------------------------|--------------------|
-| `-Ddocs`                      | feature | `auto`                | Builds and install documentation      | scdoc              |
-| `-Dime`                       | bool    | `true`                | Enables IME support                   | None               |
-| `-Dgrapheme-clustering`       | feature | `auto`                | Enables grapheme clustering           | libutf8proc        |
-| `-Dterminfo`                  | feature | `auto`                | Build terminfo files                  | `tic` (ncurses)    |
-| `-Dterminfo-install-location` | string  | `${datadir}/terminfo` | Where to  install the terminfo files  | None               |
+| Option                               | Type    | Default                    | Description                           | Extra dependencies |
+|--------------------------------------|---------|----------------------------|---------------------------------------|--------------------|
+| `-Ddocs`                             | feature | `auto`                     | Builds and install documentation      | scdoc              |
+| `-Dime`                              | bool    | `true`                     | Enables IME support                   | None               |
+| `-Dgrapheme-clustering`              | feature | `auto`                     | Enables grapheme clustering           | libutf8proc        |
+| `-Dterminfo`                         | feature | `enabled`                  | Build and install terminfo files      | tic (ncurses)      |
+| `-Ddefault-terminfo`                 | string  | `foot`                     | Default value of `TERM`               | none               |
+| `-Dcustom-terminfo-install-location` | string  | `${datadir}/foot/terminfo` | Value to append to `TERMINFO_DIRS`    | None               |
 
 Documentation includes the man pages, the example `foot.ini`, readme,
 changelog and license files.
 
-The two `terminfo` options are related, but control different aspects
-of how the terminfo files are built, installed and used.
+`-Ddefault-terminfo`: I strongly recommend leaving the default
+value. This option is meant to be used as a last resort on platforms
+where individual terminfo files cannot easily be installed.
 
-`-Dterminfo` controls if the terminfo files should be generated _at
-all_. If disabled, foot’s hardcoded default terminfo is
-`xterm-256color` instead of `foot`.
+`-Dcustom-terminfo-install-location` enables foot’s terminfo to
+co-exist with ncurses’ version. The idea is that you install foot’s
+terminfo to a non-standard location, for example
+`/usr/share/foot/terminfo`. Use `-Dcustom-terminfo-install-location`
+to tell foot where the terminfo is. Foot will append this path to the
+`TERMINFO_DIRS` environment variable in the client application’s
+process. The value is **relative to ${prefix}**.
 
-`-Dterminfo-install-location` controls _where_ the terminfo files are
-installed, relative to the installation prefix. The default is
-`${datadir}/terminfo`.
+Conforming applications _should_ look in `TERMINFO_DIRS` first, and
+fallback to the builtin default (e.g. `/usr/share/terminfo`) if not
+found. Thus, it will prefer foot’s version, if it exists (which it
+typically will on localhost), and fallback to ncurses’ version if not
+(e.g. on remote systems, where foot’s terminfo package has not been
+installed).
 
-It also recognizes the special value `disabled`, that prevents the
-terminfo files from being _installed_. They are still _built_, and
-foot’s hardcoded default terminfo is still `foot`. It is intended to
-be used when the terminfo files are packaged in a separate package
-(something I **highly** recommend distros do).
+If set to `no`, foot will **not** set or modify `TERMINFO_DIRS` at
+all. Use this if you do not intend to use/support foot’s terminfo
+definitions at all.
 
-To build the terminfo files manually, run
+`-Dterminfo` can be used to disable building the terminfo definitions
+in the meson build. It does **not** change the default value of
+`TERM`, and it does **not** disable `TERMINFO_DIRS`.
+
+Example:
 
 ```sh
-tic -x -o <output-directory> -e foot,foot-direct foot.info
+meson --prefix=/usr -Dcustom-terminfo-install-location=lib/foot/terminfo
+```
+
+The above tells foot its terminfo definitions will be installed to
+`/usr/lib/foot/terminfo`. This is the value foot will append to the
+`TERMINFO_DIRS` environment variable.
+
+If `-Dterminfo` is enabled (the default), then the terminfo files will
+be built as part of the regular build process, and installed to the
+specified location.
+
+Packagers may want to set `-Dterminfo=disabled`, and manually build
+and install the terminfo files instead:
+
+```sh
+tic -o <output-directory> -x -e foot,foot-direct foot.info
 ```
 
 
@@ -347,6 +403,35 @@ ninja
 ninja test
 ```
 
+### Terminfo
+
+By default, building foot also builds the terminfo files. If packaging
+the terminfo files in a separate package, it might be easier to simply
+disable the terminfo files in the regular build, and compile the
+terminfo files manually instead.
+
+To build the terminfo files, run:
+
+```sh
+tic -o <output-directory> -x -e foot,foot-direct foot.info
+```
+
+Where _”output-directory”_ **must** match the value passed to
+`-Dcustom-terminfo-install-location` in the foot build.
+
+To compile and install directly (assuming the default
+`-Dcustom-terminfo-install-location`):
+
+```sh
+sudo tic -o /usr/share/foot/terminfo ...
+```
+
+Or, if packaging:
+
+```sh
+tic -o ${DESTDIR}/usr/share/foot/terminfo ...
+```
+
 
 ### Running the new build
 
@@ -355,17 +440,8 @@ You can now run it directly from the build directory:
 ./foot
 ```
 
-But note that it will default to `TERM=foot`, and that this terminfo
-has not been installed yet. However, most things should work with the
-`xterm-256color` terminfo:
+Or, if you did not install the terminfo definitions:
+
 ```sh
 ./foot --term xterm-256color
-```
-
-But, I **recommend** you install the `foot` and `foot-direct` terminfo
-files. You can either copy them manually (typically to
-`/usr/share/terminfo/f` - but this depends on the distro), or
-just install everything:
-```sh
-ninja install
 ```

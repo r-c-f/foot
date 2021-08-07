@@ -48,6 +48,9 @@
 
 ### Changed
 
+* Terminfo files can now co-exist with the foot terminfo files from
+  ncurses. See `INSTALL.md` for more information
+  (https://codeberg.org/dnkl/foot/issues/671).
 * `bold-text-in-bright=palette-based` now only brightens colors from palette
 * Raised grace period between closing the PTY and sending `SIGKILL` (when
   terminating the client application) from 4 to 60 seconds.

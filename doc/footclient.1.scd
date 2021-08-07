@@ -24,7 +24,7 @@ terminal has terminated.
 
 *-t*,*--term*=_TERM_
 	Value to set the environment variable *TERM* to (see *TERMINFO*
-	and *ENVIRONMENT*). Default: _foot_.
+	and *ENVIRONMENT*). Default: _@default_terminfo@_.
 
 *-T*,*--title*=_TITLE_
 	Initial window title. Default: _foot_.

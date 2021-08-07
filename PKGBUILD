@@ -98,7 +98,7 @@ package_foot-git() {
   provides=('foot')
 
   DESTDIR="${pkgdir}/" ninja install
-  rm -rf "${pkgdir}/usr/share/terminfo"
+  rm -rf "${pkgdir}/usr/share/foot/terminfo"
 }
 
 package_foot-terminfo-git() {
@@ -107,6 +107,6 @@ package_foot-terminfo-git() {
   conflicts=('foot-terminfo')
   provides=('foot-terminfo')
 
-  install -dm 755 "${pkgdir}/usr/share/terminfo/f/"
-  cp f/* "${pkgdir}/usr/share/terminfo/f/"
+  install -dm 755 "${pkgdir}/usr/share/foot/terminfo/f/"
+  cp f/* "${pkgdir}/usr/share/foot/terminfo/f/"
 }

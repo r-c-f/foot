@@ -9,12 +9,6 @@
 #include "user-notification.h"
 #include "wayland.h"
 
-#ifdef HAVE_TERMINFO
-    #define DEFAULT_TERM "foot"
-#else
-    #define DEFAULT_TERM "xterm-256color"
-#endif
-
 #define DEFINE_LIST(type) \
     type##_list {         \
         size_t count;     \
