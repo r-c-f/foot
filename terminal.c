@@ -28,6 +28,7 @@
 #include "extract.h"
 #include "grid.h"
 #include "ime.h"
+#include "input.h"
 #include "notify.h"
 #include "quirks.h"
 #include "reaper.h"
@@ -2743,14 +2744,16 @@ static int
 linux_mouse_button_to_x(int button)
 {
     switch (button) {
-    case BTN_LEFT:    return 1;
-    case BTN_MIDDLE:  return 2;
-    case BTN_RIGHT:   return 3;
-    case BTN_BACK:    return 4;
-    case BTN_FORWARD: return 5;
-    case BTN_SIDE:    return 8;
-    case BTN_EXTRA:   return 9;
-    case BTN_TASK:    return -1;  /* TODO: ??? */
+    case BTN_LEFT:        return 1;
+    case BTN_MIDDLE:      return 2;
+    case BTN_RIGHT:       return 3;
+    case BTN_BACK:        return 4;
+    case BTN_FORWARD:     return 5;
+    case BTN_WHEEL_LEFT:  return 6;  /* Foot custom define */
+    case BTN_WHEEL_RIGHT: return 7;  /* Foot custom define */
+    case BTN_SIDE:        return 8;
+    case BTN_EXTRA:       return 9;
+    case BTN_TASK:        return -1;  /* TODO: ??? */
 
     default:
         LOG_WARN("unrecognized mouse button: %d (0x%x)", button, button);
@@ -2881,7 +2884,7 @@ term_mouse_up(struct terminal *term, int button, int row, int col,
         return;
 
     if (xbutton == 4 || xbutton == 5) {
-        /* No release events for scroll buttons */
+        /* No release events for vertical scroll wheel buttons */
         return;
     }
 
