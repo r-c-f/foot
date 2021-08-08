@@ -1,7 +1,7 @@
 project('foot', 'c',
         version: '1.8.2',
         license: 'MIT',
-        meson_version: '>=0.53.0',
+        meson_version: '>=0.54.0',
         default_options: [
           'c_std=c11',
           'warning_level=1',
