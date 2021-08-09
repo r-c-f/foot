@@ -151,6 +151,7 @@ struct config {
         } osc8_underline;
 
         wchar_t **protocols;
+        wchar_t *uri_characters;
         size_t prot_count;
         size_t max_prot_len;
     } url;

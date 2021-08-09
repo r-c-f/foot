@@ -364,6 +364,14 @@ done:
     goto out;
 }
 
+static int
+wccmp(const void *_a, const void *_b)
+{
+    const wchar_t *a = _a;
+    const wchar_t *b = _b;
+    return *a - *b;
+}
+
 static bool
 str_has_prefix(const char *str, const char *prefix)
 {
@@ -1211,6 +1219,24 @@ parse_section_url(const char *key, const char *value, struct config *conf,
         }
 
         free(copy);
+    }
+
+    else if (strcmp(key, "uri-characters") == 0) {
+        wchar_t *uri_characters;
+        if (!str_to_wchars(value, &uri_characters, conf, path, lineno,
+                           "url", "uri-characters"))
+        {
+            return false;
+        }
+
+        free(conf->url.uri_characters);
+
+        qsort(
+            uri_characters,
+            wcslen(uri_characters),
+            sizeof(uri_characters[0]),
+            &wccmp);
+        conf->url.uri_characters = uri_characters;
     }
 
     else {
@@ -2842,6 +2868,7 @@ config_load(struct config *conf, const char *conf_path,
         },
         .url = {
             .label_letters = xwcsdup(L"sadfjklewcmpgh"),
+            .uri_characters = xwcsdup(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.,~:;/?#@!$&%*+=\"'()[]"),
             .osc8_underline = OSC8_UNDERLINE_URL_MODE,
         },
         .can_shape_grapheme = fcft_caps & FCFT_CAPABILITY_GRAPHEME_SHAPING,
@@ -2984,6 +3011,12 @@ config_load(struct config *conf, const char *conf_path,
             conf->url.max_prot_len = len;
         conf->url.protocols[i] = xwcsdup(url_protocols[i]);
     }
+
+    qsort(
+        conf->url.uri_characters,
+        wcslen(conf->url.uri_characters),
+        sizeof(conf->url.uri_characters[0]),
+        &wccmp);
 
     tll_foreach(*initial_user_notifications, it) {
         tll_push_back(conf->notifications, it->item);
@@ -3207,6 +3240,7 @@ config_clone(const struct config *old)
     config_font_list_clone(&conf->csd.font, &old->csd.font);
 
     conf->url.label_letters = xwcsdup(old->url.label_letters);
+    conf->url.uri_characters = xwcsdup(old->url.uri_characters);
     spawn_template_clone(&conf->url.launch, &old->url.launch);
     conf->url.protocols = xmalloc(
         old->url.prot_count * sizeof(conf->url.protocols[0]));
@@ -3274,6 +3308,7 @@ config_free(struct config conf)
     for (size_t i = 0; i < conf.url.prot_count; i++)
         free(conf.url.protocols[i]);
     free(conf.url.protocols);
+    free(conf.url.uri_characters);
 
     key_binding_list_free(&conf.bindings.key);
     key_binding_list_free(&conf.bindings.search);
