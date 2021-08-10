@@ -74,6 +74,8 @@
   scaling factor.
 * Slow-to-terminate client applications causing other footclient instances to
   freeze when closing a footclient window.
+* Underlying cell content showing through in the left-most column of
+  sixels.
 
 
 ### Security
