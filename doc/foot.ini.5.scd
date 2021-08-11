@@ -367,6 +367,13 @@ in this order:
 	of protocol. Default: _http, https, ftp, ftps, file, gemini,
 	gopher_.
 
+*uri-characters*
+	Set of characters allowed in auto-detected URLs. Any character not
+	included in this set constitutes an URL delimiter.
+	
+	Default:
+	_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-\_.,~:;/?#@!$&%\*+="'_.
+
 
 # SECTION: cursor
 

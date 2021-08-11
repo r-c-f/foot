@@ -206,13 +206,27 @@ urls_input(struct seat *seat, struct terminal *term, uint32_t key,
     }
 }
 
-IGNORE_WARNING("-Wpedantic")
+static int
+wccmp(const void *_a, const void *_b)
+{
+    const wchar_t *a = _a;
+    const wchar_t *b = _b;
+    return *a - *b;
+}
 
 static void
 auto_detected(const struct terminal *term, enum url_action action,
               url_list_t *urls)
 {
     const struct config *conf = term->conf;
+
+    const wchar_t *uri_characters = conf->url.uri_characters;
+    if (uri_characters == NULL)
+        return;
+
+    const size_t uri_characters_count = wcslen(uri_characters);
+    if (uri_characters_count == 0)
+        return;
 
     size_t max_prot_len = conf->url.max_prot_len;
     wchar_t proto_chars[max_prot_len];
@@ -230,6 +244,7 @@ auto_detected(const struct terminal *term, enum url_action action,
 
     ssize_t parenthesis = 0;
     ssize_t brackets = 0;
+    ssize_t ltgts = 0;
 
     for (int r = 0; r < term->rows; r++) {
         const struct row *row = grid_row_in_view(term->grid, r);
@@ -267,57 +282,73 @@ auto_detected(const struct terminal *term, enum url_action action,
                         wcsncpy(url, proto, prot_len);
                         len = prot_len;
 
-                        parenthesis = brackets = 0;
+                        parenthesis = brackets = ltgts = 0;
                         break;
                     }
                 }
                 break;
 
             case STATE_URL: {
-                // static const wchar_t allowed[] =
-                //    L"abcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
-                // static const wchar_t unwise[] = L"{}|\\^[]`";
-                // static const wchar_t reserved[] = L";/?:@&=+$,";
+                const wchar_t *match = bsearch(
+                    &wc,
+                    uri_characters,
+                    uri_characters_count,
+                    sizeof(uri_characters[0]),
+                    &wccmp);
 
                 bool emit_url = false;
-                switch (wc) {
-                case L'a'...L'z':
-                case L'A'...L'Z':
-                case L'0'...L'9':
-                case L'-': case L'.': case L'_': case L'~': case L':':
-                case L'/': case L'?': case L'#': case L'@': case L'!':
-                case L'$': case L'&': case L'\'': case L'*': case L'+':
-                case L',': case L';': case L'=': case L'"': case L'%':
-                    url[len++] = wc;
-                    break;
 
-                case L'(':
-                    parenthesis++;
-                    url[len++] = wc;
-                    break;
-
-                case L'[':
-                    brackets++;
-                    url[len++] = wc;
-                    break;
-
-                case L')':
-                    if (--parenthesis < 0)
-                        emit_url = true;
-                    else
-                        url[len++] = wc;
-                    break;
-
-                case L']':
-                    if (--brackets < 0)
-                        emit_url = true;
-                    else
-                        url[len++] = wc;
-                    break;
-
-                default:
+                if (match == NULL) {
+                    /*
+                     * Character is not a valid URI character. Emit
+                     * the URL we’ve collected so far, *without*
+                     * including _this_ character.
+                     */
                     emit_url = true;
-                    break;
+                } else {
+                    xassert(*match == wc);
+
+                    switch (wc) {
+                    default:
+                        url[len++] = wc;
+                        break;
+
+                    case L'(':
+                        parenthesis++;
+                        url[len++] = wc;
+                        break;
+
+                    case L'[':
+                        brackets++;
+                        url[len++] = wc;
+                        break;
+
+                    case L'<':
+                        ltgts++;
+                        url[len++] = wc;
+                        break;
+
+                    case L')':
+                        if (--parenthesis < 0)
+                            emit_url = true;
+                        else
+                            url[len++] = wc;
+                        break;
+
+                    case L']':
+                        if (--brackets < 0)
+                            emit_url = true;
+                        else
+                            url[len++] = wc;
+                        break;
+
+                    case L'>':
+                        if (--ltgts < 0)
+                            emit_url = true;
+                        else
+                            url[len++] = wc;
+                        break;
+                    }
                 }
 
                 if (c >= term->cols - 1 && row->linebreak) {
@@ -382,7 +413,7 @@ auto_detected(const struct terminal *term, enum url_action action,
 
                     state = STATE_PROTOCOL;
                     len = 0;
-                    parenthesis = brackets = 0;
+                    parenthesis = brackets = ltgts = 0;
                 }
                 break;
             }
@@ -390,8 +421,6 @@ auto_detected(const struct terminal *term, enum url_action action,
         }
     }
 }
-
-UNIGNORE_WARNINGS
 
 static void
 osc8_uris(const struct terminal *term, enum url_action action, url_list_t *urls)

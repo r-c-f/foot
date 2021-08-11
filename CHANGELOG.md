@@ -42,6 +42,8 @@
   font glyphs) (https://codeberg.org/dnkl/foot/issues/474).
 * `XM`+`xm` to terminfo.
 * Mouse buttons 6/7 (mouse wheel left/right).
+* `url.uri-characters` option to `foot.ini`
+  (https://codeberg.org/dnkl/foot/issues/654).
 
 
 ### Changed
