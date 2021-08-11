@@ -439,20 +439,6 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
     }
 }
 
-static inline void
-render_cell_prepass(struct terminal *term, struct row *row, int col)
-{
-    for (; col < term->cols - 1; col++) {
-        if (row->cells[col].attrs.confined ||
-            (row->cells[col].attrs.clean == row->cells[col + 1].attrs.clean)) {
-            break;
-        }
-
-        row->cells[col].attrs.clean = 0;
-        row->cells[col + 1].attrs.clean = 0;
-    }
-}
-
 static int
 render_cell(struct terminal *term, pixman_image_t *pix,
             struct row *row, int col, int row_no, bool has_cursor)
@@ -767,10 +753,6 @@ static void
 render_row(struct terminal *term, pixman_image_t *pix, struct row *row,
            int row_no, int cursor_col)
 {
-    if (term->conf->tweak.overflowing_glyphs)
-        for (int col = term->cols - 1; col >= 0; col--)
-            render_cell_prepass(term, row, col);
-
     for (int col = term->cols - 1; col >= 0; col--)
         render_cell(term, pix, row, col, row_no, cursor_col == col);
 }
@@ -2450,6 +2432,74 @@ grid_render(struct terminal *term)
         cursor.row += term->grid->offset;
         cursor.row -= term->grid->view;
         cursor.row &= term->grid->num_rows - 1;
+    }
+
+    if (term->conf->tweak.overflowing_glyphs) {
+        /*
+         * Pre-pass to dirty cells affected by overflowing glyphs.
+         *
+         * Given any two pair of cells where the first cell is
+         * overflowing into the second, *both* cells must be
+         * re-rendered if any one of them is dirty.
+         *
+         * Thus, given a string of overflowing glyphs, with a single
+         * dirty cell in the middle, we need to re-render the entire
+         * string.
+         */
+        for (int r = 0; r < term->rows; r++) {
+            struct row *row = grid_row_in_view(term->grid, r);
+
+            if (!row->dirty)
+                continue;
+
+            /* Loop row from left to right, looking for dirty cells */
+            for (struct cell *cell = &row->cells[0];
+                 cell < &row->cells[term->cols];
+                 cell++)
+            {
+                if (cell->attrs.clean)
+                    continue;
+
+                /*
+                 * Cell is dirty, go back and dirty previous cells, if
+                 * they are overflowing.
+                 *
+                 * As soon as we see a non-overflowing cell we can
+                 * stop, since it isn’t affecting the string of
+                 * overflowing glyphs that follows it.
+                 *
+                 * As soon as we see a dirty cell, we can stop, since
+                 * that means we’ve already handled it (remember the
+                 * outer loop goes from left to right).
+                 */
+                for (struct cell *c = cell - 1; c >= &row->cells[0]; c--) {
+                    if (c->attrs.confined)
+                        break;
+                    if (!c->attrs.clean)
+                        break;
+                    c->attrs.clean = false;
+                }
+
+                /*
+                 * Now move forward, dirtying all cells until we hit a
+                 * non-overflowing cell.
+                 *
+                 * Note that the first non-overflowing cell must be
+                 * re-rendered as well, but any cell *after* that is
+                 * unaffected by the string of overflowing glyphs
+                 * we’re dealing with right now.
+                 *
+                 * For performance, this iterates the *outer* loop’s
+                 * cell pointer - no point in re-checking all these
+                 * glyphs again, in the outer loop.
+                 */
+                for (; cell < &row->cells[term->cols]; cell++) {
+                    cell->attrs.clean = false;
+                    if (cell->attrs.confined)
+                        break;
+                }
+            }
+        }
     }
 
     render_sixel_images(term, buf->pix[0], &cursor);
