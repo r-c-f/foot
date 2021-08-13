@@ -455,7 +455,6 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     const int x = term->margins.left + col * width;
     const int y = term->margins.top + row_no * height;
 
-    xassert(cell->attrs.selected == 0 || cell->attrs.selected == 1);
     bool is_selected = cell->attrs.selected;
 
     uint32_t _fg = 0;

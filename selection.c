@@ -107,7 +107,7 @@ selection_view_down(struct terminal *term, int new_view)
 static void
 foreach_selected_normal(
     struct terminal *term, struct coord _start, struct coord _end,
-    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int col, void *data),
+    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int row_no, int col, void *data),
     void *data)
 {
     const struct coord *start = &_start;
@@ -141,7 +141,7 @@ foreach_selected_normal(
              c <= (r == end_row ? end_col : term->cols - 1);
              c++)
         {
-            if (!cb(term, row, &row->cells[c], c, data))
+            if (!cb(term, row, &row->cells[c], real_r, c, data))
                 return;
         }
 
@@ -152,7 +152,7 @@ foreach_selected_normal(
 static void
 foreach_selected_block(
     struct terminal *term, struct coord _start, struct coord _end,
-    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int col, void *data),
+    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int row_no, int col, void *data),
     void *data)
 {
     const struct coord *start = &_start;
@@ -174,7 +174,7 @@ foreach_selected_block(
         xassert(row != NULL);
 
         for (int c = top_left.col; c <= bottom_right.col; c++) {
-            if (!cb(term, row, &row->cells[c], c, data))
+            if (!cb(term, row, &row->cells[c], real_r, c, data))
                 return;
         }
     }
@@ -183,7 +183,7 @@ foreach_selected_block(
 static void
 foreach_selected(
     struct terminal *term, struct coord start, struct coord end,
-    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int col, void *data),
+    bool (*cb)(struct terminal *term, struct row *row, struct cell *cell, int row_no, int col, void *data),
     void *data)
 {
     switch (term->selection.kind) {
@@ -207,7 +207,7 @@ foreach_selected(
 static bool
 extract_one_const_wrapper(struct terminal *term,
                           struct row *row, struct cell *cell,
-                          int col, void *data)
+                          int row_no, int col, void *data)
 {
     return extract_one(term, row, cell, col, data);
 }
@@ -441,27 +441,40 @@ selection_start(struct terminal *term, int col, int row,
 struct mark_context {
     const struct row *last_row;
     int empty_count;
+    uint64_t **keep_selection;
 };
 
 static bool
 unmark_selected(struct terminal *term, struct row *row, struct cell *cell,
-                int col, void *data)
+                int row_no, int col, void *data)
 {
-    if (cell->attrs.selected == 0 || (cell->attrs.selected & 2)) {
-        /* Ignore if already deselected, or if premarked for updated selection */
+    if (!cell->attrs.selected)
         return true;
+
+    struct mark_context *ctx = data;
+    const uint64_t *keep_selection =
+        ctx->keep_selection != NULL ? ctx->keep_selection[row_no] : NULL;
+
+    if (keep_selection != NULL) {
+        unsigned idx = (unsigned)col / 64;
+        unsigned ofs = (unsigned)col % 64;
+
+        if (keep_selection[idx] & (1ull << ofs)) {
+            /* We’re updating the selection, and this cell is still
+             * going to be selected */
+            return true;
+        }
     }
 
     row->dirty = true;
-    cell->attrs.selected = 0;
-    cell->attrs.clean = 0;
+    cell->attrs.selected = false;
+    cell->attrs.clean = false;
     return true;
 }
 
-
 static bool
 premark_selected(struct terminal *term, struct row *row, struct cell *cell,
-                 int col, void *data)
+                 int row_no, int col, void *data)
 {
     struct mark_context *ctx = data;
     xassert(ctx != NULL);
@@ -476,9 +489,18 @@ premark_selected(struct terminal *term, struct row *row, struct cell *cell,
         return true;
     }
 
+    uint64_t *keep_selection = ctx->keep_selection[row_no];
+    if (keep_selection == NULL) {
+        keep_selection = xcalloc((term->grid->num_cols + 63) / 64, sizeof(keep_selection[0]));
+        ctx->keep_selection[row_no] = keep_selection;
+    }
+
     /* Tell unmark to leave this be */
-    for (int i = 0; i < ctx->empty_count + 1; i++)
-        row->cells[col - i].attrs.selected |= 2;
+    for (int i = 0; i < ctx->empty_count + 1; i++) {
+        unsigned idx = (unsigned)(col - i) / 64;
+        unsigned ofs = (unsigned)(col - i) % 64;
+        keep_selection[idx] |= 1ull << ofs;
+    }
 
     ctx->empty_count = 0;
     return true;
@@ -486,7 +508,7 @@ premark_selected(struct terminal *term, struct row *row, struct cell *cell,
 
 static bool
 mark_selected(struct terminal *term, struct row *row, struct cell *cell,
-              int col, void *data)
+              int row_no, int col, void *data)
 {
     struct mark_context *ctx = data;
     xassert(ctx != NULL);
@@ -503,12 +525,10 @@ mark_selected(struct terminal *term, struct row *row, struct cell *cell,
 
     for (int i = 0; i < ctx->empty_count + 1; i++) {
         struct cell *c = &row->cells[col - i];
-        if (c->attrs.selected & 1)
-            c->attrs.selected = 1; /* Clear the pre-mark bit */
-        else {
+        if (!c->attrs.selected) {
             row->dirty = true;
-            c->attrs.selected = 1;
-            c->attrs.clean = 0;
+            c->attrs.selected = true;
+            c->attrs.clean = false;
         }
     }
 
@@ -523,18 +543,26 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
     xassert(start.row != -1 && start.col != -1);
     xassert(end.row != -1 && end.col != -1);
 
-    struct mark_context ctx = {0};
+#define reset_context() do { \
+        ctx.last_row = NULL; \
+        ctx.empty_count = 0; \
+    } while (0)
+
+    uint64_t **keep_selection =
+        xcalloc(term->grid->num_rows, sizeof(keep_selection[0]));
+
+    struct mark_context ctx = {.keep_selection = keep_selection};
 
     /* Premark all cells that *will* be selected */
     foreach_selected(term, start, end, &premark_selected, &ctx);
-    memset(&ctx, 0, sizeof(ctx));
+    reset_context();
 
     if (term->selection.end.row >= 0) {
         /* Unmark previous selection, ignoring cells that are part of
          * the new selection */
         foreach_selected(term, term->selection.start, term->selection.end,
                          &unmark_selected, &ctx);
-        memset(&ctx, 0, sizeof(ctx));
+        reset_context();
     }
 
     term->selection.start = start;
@@ -543,6 +571,15 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
     /* Mark new selection */
     foreach_selected(term, start, end, &mark_selected, &ctx);
     render_refresh(term);
+
+    for (size_t i = 0; i < term->grid->num_rows; i++) {
+        if (keep_selection[i] == NULL)
+            continue;
+        free(keep_selection[i]);
+    }
+    free(keep_selection);
+
+#undef reset_context
 }
 
 static void
