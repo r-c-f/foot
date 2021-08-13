@@ -56,6 +56,11 @@
 * Foot now sends `SIGTERM`/`SIGKILL` to the client application’s process group,
   instead of just to the client application’s process.
 * `kmous` terminfo capability from `\E[M` to `\E[<`.
+* pt-or-px values (`letter-spacing`, etc) and the line thickness
+  (`tweak.box-drawing-base-thickness`) in box drawing characters are
+  now translated to pixel values using the monitor’s scaling factor
+  when `dpi-aware=no`, or `dpi-aware=auto` and the scaling factor is
+  larger than 1 (https://codeberg.org/dnkl/foot/issues/680).
 
 
 ### Deprecated
