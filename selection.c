@@ -574,11 +574,8 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
     foreach_selected(term, start, end, &mark_selected, &ctx);
     render_refresh(term);
 
-    for (size_t i = 0; i < term->grid->num_rows; i++) {
-        if (keep_selection[i] == NULL)
-            continue;
+    for (size_t i = 0; i < term->grid->num_rows; i++)
         free(keep_selection[i]);
-    }
     free(keep_selection);
 }
 
