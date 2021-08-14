@@ -441,7 +441,7 @@ selection_start(struct terminal *term, int col, int row,
 struct mark_context {
     const struct row *last_row;
     int empty_count;
-    uint64_t **keep_selection;
+    uint8_t **keep_selection;
 };
 
 static bool
@@ -452,14 +452,14 @@ unmark_selected(struct terminal *term, struct row *row, struct cell *cell,
         return true;
 
     struct mark_context *ctx = data;
-    const uint64_t *keep_selection =
+    const uint8_t *keep_selection =
         ctx->keep_selection != NULL ? ctx->keep_selection[row_no] : NULL;
 
     if (keep_selection != NULL) {
-        unsigned idx = (unsigned)col / 64;
-        unsigned ofs = (unsigned)col % 64;
+        unsigned idx = (unsigned)col / 8;
+        unsigned ofs = (unsigned)col % 8;
 
-        if (keep_selection[idx] & (1ull << ofs)) {
+        if (keep_selection[idx] & (1 << ofs)) {
             /* We’re updating the selection, and this cell is still
              * going to be selected */
             return true;
@@ -489,17 +489,17 @@ premark_selected(struct terminal *term, struct row *row, struct cell *cell,
         return true;
     }
 
-    uint64_t *keep_selection = ctx->keep_selection[row_no];
+    uint8_t *keep_selection = ctx->keep_selection[row_no];
     if (keep_selection == NULL) {
-        keep_selection = xcalloc((term->grid->num_cols + 63) / 64, sizeof(keep_selection[0]));
+        keep_selection = xcalloc((term->grid->num_cols + 7) / 8, sizeof(keep_selection[0]));
         ctx->keep_selection[row_no] = keep_selection;
     }
 
     /* Tell unmark to leave this be */
     for (int i = 0; i < ctx->empty_count + 1; i++) {
-        unsigned idx = (unsigned)(col - i) / 64;
-        unsigned ofs = (unsigned)(col - i) % 64;
-        keep_selection[idx] |= 1ull << ofs;
+        unsigned idx = (unsigned)(col - i) / 8;
+        unsigned ofs = (unsigned)(col - i) % 8;
+        keep_selection[idx] |= 1 << ofs;
     }
 
     ctx->empty_count = 0;
@@ -550,7 +550,7 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
     xassert(start.row != -1 && start.col != -1);
     xassert(end.row != -1 && end.col != -1);
 
-    uint64_t **keep_selection =
+    uint8_t **keep_selection =
         xcalloc(term->grid->num_rows, sizeof(keep_selection[0]));
 
     struct mark_context ctx = {.keep_selection = keep_selection};
