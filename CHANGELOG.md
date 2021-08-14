@@ -65,6 +65,14 @@
 
 ### Deprecated
 ### Removed
+
+* `km`/`smm`/`rmm` from terminfo; foot prefixes Alt-key combinations
+  with `ESC`, and not by setting the 8:th “meta” bit, regardless of
+  `smm`/`rmm`. While this _can_ be disabled by, resetting private mode
+  1036, the terminfo should reflect the **default** behavior
+  (https://codeberg.org/dnkl/foot/issues/670).
+
+
 ### Fixed
 
 * Rendering into the right margin area with `tweak.overflowing-glyphs`
