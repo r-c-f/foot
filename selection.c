@@ -537,16 +537,18 @@ mark_selected(struct terminal *term, struct row *row, struct cell *cell,
 }
 
 static void
+reset_modify_context(struct mark_context *ctx)
+{
+    ctx->last_row = NULL;
+    ctx->empty_count = 0;
+}
+
+static void
 selection_modify(struct terminal *term, struct coord start, struct coord end)
 {
     xassert(term->selection.start.row != -1);
     xassert(start.row != -1 && start.col != -1);
     xassert(end.row != -1 && end.col != -1);
-
-#define reset_context() do { \
-        ctx.last_row = NULL; \
-        ctx.empty_count = 0; \
-    } while (0)
 
     uint64_t **keep_selection =
         xcalloc(term->grid->num_rows, sizeof(keep_selection[0]));
@@ -555,14 +557,14 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
 
     /* Premark all cells that *will* be selected */
     foreach_selected(term, start, end, &premark_selected, &ctx);
-    reset_context();
+    reset_modify_context(&ctx);
 
     if (term->selection.end.row >= 0) {
         /* Unmark previous selection, ignoring cells that are part of
          * the new selection */
         foreach_selected(term, term->selection.start, term->selection.end,
                          &unmark_selected, &ctx);
-        reset_context();
+        reset_modify_context(&ctx);
     }
 
     term->selection.start = start;
@@ -578,8 +580,6 @@ selection_modify(struct terminal *term, struct coord start, struct coord end)
         free(keep_selection[i]);
     }
     free(keep_selection);
-
-#undef reset_context
 }
 
 static void
