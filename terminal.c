@@ -627,15 +627,6 @@ err_sem_destroy:
     return false;
 }
 
-int
-term_pt_or_px_as_pixels(const struct terminal *term,
-                        const struct pt_or_px *pt_or_px)
-{
-    return pt_or_px->px == 0
-        ? round(pt_or_px->pt * term->font_dpi / 72)
-        : pt_or_px->px;
-}
-
 static void
 free_box_drawing(struct fcft_glyph **box_drawing)
 {
@@ -802,19 +793,30 @@ get_font_subpixel(const struct terminal *term)
     return FCFT_SUBPIXEL_DEFAULT;
 }
 
-static bool
-font_sized_by_dpi(const struct terminal *term, int scale)
+bool
+term_font_sized_by_dpi(const struct terminal *term, int scale)
 {
     return term->conf->dpi_aware == DPI_AWARE_YES ||
         (term->conf->dpi_aware == DPI_AWARE_AUTO && scale <= 1);
 }
 
-static bool
-font_sized_by_scale(const struct terminal *term, int scale)
+bool
+term_font_sized_by_scale(const struct terminal *term, int scale)
 {
-    return !font_sized_by_dpi(term, scale);
+    return !term_font_sized_by_dpi(term, scale);
 }
 
+int
+term_pt_or_px_as_pixels(const struct terminal *term,
+                        const struct pt_or_px *pt_or_px)
+{
+    double scale = term_font_sized_by_scale(term, term->scale) ? term->scale : 1.;
+    double dpi = term_font_sized_by_dpi(term, term->scale) ? term->font_dpi : 96.;
+
+    return pt_or_px->px == 0
+        ? round(pt_or_px->pt * scale * dpi / 72)
+        : pt_or_px->px;
+}
 
 struct font_load_data {
     size_t count;
@@ -857,7 +859,7 @@ reload_fonts(struct terminal *term)
             char size[64];
 
             const int scale =
-                font_sized_by_scale(term, term->scale) ? term->scale : 1;
+                term_font_sized_by_scale(term, term->scale) ? term->scale : 1;
 
             if (use_px_size)
                 snprintf(size, sizeof(size), ":pixelsize=%d",
@@ -892,7 +894,7 @@ reload_fonts(struct terminal *term)
     const size_t count_bold_italic = custom_bold_italic ? counts[3] : counts[0];
     const char **names_bold_italic = (const char **)(custom_bold_italic ? names[3] : names[0]);
 
-    const bool use_dpi = font_sized_by_dpi(term, term->scale);
+    const bool use_dpi = term_font_sized_by_dpi(term, term->scale);
 
     char *attrs[4] = {NULL};
     int attr_len[4] = {-1, -1, -1, -1};  /* -1, so that +1 (below) results in 0 */
@@ -1981,8 +1983,8 @@ term_font_dpi_changed(struct terminal *term, int old_scale)
     float dpi = get_font_dpi(term);
     xassert(term->scale > 0);
 
-    bool was_scaled_using_dpi = font_sized_by_dpi(term, old_scale);
-    bool will_scale_using_dpi = font_sized_by_dpi(term, term->scale);
+    bool was_scaled_using_dpi = term_font_sized_by_dpi(term, old_scale);
+    bool will_scale_using_dpi = term_font_sized_by_dpi(term, term->scale);
 
     bool need_font_reload =
         was_scaled_using_dpi != will_scale_using_dpi ||

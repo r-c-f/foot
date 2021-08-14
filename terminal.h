@@ -643,6 +643,9 @@ bool term_font_size_decrease(struct terminal *term);
 bool term_font_size_reset(struct terminal *term);
 bool term_font_dpi_changed(struct terminal *term, int old_scale);
 void term_font_subpixel_changed(struct terminal *term);
+
+bool term_font_sized_by_dpi(const struct terminal *term, int scale);
+bool term_font_sized_by_scale(const struct terminal *term, int scale);
 int term_pt_or_px_as_pixels(
     const struct terminal *term, const struct pt_or_px *pt_or_px);
 

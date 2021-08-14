@@ -25,9 +25,6 @@ struct buf {
     int width;
     int height;
     int stride;
-    int dpi;
-    float cell_size;
-    float base_thickness;
     bool solid_shades;
 
     int thickness[2];
@@ -63,17 +60,15 @@ change_buffer_format(struct buf *buf, pixman_format_code_t new_format)
 }
 
 static int NOINLINE
-_thickness(struct buf *buf, enum thickness thick)
+_thickness(int base_thickness, enum thickness thick)
 {
     int multiplier = thick * 2 + 1;
 
+    xassert(base_thickness >= 1);
     xassert((thick == LIGHT && multiplier == 1) ||
             (thick == HEAVY && multiplier == 3));
 
-    return
-        max(
-            (int)(buf->base_thickness * buf->dpi / 72.0 * buf->cell_size), 1)
-        * multiplier;
+    return base_thickness * multiplier;
 }
 #define thickness(thick) buf->thickness[thick]
 
@@ -2751,25 +2746,13 @@ box_drawing(const struct terminal *term, wchar_t wc)
         abort();
     }
 
-    struct buf buf = {
-        .data = data,
-        .pix = pix,
-        .format = fmt,
-        .width = width,
-        .height = height,
-        .stride = stride,
-        .dpi = term->font_dpi,
-        .cell_size = sqrt(pow(term->cell_width, 2) + pow(term->cell_height, 2)),
-        .base_thickness = term->conf->tweak.box_drawing_base_thickness,
-        .solid_shades = term->conf->tweak.box_drawing_solid_shades,
-    };
+    double dpi = term_font_sized_by_dpi(term, term->scale) ? term->font_dpi : 96.;
+    double scale = term_font_sized_by_scale(term, term->scale) ? term->scale : 1.;
+    double cell_size = sqrt(pow(term->cell_width, 2) + pow(term->cell_height, 2));
 
-    buf.thickness[LIGHT] = _thickness(&buf, LIGHT);
-    buf.thickness[HEAVY] = _thickness(&buf, HEAVY);
-
-    /* Overlap when width is odd */
-    buf.x_halfs[0] = round(width / 2.); /* Endpoint first half */
-    buf.x_halfs[1] = width / 2;         /* Startpoint second half */
+    int base_thickness =
+        (double)term->conf->tweak.box_drawing_base_thickness * scale * cell_size * dpi / 72.0;
+    base_thickness = max(base_thickness, 1);
 
     int y0 = 0, y1 = 0;
     switch (height % 3) {
@@ -2789,8 +2772,31 @@ box_drawing(const struct terminal *term, wchar_t wc)
         break;
     }
 
-    buf.y_thirds[0] = y0;  /* Endpoint first third, start point second third */
-    buf.y_thirds[1] = y1;  /* Endpoint second third, start point last third */
+    struct buf buf = {
+        .data = data,
+        .pix = pix,
+        .format = fmt,
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .solid_shades = term->conf->tweak.box_drawing_solid_shades,
+
+        .thickness = {
+            [LIGHT] = _thickness(base_thickness, LIGHT),
+            [HEAVY] = _thickness(base_thickness, HEAVY),
+        },
+
+        /* Overlap when width is odd */
+        .x_halfs = {
+            round(width / 2.), /* Endpoint first half */
+            width / 2,         /* Startpoint second half */
+        },
+
+        .y_thirds = {
+            y0,  /* Endpoint first third, start point second third */
+            y1,  /* Endpoint second third, start point last third */
+        },
+    };
 
     LOG_DBG("LIGHT=%d, HEAVY=%d",
             _thickness(&buf, LIGHT), _thickness(&buf, HEAVY));
