@@ -82,7 +82,7 @@ print_usage(const char *prog_name)
         "  -l,--log-colorize=[{never|always|auto}]  enable/disable colorization of log output on stderr\n"
         "  -s,--log-no-syslog                       disable syslog logging (only applicable in server mode)\n"
         "  -v,--version                             show the version number and quit\n",
-        prog_name, prog_name, DEFAULT_TERM);
+        prog_name, prog_name, FOOT_DEFAULT_TERM);
 }
 
 bool

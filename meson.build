@@ -17,10 +17,11 @@ if cc.has_function('memfd_create')
 endif
 
 add_project_arguments(
-  ['-D_GNU_SOURCE=200809L'] +
+  ['-D_GNU_SOURCE=200809L',
+   '-DFOOT_DEFAULT_TERM="@0@"'.format(get_option('default-terminfo'))] +
   (is_debug_build
     ? ['-D_DEBUG']
-    : [cc.get_supported_arguments('-fno-asynchronous-unwind-tables')]) +
+   : [cc.get_supported_arguments('-fno-asynchronous-unwind-tables')]) +
   (get_option('ime')
     ? ['-DFOOT_IME_ENABLED=1']
     : []) +
@@ -33,6 +34,19 @@ add_project_arguments(
      '-Wstrict-aliasing']),
   language: 'c',
 )
+
+default_terminfo_install_location = join_paths(get_option('datadir'), 'foot', 'terminfo')
+terminfo_install_location = get_option('custom-terminfo-install-location')
+if terminfo_install_location == ''
+  terminfo_install_location = default_terminfo_install_location
+endif
+
+if terminfo_install_location != 'no'
+  add_project_arguments(
+    ['-DFOOT_TERMINFO_PATH="@0@"'.format(
+      join_paths(get_option('prefix'), terminfo_install_location))],
+    language: 'c')
+endif
 
 # Compute the relative path used by compiler invocations.
 source_root = meson.current_source_dir().split('/')
@@ -79,11 +93,6 @@ endif
 
 tllist = dependency('tllist', version: '>=1.0.4', fallback: 'tllist')
 fcft = dependency('fcft', version: ['>=2.4.0', '<3.0.0'], fallback: 'fcft')
-
-tic = find_program('tic', native: true, required: get_option('terminfo'))
-if tic.found()
-  add_project_arguments('-DHAVE_TERMINFO', language: 'c')
-endif
 
 wayland_protocols_datadir = wayland_protocols.get_pkgconfig_variable('pkgdatadir')
 
@@ -221,23 +230,6 @@ executable(
   link_with: common,
   install: true)
 
-if tic.found()
-  terminfo_install_location = get_option('terminfo-install-location')
-  if terminfo_install_location == ''
-    terminfo_install_location = join_paths(get_option('datadir'), 'terminfo')
-  endif
-
-  custom_target(
-    'terminfo',
-    output: 'f',
-    input: 'foot.info',
-    command: [tic, '-x', '-o', '@OUTDIR@', '-e', 'foot,foot-direct', '@INPUT@'],
-    install: terminfo_install_location != 'disabled',
-    install_dir: terminfo_install_location)
-else
-  terminfo_install_location = 'disabled'
-endif
-
 install_data(
   'foot.desktop', 'foot-server.desktop',
   install_dir: join_paths(get_option('datadir'), 'applications'))
@@ -251,6 +243,20 @@ if scdoc.found()
   subdir('doc')
 endif
 
+tic = find_program('tic', native: true, required: get_option('terminfo'))
+if tic.found()
+  custom_target(
+    'terminfo',
+    output: 'f',
+    input: 'foot.info',
+    command: [tic, '-x', '-o', '@OUTDIR@', '-e', 'foot,foot-direct', '@INPUT@'],
+    install: true,
+    install_dir: (terminfo_install_location != 'no'
+                  ? terminfo_install_location
+                  : default_terminfo_install_location)
+  )
+endif
+
 subdir('completions')
 subdir('icons')
 
@@ -259,8 +265,9 @@ summary(
     'Documentation': scdoc.found(),
     'IME': get_option('ime'),
     'Grapheme clustering': utf8proc.found(),
-    'Terminfo': tic.found(),
-    'Terminfo install location': terminfo_install_location,
+    'Build terminfo': tic.found(),
+    'Default TERM': get_option('default-terminfo'),
+    'Terminfo custom install location': terminfo_install_location,
   },
   bool_yn: true
 )

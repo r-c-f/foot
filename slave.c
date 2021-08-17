@@ -289,6 +289,18 @@ slave_spawn(int ptmx, int argc, const char *cwd, char *const *argv,
         setenv("TERM", term_env, 1);
         setenv("COLORTERM", "truecolor", 1);
 
+#if defined(FOOT_TERMINFO_PATH)
+        const char *terminfo_dirs = getenv("TERMINFO_DIRS");
+        if (terminfo_dirs != NULL) {
+            char *updated_terminfo_dirs =
+                xasprintf("%s:%s", terminfo_dirs, FOOT_TERMINFO_PATH);
+
+            setenv("TERMINFO_DIRS", updated_terminfo_dirs, 1);
+            free(updated_terminfo_dirs);
+        } else
+            setenv("TERMINFO_DIRS", FOOT_TERMINFO_PATH, 1);
+#endif
+
         char **_shell_argv = NULL;
         char **shell_argv = NULL;
 

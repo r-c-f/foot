@@ -58,7 +58,7 @@ print_usage(const char *prog_name)
     printf("Usage: %s [OPTIONS...] command [ARGS...]\n", prog_name);
     printf("\n");
     printf("Options:\n");
-    printf("  -t,--term=TERM                           value to set the environment variable TERM to (foot)\n"
+    printf("  -t,--term=TERM                           value to set the environment variable TERM to (%s)\n"
            "  -T,--title=TITLE                         initial window title (foot)\n"
            "  -a,--app-id=ID                           window application ID (foot)\n"
            "  -w,--window-size-pixels=WIDTHxHEIGHT     initial width and height, in pixels\n"
@@ -73,7 +73,8 @@ print_usage(const char *prog_name)
            "  -o,--override=[section.]key=value        override configuration option\n"
            "  -d,--log-level={info|warning|error|none} log level (info)\n"
            "  -l,--log-colorize=[{never|always|auto}]  enable/disable colorization of log output on stderr\n"
-           "  -v,--version                             show the version number and quit\n");
+           "  -v,--version                             show the version number and quit\n",
+        FOOT_DEFAULT_TERM);
 }
 
 static bool NOINLINE
