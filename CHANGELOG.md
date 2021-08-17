@@ -93,6 +93,9 @@
   freeze when closing a footclient window.
 * Underlying cell content showing through in the left-most column of
   sixels.
+* Blinking cursor stops blinking, or becoming invisible, when
+  switching focus from, and then back to a terminal window on GNOME
+  (https://codeberg.org/dnkl/foot/issues/686).
 
 
 ### Security

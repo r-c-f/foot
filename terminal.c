@@ -2456,11 +2456,11 @@ void
 term_cursor_blink_update(struct terminal *term)
 {
     bool enable = term->cursor_blink.decset || term->cursor_blink.deccsusr;
-    bool activate = !term->shutdown.in_progress && enable && term->kbd_focus;
+    bool activate = !term->shutdown.in_progress && enable && term->visual_focus;
 
     LOG_DBG("decset=%d, deccsrusr=%d, focus=%d, shutting-down=%d, enable=%d, activate=%d",
             term->cursor_blink.decset, term->cursor_blink.deccsusr,
-            term->kbd_focus, term->shutdown.in_progress,
+            term->visual_focus, term->shutdown.in_progress,
             enable, activate);
 
     if (activate && term->cursor_blink.fd < 0) {
