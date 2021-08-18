@@ -12,4 +12,4 @@ option('default-terminfo', type: 'string', value: 'foot',
        description: 'Default value of the "term" option in foot.ini.')
 
 option('custom-terminfo-install-location', type: 'string',
-       description: 'Path to foot\'s terminfo, relative to ${prefix}. If set to anything but “no“, foot will append this value to TERMINFO_DIRS in the client process.')
+       description: 'Path to foot\'s terminfo, relative to ${prefix}. If set to anything but “no“, foot will set TERMINFO to this value in the client process.')
