@@ -158,14 +158,14 @@ mkdir -p bld/release && cd bld/release
 
 Available compile-time options:
 
-| Option                               | Type    | Default                    | Description                           | Extra dependencies |
-|--------------------------------------|---------|----------------------------|---------------------------------------|--------------------|
-| `-Ddocs`                             | feature | `auto`                     | Builds and install documentation      | scdoc              |
-| `-Dime`                              | bool    | `true`                     | Enables IME support                   | None               |
-| `-Dgrapheme-clustering`              | feature | `auto`                     | Enables grapheme clustering           | libutf8proc        |
-| `-Dterminfo`                         | feature | `enabled`                  | Build and install terminfo files      | tic (ncurses)      |
-| `-Ddefault-terminfo`                 | string  | `foot`                     | Default value of `TERM`               | none               |
-| `-Dcustom-terminfo-install-location` | string  | `${datadir}/foot/terminfo` | Value to append to `TERMINFO_DIRS`    | None               |
+| Option                               | Type    | Default                    | Description                      | Extra dependencies |
+|--------------------------------------|---------|----------------------------|----------------------------------|--------------------|
+| `-Ddocs`                             | feature | `auto`                     | Builds and install documentation | scdoc              |
+| `-Dime`                              | bool    | `true`                     | Enables IME support              | None               |
+| `-Dgrapheme-clustering`              | feature | `auto`                     | Enables grapheme clustering      | libutf8proc        |
+| `-Dterminfo`                         | feature | `enabled`                  | Build and install terminfo files | tic (ncurses)      |
+| `-Ddefault-terminfo`                 | string  | `foot`                     | Default value of `TERM`          | none               |
+| `-Dcustom-terminfo-install-location` | string  | `${datadir}/foot/terminfo` | Value to set `TERMINFO` to       | None               |
 
 Documentation includes the man pages, the example `foot.ini`, readme,
 changelog and license files.
@@ -178,24 +178,24 @@ where individual terminfo files cannot easily be installed.
 co-exist with ncurses’ version. The idea is that you install foot’s
 terminfo to a non-standard location, for example
 `/usr/share/foot/terminfo`. Use `-Dcustom-terminfo-install-location`
-to tell foot where the terminfo is. Foot will append this path to the
-`TERMINFO_DIRS` environment variable in the client application’s
-process. The value is **relative to ${prefix}**.
+to tell foot where the terminfo is. Foot will set the environment
+variable `TERMINFO` to this value (with `${prefix}` added). The value
+is **relative to ${prefix}**.
 
-Conforming applications _should_ look in `TERMINFO_DIRS` first, and
+Conforming applications _should_ look in `TERMINFO` first, and
 fallback to the builtin default (e.g. `/usr/share/terminfo`) if not
 found. Thus, it will prefer foot’s version, if it exists (which it
 typically will on localhost), and fallback to ncurses’ version if not
 (e.g. on remote systems, where foot’s terminfo package has not been
 installed).
 
-If set to `no`, foot will **not** set or modify `TERMINFO_DIRS` at
-all. Use this if you do not intend to use/support foot’s terminfo
-definitions at all.
+If set to `no`, foot will **not** set or modify `TERMINFO` at all. Use
+this if you do not intend to use/support foot’s terminfo definitions
+at all.
 
 `-Dterminfo` can be used to disable building the terminfo definitions
 in the meson build. It does **not** change the default value of
-`TERM`, and it does **not** disable `TERMINFO_DIRS`.
+`TERM`, and it does **not** disable `TERMINFO`.
 
 Example:
 
@@ -204,8 +204,8 @@ meson --prefix=/usr -Dcustom-terminfo-install-location=lib/foot/terminfo
 ```
 
 The above tells foot its terminfo definitions will be installed to
-`/usr/lib/foot/terminfo`. This is the value foot will append to the
-`TERMINFO_DIRS` environment variable.
+`/usr/lib/foot/terminfo`. This is the value foot will set the
+`TERMINFO` environment variable to.
 
 If `-Dterminfo` is enabled (the default), then the terminfo files will
 be built as part of the regular build process, and installed to the
