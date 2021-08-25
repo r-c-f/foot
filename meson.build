@@ -130,12 +130,13 @@ foreach prot : wl_proto_xml
     command: [wscanner_prog, 'private-code', '@INPUT@', '@OUTPUT@'])
 endforeach
 
+env = find_program('env', native: true)
 generate_version_sh = files('generate-version.sh')
 version = custom_target(
   'generate_version',
   build_always_stale: true,
   output: 'version.h',
-  command: [generate_version_sh, meson.project_version(), '@SOURCE_ROOT@', '@OUTPUT@'])
+  command: [env, 'LC_ALL=C', generate_version_sh, meson.project_version(), '@SOURCE_ROOT@', '@OUTPUT@'])
 
 common = static_library(
   'common',
