@@ -153,15 +153,22 @@ The following environment variables are set in the child process:
 	definitions in ncurses. Note that applications will search the
 	default location(s) if *TERM* does not exist in *TERMINFO*.
 	
-	Note that applications like sudo and ssh will remove this
-	environment variable.
+	Note that applications like *sudo*, *doas* and *ssh* may remove
+	this environment variable.
 	
-	For sudo, you can create a file under _/etc/sudoers.d_ (name does
-	not matter) with the following content:
+	For *sudo*, you can create a file under _/etc/sudoers.d_ (name
+	does not matter) with the following content:
 	
 		*Defaults env_keep += "TERMINFO"*
 	
-	For ssh, you can edit _/etc/ssh/sshd_config_ (on the *server*),
+	For *doas*, edit _/etc/doas.conf_ and add:
+	
+		*permit setenv { TERMINFO } :wheel*
+	
+	Or, if you are not in the *wheel* group, replace *:wheel* with
+	your username.
+	
+	For *ssh*, you can edit _/etc/ssh/sshd_config_ (on the *server*),
 	and add:
 	
 		*SetEnv TERMINFO=*_<path>_
