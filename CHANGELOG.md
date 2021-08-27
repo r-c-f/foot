@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.9.0](#1-9-0)
 * [1.8.2](#1-8-2)
 * [1.8.1](#1-8-1)
 * [1.8.0](#1-8-0)
@@ -29,7 +29,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.9.0
+
 ### Added
 
 * Window title in the CSDs
@@ -66,7 +67,6 @@
   larger than 1 (https://codeberg.org/dnkl/foot/issues/680).
 
 
-### Deprecated
 ### Removed
 
 * `km`/`smm`/`rmm` from terminfo; foot prefixes Alt-key combinations
@@ -103,12 +103,11 @@
   (https://codeberg.org/dnkl/foot/issues/686).
 
 
-### Security
-
 ### Contributors
 
 * Nihal Jere
 * [nowrep](https://codeberg.org/nowrep)
+* [clktmr](https://codeberg.org/clktmr)
 
 
 ## 1.8.2
