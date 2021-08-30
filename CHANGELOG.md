@@ -76,6 +76,8 @@
   now translated to pixel values using the monitor’s scaling factor
   when `dpi-aware=no`, or `dpi-aware=auto` and the scaling factor is
   larger than 1 (https://codeberg.org/dnkl/foot/issues/680).
+* Spawning a new terminal with a working directory that does not exist
+  is no longer a fatal error.
 
 
 ### Removed
