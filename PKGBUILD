@@ -98,7 +98,7 @@ package_foot-git() {
   provides=('foot')
 
   DESTDIR="${pkgdir}/" ninja install
-  rm -rf "${pkgdir}/usr/share/foot/terminfo"
+  rm -rf "${pkgdir}/usr/share/terminfo"
 }
 
 package_foot-terminfo-git() {
