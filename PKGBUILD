@@ -41,7 +41,11 @@ build() {
       ;;
   esac
 
-  meson --prefix=/usr --buildtype=release --wrap-mode=nofallback -Db_lto=true ..
+  meson \
+    --prefix=/usr \
+    --buildtype=release \
+    --wrap-mode=nofallback \
+    -Db_lto=true ..
 
   if [[ ${do_pgo} == yes ]]; then
     find -name "*.gcda" -delete
