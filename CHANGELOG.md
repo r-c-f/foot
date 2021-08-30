@@ -33,6 +33,17 @@
 ## Unreleased
 ### Added
 ### Changed
+
+* `-Ddefault-terminfo` is now also applied to the generated terminfo
+  definitions when `-Dterminfo=enabled`.
+* `-Dcustom-terminfo-install-location` no longer accepts `no` as a
+  special value, to disable exporting `TERMINFO`. To achieve the same
+  result, simply don’t set it at all. If it _is_ set, `TERMINFO` is
+  still exported, like before.
+* The default install location for the terminfo definitions have been
+  changed back to `${datadir}/terminfo`.
+
+
 ### Deprecated
 ### Removed
 ### Fixed
