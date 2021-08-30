@@ -223,11 +223,7 @@ be built as part of the regular build process, and installed to the
 specified location.
 
 Packagers may want to set `-Dterminfo=disabled`, and manually build
-and install the terminfo files instead:
-
-```sh
-tic -o <output-directory> -x -e foot,foot-direct foot.info
-```
+and [install the terminfo](#terminfo) files instead.
 
 
 ### Release build
@@ -424,7 +420,8 @@ terminfo files manually instead.
 To build the terminfo files, run:
 
 ```sh
-tic -o <output-directory> -x -e foot,foot-direct foot.info
+sed 's/@default_terminfo@/foot/g' foot.info > /tmp/foot-preprocessed.info
+tic -o <output-directory> -x -e foot,foot-direct /tmp/foot-preprocessed.info
 ```
 
 Where _”output-directory”_ **must** match the value passed to
