@@ -420,8 +420,8 @@ terminfo files manually instead.
 To build the terminfo files, run:
 
 ```sh
-sed 's/@default_terminfo@/foot/g' foot.info > /tmp/foot-preprocessed.info
-tic -o <output-directory> -x -e foot,foot-direct /tmp/foot-preprocessed.info
+sed 's/@default_terminfo@/foot/g' foot.info | \
+    tic -o <output-directory> -x -e foot,foot-direct -
 ```
 
 Where _”output-directory”_ **must** match the value passed to
