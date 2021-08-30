@@ -111,6 +111,6 @@ package_foot-terminfo-git() {
   conflicts=('foot-terminfo')
   provides=('foot-terminfo')
 
-  install -dm 755 "${pkgdir}/usr/share/foot/terminfo/f/"
-  cp f/* "${pkgdir}/usr/share/foot/terminfo/f/"
+  install -dm 755 "${pkgdir}/usr/share/terminfo/f/"
+  cp f/* "${pkgdir}/usr/share/terminfo/f/"
 }
