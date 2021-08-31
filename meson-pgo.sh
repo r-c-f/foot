@@ -12,7 +12,7 @@ if [ -d ${build_dir} ]; then
 fi
 
 case ${mode} in
-    auto|partial|full|full-headless-sway)
+    none|auto|partial|full|full-headless-sway)
         ;;
 
     *)
@@ -42,15 +42,21 @@ case $(${CC-cc} --version) in
         ;;
 esac
 
-if [ ${mode} = auto ]; then
-    if command -v sway > /dev/null; then
-        mode=full-headless-sway
-    elif [ -n "${WAYLAND_DISPLAY+x}" ]; then
-        mode=full
-    else
-        mode=partial
-    fi
-fi
+case ${mode} in
+    none)
+        do_pgo=no
+        ;;
+
+    auto)
+        if command -v sway > /dev/null; then
+            mode=full-headless-sway
+        elif [ -n "${WAYLAND_DISPLAY+x}" ]; then
+            mode=full
+        else
+            mode=partial
+        fi
+        ;;
+esac
 
 # echo "source: ${source_dir}"
 # echo "build: ${build_dir}"
