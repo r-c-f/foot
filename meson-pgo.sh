@@ -43,10 +43,10 @@ case $(${CC-cc} --version) in
 esac
 
 if [ ${mode} = auto ]; then
-    if [ -n "${WAYLAND_DISPLAY+x}" ]; then
-        mode=full
-    elif command -v sway > /dev/null; then
+    if command -v sway > /dev/null; then
         mode=full-headless-sway
+    elif [ -n "${WAYLAND_DISPLAY+x}" ]; then
+        mode=full
     else
         mode=partial
     fi
