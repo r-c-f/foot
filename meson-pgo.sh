@@ -116,7 +116,7 @@ if [ ${do_pgo} = yes ]; then
         partial)
             ./footclient --version
             ./foot --version
-            "${source_dir}/scripts/generate-alt-random-writes.py" \
+            "${source_dir}"/scripts/generate-alt-random-writes.py \
                 --rows=67 \
                 --cols=135 \
                 ${script_options} \
@@ -129,7 +129,10 @@ if [ ${do_pgo} = yes ]; then
     rm "${tmp_file}"
 
     if [ ${compiler} = clang ]; then
-        llvm-profdata merge "${build_dir}"/default_*.profraw --output="${build_dir}/default.profdata"
+        llvm-profdata \
+            merge \
+            "${build_dir}"/default_*.profraw \
+            --output="${build_dir}"/default.profdata
     fi
 
     meson configure "${build_dir}" -Db_pgo=use
