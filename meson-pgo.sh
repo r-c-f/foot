@@ -4,7 +4,7 @@ set -e
 
 mode=${1}; shift
 source_dir=$(realpath "${1}"); shift
-build_dir=${1}; shift
+build_dir=$(realpath ${1}); shift
 
 if [ -d ${build_dir} ]; then
     echo "${build_dir}: build directory already exists"
