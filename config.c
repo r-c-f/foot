@@ -3395,7 +3395,7 @@ check_if_font_is_monospaced(const char *pattern,
                 USER_NOTIFICATION_WARNING,
                 "%s: font does not appear to be monospace; "
                 "check your config, or disable this warning by "
-                "settting \033[1m[tweak].font-monospace-warn=no\033[22m",
+                "setting \033[1m[tweak].font-monospace-warn=no\033[22m",
                 pattern);
 
             is_monospaced = false;
