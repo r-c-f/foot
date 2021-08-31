@@ -2452,6 +2452,9 @@ parse_section_tweak(
                      conf->tweak.box_drawing_solid_shades ? "yes" : "no");
     }
 
+    else if (strcmp(key, "font-monospace-warn") == 0)
+        conf->tweak.font_monospace_warn = str_to_bool(value);
+
     else {
         LOG_AND_NOTIFY_ERR("%s:%u: [tweak]: %s: invalid key", path, lineno, key);
         return false;
@@ -2957,6 +2960,7 @@ config_load(struct config *conf, const char *conf_path,
             .damage_whole_window = false,
             .box_drawing_base_thickness = 0.04,
             .box_drawing_solid_shades = true,
+            .font_monospace_warn = true,
         },
 
         .notifications = tll_init(),
@@ -3355,4 +3359,52 @@ config_font_list_destroy(struct config_font_list *font_list)
     free(font_list->arr);
     font_list->count = 0;
     font_list->arr = NULL;
+}
+
+
+bool
+check_if_font_is_monospaced(const char *pattern,
+                            user_notifications_t *notifications)
+{
+    struct fcft_font *f = fcft_from_name(
+        1, (const char *[]){pattern}, ":size=8");
+
+    if (f == NULL)
+        return true;
+
+    static const wchar_t chars[] = {L'a', L'i', L'l', L'M', L'W'};
+
+    bool is_monospaced = true;
+    int last_width = -1;
+
+    for (size_t i = 0; i < sizeof(chars) / sizeof(chars[0]); i++) {
+        const struct fcft_glyph *g = fcft_glyph_rasterize(
+            f, chars[i], FCFT_SUBPIXEL_NONE);
+
+        if (g == NULL)
+            continue;
+
+        if (last_width >= 0 && g->advance.x != last_width) {
+            LOG_WARN("%s: font does not appear to be monospace; "
+                     "check your config, or disable this warning by "
+                     "setting [tweak].font-monospace-warn=no",
+                     pattern);
+
+            user_notification_add(
+                notifications,
+                USER_NOTIFICATION_WARNING,
+                "%s: font does not appear to be monospace; "
+                "check your config, or disable this warning by "
+                "settting \033[1m[tweak].font-monospace-warn=no\033[22m",
+                pattern);
+
+            is_monospaced = false;
+            break;
+        }
+
+        last_width = g->advance.x;
+    }
+
+    fcft_destroy(f);
+    return is_monospaced;
 }
