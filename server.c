@@ -291,6 +291,12 @@ fdm_client(struct fdm *fdm, int fd, int events, void *data)
             conf->hold_at_exit = cdata.hold;
 
         config_override_apply(conf, &overrides, false);
+
+        if (conf->tweak.font_monospace_warn && conf->fonts[0].count > 0) {
+            check_if_font_is_monospaced(
+                conf->fonts[0].arr[0].pattern,
+                &conf->notifications);
+        }
     }
 
     *instance = (struct terminal_instance) {
