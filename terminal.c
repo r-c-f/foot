@@ -657,10 +657,15 @@ term_set_fonts(struct terminal *term, struct fcft_font *fonts[static 4])
 
     const struct config *conf = term->conf;
 
+    const struct fcft_glyph *M = fcft_glyph_rasterize(
+        term->fonts[0], L'M', term->font_subpixel);
+
     term->cell_width =
-        (term->fonts[0]->space_advance.x > 0
-         ? term->fonts[0]->space_advance.x
-         : term->fonts[0]->max_advance.x)
+        (M != NULL
+         ? M->advance.x
+         : (term->fonts[0]->space_advance.x > 0
+            ? term->fonts[0]->space_advance.x
+            : term->fonts[0]->max_advance.x))
         + term_pt_or_px_as_pixels(term, &conf->letter_spacing);
 
     term->cell_height = term->font_line_height.px >= 0
