@@ -14,15 +14,6 @@ source_dir=$(realpath "${2}")
 build_dir=$(realpath "${3}")
 shift 3
 
-case ${mode} in
-    none|auto|partial|full|full-headless-sway)
-    ;;
-
-    *)
-        usage_and_die
-        ;;
-esac
-
 # meson will complain if source dir is invalid
 
 if [ -d "${build_dir}" ]; then
@@ -52,6 +43,9 @@ case $(${CC-cc} --version) in
 esac
 
 case ${mode} in
+    partial|full|full-headless-sway)
+    ;;
+
     none)
         do_pgo=no
         ;;
@@ -64,6 +58,10 @@ case ${mode} in
         else
             mode=partial
         fi
+        ;;
+
+    *)
+        usage_and_die
         ;;
 esac
 
