@@ -32,6 +32,12 @@
 
 ## Unreleased
 ### Added
+
+* Warn when it appears the primary font is not monospaced. Can be
+  disabled by setting `[tweak].font-monospace-warn=no`
+  (https://codeberg.org/dnkl/foot/issues/704).
+
+
 ### Changed
 
 * `-Ddefault-terminfo` is now also applied to the generated terminfo
