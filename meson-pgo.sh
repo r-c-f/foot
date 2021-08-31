@@ -12,7 +12,7 @@ if [ -d ${build_dir} ]; then
 fi
 
 case ${mode} in
-    auto|partial|full)
+    auto|partial|full|full-headless-sway)
         ;;
 
     *)
@@ -45,6 +45,8 @@ esac
 if [ ${mode} = auto ]; then
     if [ -n "${WAYLAND_DISPLAY+x}" ]; then
         mode=full
+    elif command -v sway > /dev/null; then
+        mode=full-headless-sway
     else
         mode=partial
     fi
@@ -80,22 +82,36 @@ if [ ${do_pgo} = yes ]; then
     trap cleanup EXIT INT HUP TERM
 
     cd "${build_dir}"
-    if [ ${mode} = full ]; then
-        ./footclient --version
-        ./foot \
-            --config=/dev/null \
-            --term=xterm \
-            sh -c "${source_dir}/scripts/generate-alt-random-writes.py ${script_options} ${tmp_file} && cat ${tmp_file}"
-    else
-        ./footclient --version
-        ./foot --version
-        "${source_dir}/scripts/generate-alt-random-writes.py" \
-            --rows=67 \
-            --cols=135 \
-            ${script_options} \
-            "${tmp_file}"
-        ./pgo "${tmp_file}"
-    fi
+    case ${mode} in
+        full)
+            ./footclient --version
+            ./foot \
+             --config=/dev/null \
+             --term=xterm \
+             sh -c "${source_dir}/scripts/generate-alt-random-writes.py ${script_options} ${tmp_file} && cat ${tmp_file}"
+            ;;
+
+        full-headless-sway)
+            ./footclient --version
+            sway_conf=$(mktemp)
+            echo "exec ${build_dir}/foot -o tweak.render-timer=log --config=/dev/null --term=xterm sh -c \"${source_dir}/scripts/generate-alt-random-writes.py ${script_options} ${tmp_file} && cat ${tmp_file}\" && swaymsg exit" > "${sway_conf}"
+            export WLR_BACKENDS=headless
+            sway -c "${sway_conf}"
+            rm "${sway_conf}"
+            ;;
+
+        partial)
+            ./footclient --version
+            ./foot --version
+            "${source_dir}/scripts/generate-alt-random-writes.py" \
+                --rows=67 \
+                --cols=135 \
+                ${script_options} \
+                "${tmp_file}"
+            ./pgo "${tmp_file}"
+            ;;
+    esac
+
     cd "${pwd}"
     rm "${tmp_file}"
 
