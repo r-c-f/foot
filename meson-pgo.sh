@@ -104,6 +104,4 @@ if [ ${do_pgo} = yes ]; then
     fi
 
     meson configure "${build_dir}" -Db_pgo=use
-else
-    echo "Not doing PGO"
 fi
