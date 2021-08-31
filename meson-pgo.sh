@@ -2,24 +2,33 @@
 
 set -e
 
-mode=${1}; shift
-source_dir=$(realpath "${1}"); shift
-build_dir=$(realpath ${1}); shift
-
-if [ -d ${build_dir} ]; then
-    echo "${build_dir}: build directory already exists"
+usage_and_die() {
+    echo "Usage: ${0} none|partial|full|full-headless-sway|[auto] <source-dir> <build-dir>"
     exit 1
-fi
+}
+
+[ ${#} -ge 3 ] || usage_and_die
+
+mode=${1}
+source_dir=$(realpath "${2}")
+build_dir=$(realpath "${3}")
+shift 3
 
 case ${mode} in
     none|auto|partial|full|full-headless-sway)
-        ;;
+    ;;
 
     *)
-        echo "${mode}: invalid PGO mode (must be one of 'auto', 'partial' or 'full')"
-        exit 1
+        usage_and_die
         ;;
 esac
+
+# meson will complain if source dir is invalid
+
+if [ -d "${build_dir}" ]; then
+    echo "${build_dir}: build directory already exists"
+    exit 1
+fi
 
 compiler=other
 do_pgo=no
