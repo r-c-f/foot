@@ -106,11 +106,18 @@ if [ ${do_pgo} = yes ]; then
 
         full-headless-sway)
             ./footclient --version
+
+            runtime_dir=$(mktemp -d)
             sway_conf=$(mktemp)
+
             echo "exec ${build_dir}/foot -o tweak.render-timer=log --config=/dev/null --term=xterm sh -c \"${source_dir}/scripts/generate-alt-random-writes.py ${script_options} ${tmp_file} && cat ${tmp_file}\" && swaymsg exit" > "${sway_conf}"
+            export XDG_RUNTIME_DIR=${runtime_dir}
             export WLR_BACKENDS=headless
+
             sway -c "${sway_conf}"
+
             rm "${sway_conf}"
+            rm -rf "${runtime_dir}"
             ;;
 
         partial)
