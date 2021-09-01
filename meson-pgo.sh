@@ -1,5 +1,13 @@
 #!/bin/sh
 
+# Requirements:
+#
+# * all: build directory must not exist; it is created by the script
+# * all: LC_CTYPE must be set to an UTF-8 locale
+# * full*: must have at least one font installed
+# * full-headless-sway: Sway 1.6.2 must be installed
+
+
 set -e
 
 usage_and_die() {
