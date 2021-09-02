@@ -515,6 +515,9 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                 /* Classic box drawings */
                 (base >= 0x2500 && base <= 0x259f) ||
 
+                /* Braille */
+                (base >= 0x2800 && base <= 0x28ff) ||
+
                 /*
                  * Unicode 13 "Symbols for Legacy Computing"
                  * sub-ranges below.
@@ -531,9 +534,12 @@ render_cell(struct terminal *term, pixman_image_t *pix,
             /* Box drawing characters */
             size_t idx = base >= 0x1fb00
                 ? (base >= 0x1fb9a
-                   ? base - 0x1fb9a + 300
-                   : base - 0x1fb00 + 160)
-                : base - 0x2500;
+                   ? base - 0x1fb9a + 556
+                   : base - 0x1fb00 + 416)
+                : (base >= 0x2800
+                   ? base - 0x2800 + 160
+                   : base - 0x2500);
+
             xassert(idx < ALEN(term->box_drawing));
 
             if (likely(term->box_drawing[idx] != NULL))
@@ -541,7 +547,8 @@ render_cell(struct terminal *term, pixman_image_t *pix,
             else {
                 mtx_lock(&term->render.workers.lock);
 
-                /* Parallel thread may have instantiated it while we took the lock */
+                /* Other thread may have instantiated it while we
+                 * aquired the lock */
                 if (term->box_drawing[idx] == NULL)
                     term->box_drawing[idx] = box_drawing(term, base);
                 mtx_unlock(&term->render.workers.lock);

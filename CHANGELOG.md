@@ -39,6 +39,8 @@
 * PGO build scripts, in the `pgo` directory. See INSTALL.md -
   _Performance optimized, PGO_, for details
   (https://codeberg.org/dnkl/foot/issues/701).
+* Braille characters (U+2800 - U+28FF) are now rendered by foot
+  itself (https://codeberg.org/dnkl/foot/issues/702).
 
 
 ### Changed
