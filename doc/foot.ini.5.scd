@@ -1022,6 +1022,17 @@ any of these options.
 	
 	Default: _double-width_
 
+*font-monospace-warn*
+	Boolean. When enabled, foot will use heuristics to try to verify
+	the primary font is a monospace font, and warn if it is not.
+	
+	Disable this if you still want to use the font, even if foot
+	thinks it is not monospaced.
+	
+	You may also want to disable it to get slightly faster startup times.
+	
+	Default: _yes_
+
 *max-shm-pool-size-mb*
 	This option controls the amount of virtual address space used by
 	the pixmap memory to which the terminal screen content is

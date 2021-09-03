@@ -480,6 +480,11 @@ main(int argc, char *const *argv)
     conf.presentation_timings = presentation_timings;
     conf.hold_at_exit = hold;
 
+    if (conf.tweak.font_monospace_warn && conf.fonts[0].count > 0) {
+        check_if_font_is_monospaced(
+            conf.fonts[0].arr[0].pattern, &conf.notifications);
+    }
+
     struct fdm *fdm = NULL;
     struct reaper *reaper = NULL;
     struct wayland *wayl = NULL;
