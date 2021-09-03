@@ -548,7 +548,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                 mtx_lock(&term->render.workers.lock);
 
                 /* Other thread may have instantiated it while we
-                 * aquired the lock */
+                 * acquired the lock */
                 if (term->box_drawing[idx] == NULL)
                     term->box_drawing[idx] = box_drawing(term, base);
                 mtx_unlock(&term->render.workers.lock);
