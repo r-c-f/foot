@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eu
+set -eux
 
 usage_and_die() {
     echo "Usage: ${0} none|partial|full-current-session|full-headless-sway|full-headless-cage|[auto] <source-dir> <build-dir> [meson options]"

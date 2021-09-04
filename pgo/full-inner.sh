@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eu
+set -eux
 
 srcdir=$(realpath "${1}")
 blddir=$(realpath "${2}")
@@ -20,7 +20,7 @@ LC_CTYPE=en_US.UTF-8 "${blddir}"/foot \
         --config=/dev/null \
         --term=xterm \
         sh -c "
-          set -eu
+          set -eux
 
          '${srcdir}/scripts/generate-alt-random-writes.py' \
             ${script_options} \"${pgo_data}\"

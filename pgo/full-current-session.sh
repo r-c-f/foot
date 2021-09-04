@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eu
+set -eux
 
 srcdir=$(realpath "${1}")
 blddir=$(realpath "${2}")
