@@ -8,7 +8,6 @@ blddir=$(realpath "${2}")
 runtime_dir=$(mktemp -d)
 trap "rm -rf '${runtime_dir}'" EXIT INT HUP TERM
 
-# Run Sway. full-headless-sway-inner.sh ends with a ‘swaymsg exit’
 XDG_RUNTIME_DIR="${runtime_dir}" WLR_BACKENDS=headless cage "${srcdir}"/pgo/full-inner.sh "${srcdir}" "${blddir}"
 
 # Cage’s exit code doesn’t reflect our script’s exit code
