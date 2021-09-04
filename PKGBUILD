@@ -16,7 +16,7 @@ pkgver() {
 }
 
 build() {
-  ../pgo/pgo.sh ${PGO} .. .
+  ../pgo/pgo.sh ${PGO} .. . --prefix=/usr --wrap-mode=nofallback
 }
 
 check() {
