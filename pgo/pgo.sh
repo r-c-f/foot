@@ -78,7 +78,7 @@ export CFLAGS
 meson "${@}" "${blddir}" "${srcdir}" --buildtype=release -Db_lto=true
 
 if [ ${do_pgo} = yes ]; then
-    find . -name "*.gcda" -delete
+    find "${blddir}" -name "*.gcda" -delete
     meson configure "${blddir}" -Db_pgo=generate
     ninja -C "${blddir}"
 
