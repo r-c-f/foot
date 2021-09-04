@@ -54,8 +54,8 @@ case ${mode} in
 
         if [ -n "${WAYLAND_DISPLAY+x}" ]; then
             mode=full-current-session
-        elif command -v sway > /dev/null; then
-            mode=full-headless-sway
+        # elif command -v sway > /dev/null; then  # Requires 1.6.2
+        #     mode=full-headless-sway
         elif command -v cage > /dev/null; then
             mode=full-headless-cage
         else
