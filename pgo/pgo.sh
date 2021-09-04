@@ -75,7 +75,7 @@ esac
 # echo "CFLAGS: ${CFLAGS}"
 
 export CFLAGS
-meson "${@}" "${blddir}" "${srcdir}" --buildtype=release -Db_lto=true
+meson setup --buildtype=release -Db_lto=true "${@}" "${blddir}" "${srcdir}"
 
 if [ ${do_pgo} = yes ]; then
     find "${blddir}" -name "*.gcda" -delete
