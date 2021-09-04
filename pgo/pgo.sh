@@ -3,7 +3,7 @@
 set -eu
 
 usage_and_die() {
-    echo "Usage: ${0} none|partial|full-current-session|full-headless-sway|[auto] <source-dir> <build-dir> [meson options]"
+    echo "Usage: ${0} none|partial|full-current-session|full-headless-sway|full-headless-cage|[auto] <source-dir> <build-dir> [meson options]"
     exit 1
 }
 
@@ -41,7 +41,7 @@ case $(${CC-cc} --version) in
 esac
 
 case ${mode} in
-    partial|full-current-session|full-headless-sway)
+    partial|full-current-session|full-headless-sway|full-headless-cage)
     ;;
 
     none)
@@ -56,6 +56,8 @@ case ${mode} in
             mode=full-current-session
         elif command -v sway > /dev/null; then
             mode=full-headless-sway
+        elif command -v cage > /dev/null; then
+            mode=full-headless-cage
         else
             mode=partial
         fi
