@@ -8,7 +8,7 @@ blddir=$(realpath "${2}")
 . "${srcdir}"/pgo/options
 
 pgo_data=$(mktemp)
-trap "rm -f ${pgo_data}" EXIT INT HUP TERM
+trap "rm -f '${pgo_data}'" EXIT INT HUP TERM
 
 rm -f "${blddir}"/pgo-ok
 
