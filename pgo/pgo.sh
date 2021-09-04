@@ -78,7 +78,14 @@ export CFLAGS
 meson setup --buildtype=release -Db_lto=true "${@}" "${blddir}" "${srcdir}"
 
 if [ ${do_pgo} = yes ]; then
-    find "${blddir}" -name "*.gcda" -delete
+    find "${blddir}" \
+         '(' \
+           -name "*.gcda" -o \
+           -name "*.profraw" -o \
+           -name default.profdata \
+         ')' \
+         -delete
+
     meson configure "${blddir}" -Db_pgo=generate
     ninja -C "${blddir}"
 
