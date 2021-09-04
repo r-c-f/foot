@@ -14,10 +14,10 @@ srcdir=$(realpath "${2}")
 blddir=$(realpath "${3}")
 shift 3
 
-if [ -e "${blddir}" ]; then
-    echo "error: ${blddir}: build directory already exists"
-    exit 1
-fi
+# if [ -e "${blddir}" ]; then
+#     echo "error: ${blddir}: build directory already exists"
+#     exit 1
+# fi
 
 compiler=other
 do_pgo=no
