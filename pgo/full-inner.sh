@@ -17,7 +17,6 @@ cd "${blddir}"
 
 LC_CTYPE=en_US.UTF-8 "${blddir}"/footclient --version
 LC_CTYPE=en_US.UTF-8 "${blddir}"/foot \
-        -o tweak.render-timer=log \
         --config=/dev/null \
         --term=xterm \
         sh -c "
