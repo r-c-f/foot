@@ -624,6 +624,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         &clip, x, y,
         render_width, term->cell_height);
     pixman_image_set_clip_region32(pix, &clip);
+    pixman_region32_fini(&clip);
 
     /* Background */
     pixman_image_fill_rectangles(
