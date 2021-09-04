@@ -1,4 +1,4 @@
-PGO=auto           # none|partial|full-current-session|full-headless-sway|full-headless-cage
+PGO=auto           # auto|none|partial|full-current-session|full-headless-sway|full-headless-cage
 
 pkgname=('foot-git' 'foot-terminfo-git')
 pkgver=1.9.0
