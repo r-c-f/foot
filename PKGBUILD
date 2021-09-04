@@ -16,7 +16,6 @@ pkgver() {
 }
 
 build() {
-  rm -rf *
   ../pgo/pgo.sh ${PGO} .. .
 }
 
