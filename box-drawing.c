@@ -1953,7 +1953,7 @@ draw_quadrant(struct buf *buf, wchar_t wc)
         quad_lower_right(buf);
 }
 
-static void
+static void NOINLINE
 draw_braille(struct buf *buf, wchar_t wc)
 {
     int w = min(buf->width / 4, buf->height / 8);
