@@ -560,6 +560,7 @@ struct terminal {
         uint32_t *private_palette;   /* Private palette, used when private mode 1070 is enabled */
         uint32_t *shared_palette;    /* Shared palette, used when private mode 1070 is disabled */
         uint32_t *palette;   /* Points to either private_palette or shared_palette */
+        uint32_t color;
 
         struct {
             uint32_t *data;  /* Raw image data, in ARGB */

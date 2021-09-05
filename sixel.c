@@ -1272,8 +1272,6 @@ sixel_add(struct terminal *term, int col, int width, uint32_t color, uint8_t six
 static void
 sixel_add_many(struct terminal *term, uint8_t c, unsigned count)
 {
-    uint32_t color = term->sixel.palette[term->sixel.color_idx];
-
     int col = term->sixel.pos.col;
     int width = term->sixel.image.width;
 
@@ -1283,6 +1281,7 @@ sixel_add_many(struct terminal *term, uint8_t c, unsigned count)
             return;
     }
 
+    uint32_t color = term->sixel.color;
     for (unsigned i = 0; i < count; i++, col++)
         sixel_add(term, col, width, color, c);
 
@@ -1509,7 +1508,8 @@ decgci(struct terminal *term, uint8_t c)
                 break;
             }
             }
-        }
+        } else
+            term->sixel.color = term->sixel.palette[term->sixel.color_idx];
 
         term->sixel.state = SIXEL_DECSIXEL;
         sixel_put(term, c);
