@@ -230,13 +230,11 @@ fdm_ptmx(struct fdm *fdm, int fd, int events, void *data)
     }
 
     uint8_t buf[24 * 1024];
-    ssize_t count = sizeof(buf);
-
     const size_t max_iterations = !hup ? 10 : (size_t)-1ll;
 
     for (size_t i = 0; i < max_iterations && pollin; i++) {
         xassert(pollin);
-        count = read(term->ptmx, buf, sizeof(buf));
+        ssize_t count = read(term->ptmx, buf, sizeof(buf));
 
         if (count < 0) {
             if (errno == EAGAIN || errno == EIO) {
