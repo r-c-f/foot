@@ -576,6 +576,7 @@ struct terminal {
         unsigned param_idx;  /* Parameters seen */
 
         bool transparent_bg;
+        uint32_t default_bg;
 
         /* Application configurable */
         unsigned palette_size;  /* Number of colors in palette */
