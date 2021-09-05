@@ -70,7 +70,6 @@ struct config {
     char *app_id;
     wchar_t *word_delimiters;
     bool login_shell;
-    bool no_wait;
     bool locked_title;
 
     struct {

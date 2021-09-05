@@ -277,15 +277,11 @@ fdm_client(struct fdm *fdm, int fd, int events, void *data)
 
     const bool need_to_clone_conf =
         tll_length(overrides)> 0 ||
-        cdata.hold != server->conf->hold_at_exit ||
-        cdata.no_wait != server->conf->no_wait;
+        cdata.hold != server->conf->hold_at_exit;
 
     struct config *conf = NULL;
     if (need_to_clone_conf) {
         conf = config_clone(server->conf);
-
-        if (cdata.no_wait != server->conf->no_wait)
-            conf->no_wait = cdata.no_wait;
 
         if (cdata.hold != server->conf->hold_at_exit)
             conf->hold_at_exit = cdata.hold;
@@ -317,7 +313,7 @@ fdm_client(struct fdm *fdm, int fd, int events, void *data)
         goto shutdown;
     }
 
-    if (conf != NULL && conf->no_wait) {
+    if (cdata.no_wait) {
         // the server owns the instance
         tll_push_back(server->terminals, instance);
         client_send_exit_code(client, 0);
