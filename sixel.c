@@ -1401,7 +1401,7 @@ decgra(struct terminal *term, uint8_t c)
         }
 
         term->sixel.state = SIXEL_DECSIXEL;
-        sixel_put(term, c);
+        decsixel(term, c);
         break;
     }
     }
@@ -1512,7 +1512,7 @@ decgci(struct terminal *term, uint8_t c)
             term->sixel.color = term->sixel.palette[term->sixel.color_idx];
 
         term->sixel.state = SIXEL_DECSIXEL;
-        sixel_put(term, c);
+        decsixel(term, c);
         break;
     }
     }
