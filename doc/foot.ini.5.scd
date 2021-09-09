@@ -6,8 +6,9 @@ foot.ini - configuration file for *foot*(1)
 # DESCRIPTION
 
 *foot* uses the standard _unix configuration format_, with section based
-key/value pairs. The default section is unnamed (i.e. not prefixed
-with a _[section]_).
+key/value pairs. The default section is usually unnamed, i.e. not prefixed
+with a _[section]_. However it can also be explicitly named _[main]_,
+say if it needs to be reopened after any of the other sections.
 
 foot will search for a configuration file in the following locations,
 in this order:
@@ -16,7 +17,7 @@ in this order:
 	- *~/.config/foot/foot.ini*
 	- *XDG_CONFIG_DIRS/foot/foot.ini*
 
-# SECTION: default
+# SECTION: main
 
 *shell*
 	Executable to launch. Typically a shell. Default: _$SHELL_ if set,
