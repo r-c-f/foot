@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eux
+set -eu
 
 usage_and_die() {
     echo "Usage: ${0} none|partial|full-current-session|full-headless-sway|full-headless-cage|[auto] <source-dir> <build-dir> [meson options]"
@@ -67,6 +67,8 @@ case ${mode} in
         usage_and_die
         ;;
 esac
+
+set -x
 
 # echo "source: ${srcdir}"
 # echo "build: ${blddir}"
