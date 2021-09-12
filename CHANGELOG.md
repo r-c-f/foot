@@ -53,6 +53,12 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Added workaround for GNOME bug where multiple button press events
+  (for the same button) is sent to the CSDs without any release or
+  leave events in between (https://codeberg.org/dnkl/foot/issues/709).
+
+
 ### Security
 ### Contributors
 
