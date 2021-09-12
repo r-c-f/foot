@@ -274,6 +274,32 @@ slower!) binary.
 
 #### Performance optimized, PGO
 
+There are a lot more steps involved in a PGO build, and for this
+reason there are a number of helper scripts available.
+
+`pgo/pgo.sh` is a standalone script that pieces together the other
+scripts in the `pgo` directory to do a complete PGO build. This script
+is intended to be used when doing manual builds.
+
+Example:
+
+```sh
+cd foot
+./pgo/pgo.sh auto . /tmp/foot-pgo-build-output
+```
+
+(run `./pgo/pgo.sh` to get help on usage)
+
+It supports a couple of different PGO builds; partial (covered in
+detail below), full (also covered in detail below), and (full)
+headless builds using Sway or cage.
+
+Packagers may want to use it as inspiration, but may choose to support
+only a specific build type; e.g. full/headless with Sway.
+
+To do a manual PGO build, instead of using the script(s) mentioned
+above, detailed instructions follows:
+
 First, configure the build directory:
 
 ```sh

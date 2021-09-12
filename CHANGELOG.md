@@ -36,6 +36,9 @@
 * Warn when it appears the primary font is not monospaced. Can be
   disabled by setting `[tweak].font-monospace-warn=no`
   (https://codeberg.org/dnkl/foot/issues/704).
+* PGO build scripts, in the `pgo` directory. See INSTALL.md -
+  _Performance optimized, PGO_, for details
+  (https://codeberg.org/dnkl/foot/issues/701).
 
 
 ### Changed
