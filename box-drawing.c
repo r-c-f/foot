@@ -1962,8 +1962,8 @@ draw_braille(struct buf *buf, wchar_t wc)
     int x_margin = x_spacing / 2;
     int y_margin = y_spacing / 2;
 
-    int x_pix_left = buf->width - 2 * x_margin - x_spacing - 2 * w;
-    int y_pix_left = buf->height - 2 * y_margin - 3 * y_spacing - 4 * w;
+    int x_px_left = buf->width - 2 * x_margin - x_spacing - 2 * w;
+    int y_px_left = buf->height - 2 * y_margin - 3 * y_spacing - 4 * w;
 
     LOG_DBG(
         "braille: before adjusting: "
@@ -1972,27 +1972,30 @@ draw_braille(struct buf *buf, wchar_t wc)
         w, x_pix_left, y_pix_left);
 
     /* First, try hard to ensure the DOT width is non-zero */
-    if (x_pix_left >= 2 && y_pix_left >= 4 && w == 0) {
+    if (x_px_left >= 2 && y_px_left >= 4 && w == 0) {
         w++;
-        x_pix_left -= 2;
-        y_pix_left -= 4;
+        x_px_left -= 2;
+        y_px_left -= 4;
     }
 
     /* Second, prefer a non-zero margin */
-    if (x_pix_left >= 2 && x_margin == 0) { x_margin = 1; x_pix_left -= 2; }
-    if (y_pix_left >= 2 && y_margin == 0) { y_margin = 1; y_pix_left -= 2; }
+    if (x_px_left >= 2 && x_margin == 0) { x_margin = 1; x_px_left -= 2; }
+    if (y_px_left >= 2 && y_margin == 0) { y_margin = 1; y_px_left -= 2; }
 
-    if (x_pix_left >= 2 && y_pix_left >= 4) {
+    /* Third, increase spacing */
+    if (x_px_left >= 1) { x_spacing++; x_px_left--; }
+    if (y_px_left >= 3) { y_spacing++; y_px_left -= 3; }
+
+    /* Fourth, margins (“spacing”, but on the sides) */
+    if (x_px_left >= 2) { x_margin++; x_px_left -= 2; }
+    if (y_px_left >= 2) { y_margin++; y_px_left -= 2; }
+
+    /* Last - increase dot width */
+    if (x_px_left >= 2 && y_px_left >= 4) {
         w++;
-        x_pix_left -= 2;
-        y_pix_left -= 4;
+        x_px_left -= 2;
+        y_px_left -= 4;
     }
-
-    if (x_pix_left >= 1) { x_spacing++; x_pix_left--; }
-    if (y_pix_left >= 3) { y_spacing++; y_pix_left -= 3; }
-
-    if (x_pix_left >= 2) { x_margin++; x_pix_left -= 2; }
-    if (y_pix_left >= 2) { y_margin++; y_pix_left -= 2; }
 
     LOG_DBG(
         "braille: after adjusting: "
@@ -2000,7 +2003,7 @@ draw_braille(struct buf *buf, wchar_t wc)
         buf->width, buf->height, x_margin, y_margin, x_spacing, y_spacing,
         w, x_pix_left, y_pix_left);
 
-    xassert(x_pix_left <= 1 || y_pix_left <= 1);
+    xassert(x_px_left <= 1 || y_px_left <= 1);
     xassert(2 * x_margin + 2 * w + x_spacing <= buf->width);
     xassert(2 * y_margin + 4 * w + 3 * y_spacing <= buf->height);
 
