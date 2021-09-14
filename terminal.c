@@ -626,15 +626,28 @@ err_sem_destroy:
 }
 
 static void
-free_box_drawing(struct fcft_glyph **box_drawing)
+free_custom_glyph(struct fcft_glyph **glyph)
 {
-    if (*box_drawing == NULL)
+    if (*glyph == NULL)
         return;
 
-    free(pixman_image_get_data((*box_drawing)->pix));
-    pixman_image_unref((*box_drawing)->pix);
-    free(*box_drawing);
-    *box_drawing = NULL;
+    free(pixman_image_get_data((*glyph)->pix));
+    pixman_image_unref((*glyph)->pix);
+    free(*glyph);
+    *glyph = NULL;
+}
+
+static void
+free_custom_glyphs(struct fcft_glyph ***glyphs, size_t count)
+{
+    if (*glyphs == NULL)
+        return;
+
+    for (size_t i = 0; i < count; i++)
+        free_custom_glyph(&(*glyphs)[i]);
+
+    free(*glyphs);
+    *glyphs = NULL;
 }
 
 static bool
@@ -647,8 +660,12 @@ term_set_fonts(struct terminal *term, struct fcft_font *fonts[static 4])
         term->fonts[i] = fonts[i];
     }
 
-    for (size_t i = 0; i < ALEN(term->box_drawing); i++)
-        free_box_drawing(&term->box_drawing[i]);
+    free_custom_glyphs(
+        &term->custom_glyphs.box_drawing, GLYPH_BOX_DRAWING_COUNT);
+    free_custom_glyphs(
+        &term->custom_glyphs.braille, GLYPH_BRAILLE_COUNT);
+    free_custom_glyphs(
+        &term->custom_glyphs.legacy, GLYPH_LEGACY_COUNT);
 
     const int old_cell_width = term->cell_width;
     const int old_cell_height = term->cell_height;
@@ -1590,8 +1607,13 @@ term_destroy(struct terminal *term)
     for (size_t i = 0; i < 4; i++)
         free(term->font_sizes[i]);
 
-    for (size_t i = 0; i < ALEN(term->box_drawing); i++)
-        free_box_drawing(&term->box_drawing[i]);
+
+    free_custom_glyphs(
+        &term->custom_glyphs.box_drawing, GLYPH_BOX_DRAWING_COUNT);
+    free_custom_glyphs(
+        &term->custom_glyphs.braille, GLYPH_BRAILLE_COUNT);
+    free_custom_glyphs(
+        &term->custom_glyphs.legacy, GLYPH_LEGACY_COUNT);
 
     free(term->search.buf);
 
