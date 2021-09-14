@@ -1953,6 +1953,95 @@ draw_quadrant(struct buf *buf, wchar_t wc)
         quad_lower_right(buf);
 }
 
+static void NOINLINE
+draw_braille(struct buf *buf, wchar_t wc)
+{
+    int w = min(buf->width / 4, buf->height / 8);
+    int x_spacing = buf->width / 4;
+    int y_spacing = buf->height / 8;
+    int x_margin = x_spacing / 2;
+    int y_margin = y_spacing / 2;
+
+    int x_px_left = buf->width - 2 * x_margin - x_spacing - 2 * w;
+    int y_px_left = buf->height - 2 * y_margin - 3 * y_spacing - 4 * w;
+
+    LOG_DBG(
+        "braille: before adjusting: "
+        "cell: %dx%d, margin=%dx%d, spacing=%dx%d, width=%d, left=%dx%d",
+        buf->width, buf->height, x_margin, y_margin, x_spacing, y_spacing,
+        w, x_pix_left, y_pix_left);
+
+    /* First, try hard to ensure the DOT width is non-zero */
+    if (x_px_left >= 2 && y_px_left >= 4 && w == 0) {
+        w++;
+        x_px_left -= 2;
+        y_px_left -= 4;
+    }
+
+    /* Second, prefer a non-zero margin */
+    if (x_px_left >= 2 && x_margin == 0) { x_margin = 1; x_px_left -= 2; }
+    if (y_px_left >= 2 && y_margin == 0) { y_margin = 1; y_px_left -= 2; }
+
+    /* Third, increase spacing */
+    if (x_px_left >= 1) { x_spacing++; x_px_left--; }
+    if (y_px_left >= 3) { y_spacing++; y_px_left -= 3; }
+
+    /* Fourth, margins (“spacing”, but on the sides) */
+    if (x_px_left >= 2) { x_margin++; x_px_left -= 2; }
+    if (y_px_left >= 2) { y_margin++; y_px_left -= 2; }
+
+    /* Last - increase dot width */
+    if (x_px_left >= 2 && y_px_left >= 4) {
+        w++;
+        x_px_left -= 2;
+        y_px_left -= 4;
+    }
+
+    LOG_DBG(
+        "braille: after adjusting: "
+        "cell: %dx%d, margin=%dx%d, spacing=%dx%d, width=%d, left=%dx%d",
+        buf->width, buf->height, x_margin, y_margin, x_spacing, y_spacing,
+        w, x_pix_left, y_pix_left);
+
+    xassert(x_px_left <= 1 || y_px_left <= 1);
+    xassert(2 * x_margin + 2 * w + x_spacing <= buf->width);
+    xassert(2 * y_margin + 4 * w + 3 * y_spacing <= buf->height);
+
+    int x[2], y[4];
+    x[0] = x_margin;
+    x[1] = x_margin + w + x_spacing;
+    y[0] = y_margin;
+    y[1] = y[0] + w + y_spacing;
+    y[2] = y[1] + w + y_spacing;
+    y[3] = y[2] + w + y_spacing;
+
+    assert(wc >= 0x2800);
+    assert(wc <= 0x28ff);
+    uint8_t sym = wc - 0x2800;
+
+    /* Left side */
+    if (sym & 1)
+        rect(x[0], y[0], x[0] + w, y[0] + w);
+    if (sym & 2)
+        rect(x[0], y[1], x[0] + w, y[1] + w);
+    if (sym & 4)
+        rect(x[0], y[2], x[0] + w, y[2] + w);
+
+    /* Right side */
+    if (sym & 8)
+        rect(x[1], y[0], x[1] + w, y[0] + w);
+    if (sym & 16)
+        rect(x[1], y[1], x[1] + w, y[1] + w);
+    if (sym & 32)
+        rect(x[1], y[2], x[1] + w, y[2] + w);
+
+    /* 8-dot patterns */
+    if (sym & 64)
+        rect(x[0], y[3], x[0] + w, y[3] + w);
+    if (sym & 128)
+        rect(x[1], y[3], x[1] + w, y[3] + w);
+}
+
 static void
 sextant_upper_left(struct buf *buf)
 {
@@ -2652,6 +2741,8 @@ draw_glyph(struct buf *buf, wchar_t wc)
     case 0x2594: draw_upper_one_eighth_block(buf); break;
     case 0x2595: draw_right_one_eighth_block(buf); break;
     case 0x2596 ... 0x259f: draw_quadrant(buf, wc); break;
+
+    case 0x2800 ... 0x28ff: draw_braille(buf, wc); break;
 
     case 0x1fb00 ... 0x1fb3b: draw_sextant(buf, wc); break;
 

@@ -333,12 +333,26 @@ struct terminal {
     int16_t font_y_ofs;
     enum fcft_subpixel font_subpixel;
 
-    /*
-     *   0-159: U+02500+0259F
-     * 160-299: U+1FB00-1FB8B
-     * 300-301: U+1FB9A-1FB9B
-     */
-    struct fcft_glyph *box_drawing[302];
+    struct {
+        struct fcft_glyph **box_drawing;
+        struct fcft_glyph **braille;
+        struct fcft_glyph **legacy;
+
+        #define GLYPH_BOX_DRAWING_FIRST 0x2500
+        #define GLYPH_BOX_DRAWING_LAST  0x259F
+        #define GLYPH_BOX_DRAWING_COUNT \
+            (GLYPH_BOX_DRAWING_LAST - GLYPH_BOX_DRAWING_FIRST + 1)
+
+        #define GLYPH_BRAILLE_FIRST 0x2800
+        #define GLYPH_BRAILLE_LAST  0x28FF
+        #define GLYPH_BRAILLE_COUNT \
+            (GLYPH_BRAILLE_LAST - GLYPH_BRAILLE_FIRST + 1)
+
+        #define GLYPH_LEGACY_FIRST 0x1FB00
+        #define GLYPH_LEGACY_LAST  0x1FB9B
+        #define GLYPH_LEGACY_COUNT \
+            (GLYPH_LEGACY_LAST - GLYPH_LEGACY_FIRST + 1)
+    } custom_glyphs;
 
     bool is_sending_paste_data;
     ptmx_buffer_list_t ptmx_buffers;
