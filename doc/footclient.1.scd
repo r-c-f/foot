@@ -79,6 +79,10 @@ terminal has terminated.
 *-v*,*--version*
 	Show the version number and quit
 
+*-e*
+	Ignored; for compatibility with *xterm -e*. See *foot*(1) for more
+	details.
+
 # EXIT STATUS
 
 Footlient will exit with code 220 if there is a failure in footclient

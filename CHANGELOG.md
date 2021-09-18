@@ -41,6 +41,9 @@
   (https://codeberg.org/dnkl/foot/issues/701).
 * Braille characters (U+2800 - U+28FF) are now rendered by foot
   itself (https://codeberg.org/dnkl/foot/issues/702).
+* `-e` command-line option. This option is simply ignored, to appease
+  program launchers that blindly pass `-e` to any terminal emulator
+  (https://codeberg.org/dnkl/foot/issues/184).
 
 
 ### Changed
@@ -66,6 +69,8 @@
 
 ### Security
 ### Contributors
+
+* [craigbarnes](https://codeberg.org/craigbarnes)
 
 
 ## 1.9.0
