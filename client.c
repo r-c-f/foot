@@ -71,7 +71,8 @@ print_usage(const char *prog_name)
         "  -o,--override=[section.]key=value        override configuration option\n"
         "  -d,--log-level={info|warning|error|none} log level (info)\n"
         "  -l,--log-colorize=[{never|always|auto}]  enable/disable colorization of log output on stderr\n"
-        "  -v,--version                             show the version number and quit\n";
+        "  -v,--version                             show the version number and quit\n"
+        "  -e                                       ignored (for compatibility with xterm -e)\n";
 
     printf("Usage: %s [OPTIONS...]\n", prog_name);
     printf("Usage: %s [OPTIONS...] command [ARGS...]\n", prog_name);
@@ -145,7 +146,7 @@ main(int argc, char *const *argv)
     struct client_string *cargv = NULL;
 
     while (true) {
-        int c = getopt_long(argc, argv, "+t:T:a:w:W:mFLD:s:HNo:d:l::vh", longopts, NULL);
+        int c = getopt_long(argc, argv, "+t:T:a:w:W:mFLD:s:HNo:d:l::veh", longopts, NULL);
         if (c == -1)
             break;
 
@@ -272,6 +273,9 @@ main(int argc, char *const *argv)
             print_usage(prog_name);
             ret = EXIT_SUCCESS;
             goto err;
+
+        case 'e':
+            break;
 
         case '?':
             goto err;

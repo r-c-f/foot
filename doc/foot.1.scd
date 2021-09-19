@@ -141,6 +141,16 @@ the foot command line
 *-v*,*--version*
 	Show the version number and quit.
 
+*-e*
+	Ignored; for compatibility with *xterm -e*.
+
+	This option was added in response to several program launchers
+	passing *-e* to arbitrary terminals, under the assumption that
+	they all implement the same semantics for it as *xterm*(1).
+	Ignoring it allows foot to be invoked as e.g. *foot -e man foot*
+	with the same results as with xterm, instead of producing an
+	"invalid option" error.
+
 # EXIT STATUS
 
 Foot will exit with code 230 if there is a failure in foot itself.

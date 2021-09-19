@@ -78,7 +78,8 @@ print_usage(const char *prog_name)
         "  -d,--log-level={info|warning|error|none} log level (info)\n"
         "  -l,--log-colorize=[{never|always|auto}]  enable/disable colorization of log output on stderr\n"
         "  -s,--log-no-syslog                       disable syslog logging (only applicable in server mode)\n"
-        "  -v,--version                             show the version number and quit\n";
+        "  -v,--version                             show the version number and quit\n"
+        "  -e                                       ignored (for compatibility with xterm -e)\n";
 
     printf("Usage: %s [OPTIONS...]\n", prog_name);
     printf("Usage: %s [OPTIONS...] command [ARGS...]\n", prog_name);
@@ -216,7 +217,7 @@ main(int argc, char *const *argv)
     config_override_t overrides = tll_init();
 
     while (true) {
-        int c = getopt_long(argc, argv, "+c:Co:t:T:a:LD:f:w:W:s::HmFPp:d:l::Svh", longopts, NULL);
+        int c = getopt_long(argc, argv, "+c:Co:t:T:a:LD:f:w:W:s::HmFPp:d:l::Sveh", longopts, NULL);
 
         if (c == -1)
             break;
@@ -374,6 +375,9 @@ main(int argc, char *const *argv)
         case 'h':
             print_usage(prog_name);
             return EXIT_SUCCESS;
+
+        case 'e':
+            break;
 
         case '?':
             return ret;
