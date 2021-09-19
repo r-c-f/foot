@@ -2837,8 +2837,8 @@ box_drawing(const struct terminal *term, wchar_t wc)
         abort();
     }
 
-    double dpi = term_font_sized_by_dpi(term, term->scale) ? term->font_dpi : 96.;
-    double scale = term_font_sized_by_scale(term, term->scale) ? term->scale : 1.;
+    double dpi = term->font_is_sized_by_dpi ? term->font_dpi : 96.;
+    double scale = term->font_is_sized_by_dpi ? 1. : term->scale;
     double cell_size = sqrt(pow(term->cell_width, 2) + pow(term->cell_height, 2));
 
     int base_thickness =

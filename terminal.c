@@ -813,25 +813,48 @@ get_font_subpixel(const struct terminal *term)
     return FCFT_SUBPIXEL_DEFAULT;
 }
 
-bool
-term_font_sized_by_dpi(const struct terminal *term, int scale)
+static bool
+term_font_size_by_dpi(const struct terminal *term)
 {
-    return term->conf->dpi_aware == DPI_AWARE_YES ||
-        (term->conf->dpi_aware == DPI_AWARE_AUTO && scale <= 1);
-}
+    switch (term->conf->dpi_aware) {
+    case DPI_AWARE_YES:  return true;
+    case DPI_AWARE_NO:   return false;
 
-bool
-term_font_sized_by_scale(const struct terminal *term, int scale)
-{
-    return !term_font_sized_by_dpi(term, scale);
+    case DPI_AWARE_AUTO:
+        /*
+         * Scale using DPI if all monitors have a scaling factor or 1.
+         *
+         * The idea is this: if a user, with multiple monitors, have
+         * enabled scaling on at least one monitor, then he/she has
+         * most likely done so to match the size of his/hers other
+         * monitors.
+         *
+         * I.e. if the user has one monitor with a scaling factor of
+         * one, and another with a scaling factor of two, he/she
+         * expects things to be twice as large on the second
+         * monitor.
+         *
+         * If we (foot) scale using DPI on the first monitor, and
+         * using the scaling factor on the second monitor, foot will
+         * *not* look twice as big on the second monitor.
+         */
+        tll_foreach(term->wl->monitors, it) {
+            const struct monitor *mon = &it->item;
+            if (mon->scale > 1)
+                return false;
+        }
+        return true;
+    }
+
+    BUG("unhandled DPI awareness value");
 }
 
 int
 term_pt_or_px_as_pixels(const struct terminal *term,
                         const struct pt_or_px *pt_or_px)
 {
-    double scale = term_font_sized_by_scale(term, term->scale) ? term->scale : 1.;
-    double dpi = term_font_sized_by_dpi(term, term->scale) ? term->font_dpi : 96.;
+    double scale = !term->font_is_sized_by_dpi ? term->scale : 1.;
+    double dpi = term->font_is_sized_by_dpi  ? term->font_dpi : 96.;
 
     return pt_or_px->px == 0
         ? round(pt_or_px->pt * scale * dpi / 72)
@@ -878,8 +901,7 @@ reload_fonts(struct terminal *term)
             bool use_px_size = term->font_sizes[i][j].px_size > 0;
             char size[64];
 
-            const int scale =
-                term_font_sized_by_scale(term, term->scale) ? term->scale : 1;
+            const int scale = term->font_is_sized_by_dpi ? 1 : term->scale;
 
             if (use_px_size)
                 snprintf(size, sizeof(size), ":pixelsize=%d",
@@ -914,7 +936,7 @@ reload_fonts(struct terminal *term)
     const size_t count_bold_italic = custom_bold_italic ? counts[3] : counts[0];
     const char **names_bold_italic = (const char **)(custom_bold_italic ? names[3] : names[0]);
 
-    const bool use_dpi = term_font_sized_by_dpi(term, term->scale);
+    const bool use_dpi = term->font_is_sized_by_dpi;
 
     char *attrs[4] = {NULL};
     int attr_len[4] = {-1, -1, -1, -1};  /* -1, so that +1 (below) results in 0 */
@@ -2008,8 +2030,8 @@ term_font_dpi_changed(struct terminal *term, int old_scale)
     float dpi = get_font_dpi(term);
     xassert(term->scale > 0);
 
-    bool was_scaled_using_dpi = term_font_sized_by_dpi(term, old_scale);
-    bool will_scale_using_dpi = term_font_sized_by_dpi(term, term->scale);
+    bool was_scaled_using_dpi = term->font_is_sized_by_dpi;
+    bool will_scale_using_dpi = term_font_size_by_dpi(term);
 
     bool need_font_reload =
         was_scaled_using_dpi != will_scale_using_dpi ||
@@ -2019,15 +2041,16 @@ term_font_dpi_changed(struct terminal *term, int old_scale)
 
     if (need_font_reload) {
         LOG_DBG("DPI/scale change: DPI-awareness=%s, "
-                "DPI: %.2f -> %.2f, scale: %d, "
+                "DPI: %.2f -> %.2f, scale: %d -> %d, "
                 "sizing font based on monitor's %s",
                 term->conf->dpi_aware == DPI_AWARE_AUTO ? "auto" :
                 term->conf->dpi_aware == DPI_AWARE_YES ? "yes" : "no",
-                term->font_dpi, dpi, term->scale,
+                term->font_dpi, dpi, old_scale, term->scale,
                 will_scale_using_dpi ? "DPI" : "scaling factor");
     }
 
     term->font_dpi = dpi;
+    term->font_is_sized_by_dpi = will_scale_using_dpi;
 
     if (!need_font_reload)
         return true;
