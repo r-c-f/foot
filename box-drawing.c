@@ -1969,7 +1969,7 @@ draw_braille(struct buf *buf, wchar_t wc)
         "braille: before adjusting: "
         "cell: %dx%d, margin=%dx%d, spacing=%dx%d, width=%d, left=%dx%d",
         buf->width, buf->height, x_margin, y_margin, x_spacing, y_spacing,
-        w, x_pix_left, y_pix_left);
+        w, x_px_left, y_px_left);
 
     /* First, try hard to ensure the DOT width is non-zero */
     if (x_px_left >= 2 && y_px_left >= 4 && w == 0) {
@@ -2001,7 +2001,7 @@ draw_braille(struct buf *buf, wchar_t wc)
         "braille: after adjusting: "
         "cell: %dx%d, margin=%dx%d, spacing=%dx%d, width=%d, left=%dx%d",
         buf->width, buf->height, x_margin, y_margin, x_spacing, y_spacing,
-        w, x_pix_left, y_pix_left);
+        w, x_px_left, y_px_left);
 
     xassert(x_px_left <= 1 || y_px_left <= 1);
     xassert(2 * x_margin + 2 * w + x_spacing <= buf->width);
@@ -2889,8 +2889,7 @@ box_drawing(const struct terminal *term, wchar_t wc)
         },
     };
 
-    LOG_DBG("LIGHT=%d, HEAVY=%d",
-            _thickness(&buf, LIGHT), _thickness(&buf, HEAVY));
+    LOG_DBG("LIGHT=%d, HEAVY=%d", buf.thickness[LIGHT], buf.thickness[HEAVY]);
 
     draw_glyph(&buf, wc);
 
