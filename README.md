@@ -352,7 +352,7 @@ been enabled, fonts will instead be sized using the scaling
 factor.
 
 This can be changed to either **always** use the monitor’s DPI
-(regardless of scaling factor), or to **never** use it. See the
+(regardless of scaling factor), or to **never** use it, with the
 `dpi-aware` option in `foot.ini`. See the man page, **foot.ini**(5)
 for more information.
 
