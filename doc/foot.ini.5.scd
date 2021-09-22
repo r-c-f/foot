@@ -37,7 +37,8 @@ in this order:
 	Comma separated list of fonts to use, in fontconfig format. That
 	is, a font name followed by a list of colon-separated
 	options. Most noteworthy is *:size=n*, which is used to set the
-	font size.
+	font size. Note that the font size is also affected by the
+	*dpi-aware* option.
 	
 	Examples:
 		- Dina:weight=bold:slant=italic
