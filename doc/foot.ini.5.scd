@@ -145,11 +145,12 @@ in this order:
 	Default: _no_.
 
 *dpi-aware*
-	*auto*, *yes*, or *no*. When set to *yes*, fonts are sized using
-	the monitor's DPI, making a font of a given size have the same
-	physical size, regardless of monitor. In other words, if you drag
-	a foot window between different monitors, the font size remains
-	the same.
+	*auto*, *yes*, or *no*.
+	
+	When set to *yes*, fonts are sized using the monitor's DPI, making
+	a font of a given size have the same physical size, regardless of
+	monitor. In other words, if you drag a foot window between
+	different monitors, the font size remains the same.
 	
 	In this mode, the monitor's scaling factor is ignored; doubling
 	the scaling factor will *not* double the font size.
@@ -161,6 +162,11 @@ in this order:
 	Finally, if set to *auto*, fonts will be sized using the monitor's
 	DPI on monitors with a scaling factor of 1, but otherwise using
 	the scaling factor.
+	
+	Note that this option typically does not work with bitmap fonts,
+	which only contains a pre-defined set of sizes, and cannot be
+	dynamically scaled. Whichever size (of the available ones) that
+	best matches the DPI or scaling factor, will be used.
 	
 	Default: _auto_
 
