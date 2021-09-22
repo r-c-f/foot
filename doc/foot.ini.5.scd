@@ -168,6 +168,13 @@ in this order:
 	dynamically scaled. Whichever size (of the available ones) that
 	best matches the DPI or scaling factor, will be used.
 	
+	Also note that if the font size has been specified in pixels
+	(*:pixelsize=*_N_, instead of *:size=*_N_), DPI scaling
+	(*dpi-aware=yes*) will have no effect (the specified pixel size
+	will be used as is). But, if the monitor's scaling factor is used
+	to size the font (*dpi-aware=no*), the font's pixel size will be
+	multiplied with the scaling factor.
+	
 	Default: _auto_
 
 *pad*
