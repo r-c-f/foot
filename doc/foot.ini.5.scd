@@ -161,8 +161,10 @@ in this order:
 	scaling factor *does* double the font size.
 	
 	Finally, if set to *auto*, fonts will be sized using the monitor's
-	DPI on monitors with a scaling factor of 1, but otherwise using
-	the scaling factor.
+	DPI if _all_ monitors have a scaling factor of 1. If at least one
+	monitor as a scaling factor larger than 1 (regardless of whether
+	the foot window is mapped on that monitor or not), fonts will be
+	scaled using the scaling factor.
 	
 	Note that this option typically does not work with bitmap fonts,
 	which only contains a pre-defined set of sizes, and cannot be

@@ -56,6 +56,9 @@
   still exported, like before.
 * The default install location for the terminfo definitions have been
   changed back to `${datadir}/terminfo`.
+* `dpi-aware=auto`: fonts are now scaled using the monitor’s DPI only
+  when **all** monitors have a scaling factor of one
+  (https://codeberg.org/dnkl/foot/issues/714).
 
 
 ### Deprecated

@@ -347,9 +347,9 @@ This is not how it is meant to be. Fonts are measured in _point sizes_
 all mediums, be it printers or monitors, regardless of their DPI.
 
 Foot’s default behavior is to use the monitor’s DPI to size fonts when
-output scaling has been disabled. On monitors where output scaling has
-been enabled, fonts will instead be sized using the scaling
-factor.
+output scaling has been disabled on **all** monitors. If at least one
+monitor has output scaling enabled, fonts will instead by sized using
+the scaling factor.
 
 This can be changed to either **always** use the monitor’s DPI
 (regardless of scaling factor), or to **never** use it, with the
