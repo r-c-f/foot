@@ -64,6 +64,7 @@ static const uint32_t default_color_table[256] = {
     0xffffff,
 
     // 6x6x6 RGB cube
+    // (color channels = i ? i*40+55 : 0, where i = 0..5)
     cube36(0x000000),
     cube36(0x5f0000),
     cube36(0x870000),
@@ -72,6 +73,7 @@ static const uint32_t default_color_table[256] = {
     cube36(0xff0000),
 
     // 24 shades of gray
+    // (color channels = i*10+8, where i = 0..23)
     0x080808, 0x121212, 0x1c1c1c, 0x262626,
     0x303030, 0x3a3a3a, 0x444444, 0x4e4e4e,
     0x585858, 0x626262, 0x6c6c6c, 0x767676,
