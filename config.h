@@ -193,6 +193,7 @@ struct config {
     struct {
         bool hide_when_typing;
         bool alternate_scroll_mode;
+        struct config_key_modifiers selection_override_modifiers;
     } mouse;
 
     struct {

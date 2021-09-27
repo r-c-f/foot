@@ -701,6 +701,11 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.key_arrow_down = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "DOWN");
     }
 
+    /* Set selection-override modmask from configured mods and seat's mod indices */
+    const struct config_key_modifiers* override_mods =
+        &wayl->conf->mouse.selection_override_modifiers;
+    seat->kbd.selection_override_modmask = conf_modifiers_to_mask(seat, override_mods);
+
     munmap(map_str, size);
     close(fd);
 
@@ -983,7 +988,7 @@ UNITTEST
     xassert(strcmp(info->seq, "\033[27;3;13~") == 0);
 }
 
-static void
+void
 get_current_modifiers(const struct seat *seat,
                       xkb_mod_mask_t *effective,
                       xkb_mod_mask_t *consumed, uint32_t key)
@@ -2372,11 +2377,8 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                     get_current_modifiers(seat, &mods, NULL, 0);
                     mods &= seat->kbd.bind_significant;
 
-                    /* Ignore Shift when matching modifiers, since it is
-                     * used to enable selection in mouse grabbing client
-                     * applications */
-                    if (seat->kbd.mod_shift != XKB_MOD_INVALID)
-                        mods &= ~(1 << seat->kbd.mod_shift);
+                    /* Ignore selection override modifiers when matching modifiers */
+                    mods &= ~seat->kbd.selection_override_modmask;
 
                     const struct mouse_binding *match = NULL;
 

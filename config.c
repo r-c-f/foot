@@ -1334,6 +1334,10 @@ parse_section_cursor(struct context *ctx)
 }
 
 static bool
+parse_modifiers(struct context *ctx, const char *text, size_t len,
+                struct config_key_modifiers *modifiers);
+
+static bool
 parse_section_mouse(struct context *ctx)
 {
     struct config *conf = ctx->conf;
@@ -1344,6 +1348,13 @@ parse_section_mouse(struct context *ctx)
 
     else if (strcmp(key, "alternate-scroll-mode") == 0)
         return value_to_bool(ctx, &conf->mouse.alternate_scroll_mode);
+
+    else if (strcmp(key, "selection-override-modifiers") == 0) {
+        if (!parse_modifiers(ctx, ctx->value, strlen(ctx->value), &conf->mouse.selection_override_modifiers)) {
+            LOG_CONTEXTUAL_ERR("%s: invalid modifiers '%s'", key, ctx->value);
+            return false;
+        }
+    }
 
     else {
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
@@ -1971,10 +1982,6 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
             *key = '\0';
             if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
-            if (modifiers.shift) {
-                LOG_CONTEXTUAL_ERR("Shift cannot be used in mouse bindings");
-                goto err;
-            }
             key++;  /* Skip past the '+' */
         }
 
@@ -2055,6 +2062,62 @@ err:
 }
 
 static bool
+modifiers_equal(const struct config_key_modifiers *mods1,
+                const struct config_key_modifiers *mods2)
+{
+    bool shift = mods1->shift == mods2->shift;
+    bool alt = mods1->alt == mods2->alt;
+    bool ctrl = mods1->ctrl == mods2->ctrl;
+    bool meta = mods1->meta == mods2->meta;
+    return shift && alt && ctrl && meta;
+}
+
+static bool
+modifiers_disjoint(const struct config_key_modifiers *mods1,
+                const struct config_key_modifiers *mods2)
+{
+    bool shift = mods1->shift && mods2->shift;
+    bool alt = mods1->alt && mods2->alt;
+    bool ctrl = mods1->ctrl && mods2->ctrl;
+    bool meta = mods1->meta && mods2->meta;
+    return !(shift || alt || ctrl || meta);
+}
+
+static char *
+modifiers_to_str(const struct config_key_modifiers *mods)
+{
+    char *ret = xasprintf("%s%s%s%s",
+        mods->ctrl ? "Control+" : "",
+        mods->alt ? "Alt+": "",
+        mods->meta ? "Meta+": "",
+        mods->shift ? "Shift+": "");
+    ret[strlen(ret) - 1] = '\0';
+    return ret;
+}
+
+static bool
+selection_override_interferes_with_mouse_binding(struct context *ctx,
+                                                 const struct key_combo_list *key_combos)
+{
+    struct config *conf = ctx->conf;
+
+    const struct config_key_modifiers *override_mods = &conf->mouse.selection_override_modifiers;
+    for (size_t i = 0; i < key_combos->count; i++) {
+        const struct key_combo *combo = &key_combos->combos[i];
+        if (!modifiers_disjoint(&combo->modifiers, override_mods)) {
+            char *modifiers_str = modifiers_to_str(override_mods);
+            LOG_CONTEXTUAL_ERR(
+                "Selection override modifiers (%s) cannot be used in mouse bindings",
+                modifiers_str);
+            free (modifiers_str);
+            return false;
+        }
+    }
+
+    return false;
+}
+
+static bool
 has_mouse_binding_collisions(struct context *ctx,
                              const struct key_combo_list *key_combos)
 {
@@ -2071,14 +2134,10 @@ has_mouse_binding_collisions(struct context *ctx,
             const struct config_key_modifiers *mods1 = &combo1->modifiers;
             const struct config_key_modifiers *mods2 = &combo2->modifiers;
 
-            bool shift = mods1->shift == mods2->shift;
-            bool alt = mods1->alt == mods2->alt;
-            bool ctrl = mods1->ctrl == mods2->ctrl;
-            bool meta = mods1->meta == mods2->meta;
             bool button = combo1->button == combo2->m.button;
             bool count = combo1->count == combo2->m.count;
 
-            if (shift && alt && ctrl && meta && button && count) {
+            if (modifiers_equal(mods1, mods2) && button && count) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
                 LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
                                    combo2->text,
@@ -2136,7 +2195,8 @@ parse_section_mouse_bindings(struct context *ctx)
 
         struct key_combo_list key_combos = {0};
         if (!value_to_mouse_combos(ctx, &key_combos) ||
-            has_mouse_binding_collisions(ctx, &key_combos))
+            has_mouse_binding_collisions(ctx, &key_combos) ||
+            selection_override_interferes_with_mouse_binding(ctx, &key_combos))
         {
             free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
@@ -2780,6 +2840,12 @@ config_load(struct config *conf, const char *conf_path,
         .mouse = {
             .hide_when_typing = false,
             .alternate_scroll_mode = true,
+            .selection_override_modifiers = {
+                .shift = true,
+                .alt = false,
+                .ctrl = false,
+                .meta = false,
+            },
         },
         .csd = {
             .preferred = CONF_CSD_PREFER_SERVER,
