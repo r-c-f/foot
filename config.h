@@ -164,8 +164,14 @@ struct config {
         } jump_label;
 
         struct {
+            uint32_t fg;
+            uint32_t bg;
+        } scrollback_indicator;
+
+        struct {
             bool selection:1;
             bool jump_label:1;
+            bool scrollback_indicator:1;
             bool url:1;
         } use_custom;
     } colors;
