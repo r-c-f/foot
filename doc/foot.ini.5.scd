@@ -470,6 +470,16 @@ applications can change these at runtime.
 	
 	Default: _yes_.
 
+*selection-override-modifiers*
+	Modifiers. The set of modifiers which, when held, will override
+	attempts by programs running in the terminal to capture mouse
+	input.
+	
+	Any modifiers in this set cannot be used for mouse bindings
+	themselves.
+	
+	Default: Shift
+
 
 # SECTION: colors
 
@@ -865,9 +875,10 @@ of the modifiers *must* be valid XKB key names, and the button name
 *must* be a valid libinput name. You can find the button names using
 *libinput debug-events*.
 
-Note that *Shift* cannot be used as a modifier in mouse bindings since
-it is used to enable selection when the client application is grabbing
-the mouse.
+Note that the modifiers set in *mouse.selection-override-modifiers*
+(by default, *Shift*) cannot be used as modifiers in mouse bindings
+since they are used to enable selection when the client application is
+grabbing the mouse.
 
 The trailing *COUNT* is optional and specifies the click count
 required to trigger the binding. The default if *COUNT* is omitted is
