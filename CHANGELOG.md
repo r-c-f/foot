@@ -68,6 +68,8 @@
 * Added workaround for GNOME bug where multiple button press events
   (for the same button) is sent to the CSDs without any release or
   leave events in between (https://codeberg.org/dnkl/foot/issues/709).
+* Line-wise selection not taking soft line-wrapping into account
+  (https://codeberg.org/dnkl/foot/issues/726).
 
 
 ### Security
