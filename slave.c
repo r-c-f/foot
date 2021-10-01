@@ -269,7 +269,7 @@ slave_spawn(int ptmx, int argc, const char *cwd, char *const *argv,
 
         if (chdir(cwd) < 0) {
             const int errno_copy = errno;
-            LOG_ERRNO("failed to change working directory");
+            LOG_ERRNO("failed to change working directory to %s", cwd);
             (void)!write(fork_pipe[1], &errno_copy, sizeof(errno_copy));
             _exit(errno_copy);
         }

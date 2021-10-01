@@ -15,16 +15,6 @@
 
 static size_t count;
 
-static uint32_t
-get_bg(const struct terminal *term)
-{
-    return term->sixel.transparent_bg
-        ? 0x00000000u
-        : 0xffu << 24 | (term->vt.attrs.have_bg
-                         ? term->vt.attrs.bg
-                         : term->colors.bg);
-}
-
 void
 sixel_fini(struct terminal *term)
 {
@@ -78,9 +68,14 @@ sixel_init(struct terminal *term, int p1, int p2, int p3)
         term->sixel.palette = term->sixel.shared_palette;
     }
 
-    uint32_t bg = get_bg(term);
+    term->sixel.default_bg = term->sixel.transparent_bg
+        ? 0x00000000u
+        : 0xffu << 24 | (term->vt.attrs.have_bg
+                         ? term->vt.attrs.bg
+                         : term->colors.bg);
+
     for (size_t i = 0; i < 1 * 6; i++)
-        term->sixel.image.data[i] = bg;
+        term->sixel.image.data[i] = term->sixel.default_bg;
 
     count = 0;
 }
@@ -1118,7 +1113,7 @@ resize_horizontally(struct terminal *term, int new_width)
     /* Width (and thus stride) change - need to allocate a new buffer */
     uint32_t *new_data = xmalloc(new_width * alloc_height * sizeof(uint32_t));
 
-    uint32_t bg = get_bg(term);
+    uint32_t bg = term->sixel.default_bg;
 
     /* Copy old rows, and initialize new columns to background color */
     for (int r = 0; r < height; r++) {
@@ -1167,7 +1162,7 @@ resize_vertically(struct terminal *term, int new_height)
         return false;
     }
 
-    uint32_t bg = get_bg(term);
+    uint32_t bg = term->sixel.default_bg;
 
     /* Initialize new rows to background color */
     for (int r = old_height; r < new_height; r++) {
@@ -1204,7 +1199,7 @@ resize(struct terminal *term, int new_width, int new_height)
     xassert(alloc_new_height - new_height < 6);
 
     uint32_t *new_data = NULL;
-    uint32_t bg = get_bg(term);
+    uint32_t bg = term->sixel.default_bg;
 
     if (new_width == old_width) {
         /* Width (and thus stride) is the same, so we can simply
@@ -1277,8 +1272,6 @@ sixel_add(struct terminal *term, int col, int width, uint32_t color, uint8_t six
 static void
 sixel_add_many(struct terminal *term, uint8_t c, unsigned count)
 {
-    uint32_t color = term->sixel.palette[term->sixel.color_idx];
-
     int col = term->sixel.pos.col;
     int width = term->sixel.image.width;
 
@@ -1288,6 +1281,7 @@ sixel_add_many(struct terminal *term, uint8_t c, unsigned count)
             return;
     }
 
+    uint32_t color = term->sixel.color;
     for (unsigned i = 0; i < count; i++, col++)
         sixel_add(term, col, width, color, c);
 
@@ -1407,7 +1401,7 @@ decgra(struct terminal *term, uint8_t c)
         }
 
         term->sixel.state = SIXEL_DECSIXEL;
-        sixel_put(term, c);
+        decsixel(term, c);
         break;
     }
     }
@@ -1514,10 +1508,11 @@ decgci(struct terminal *term, uint8_t c)
                 break;
             }
             }
-        }
+        } else
+            term->sixel.color = term->sixel.palette[term->sixel.color_idx];
 
         term->sixel.state = SIXEL_DECSIXEL;
-        sixel_put(term, c);
+        decsixel(term, c);
         break;
     }
     }

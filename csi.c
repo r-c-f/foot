@@ -795,8 +795,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
              *
              * Note: tertiary DA responds with "FOOT".
              */
-            const char *reply = "\033[?62;4;22c";
-            term_to_slave(term, reply, strlen(reply));
+            static const char reply[] = "\033[?62;4;22c";
+            term_to_slave(term, reply, sizeof(reply) - 1);
             break;
         }
 
@@ -1062,17 +1062,15 @@ csi_dispatch(struct terminal *term, uint8_t final)
         }
 
         case 'S': {
-            int amount = min(
-                vt_param_get(term, 0, 1),
-                term->scroll_region.end - term->scroll_region.start);
+            const struct scroll_region *r = &term->scroll_region;
+            int amount = min(vt_param_get(term, 0, 1), r->end - r->start);
             term_scroll(term, amount);
             break;
         }
 
         case 'T': {
-            int amount = min(
-                vt_param_get(term, 0, 1),
-                term->scroll_region.end - term->scroll_region.start);
+            const struct scroll_region *r = &term->scroll_region;
+            int amount = min(vt_param_get(term, 0, 1), r->end - r->start);
             term_scroll_reverse(term, amount);
             break;
         }
@@ -1219,20 +1217,12 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 break;
 
             case 13: { /* report window position */
-
-                int x = -1;
-                int y = -1;
-
                 /* We don't know our position - always report (0,0) */
+                static const char reply[] = "\033[3;0;0t";
                 switch (vt_param_get(term, 1, 0)) {
-                case 0:
-                    /* window position */
-                    x = y = 0;
-                    break;
-
-                case 2:
-                    /* text area position */
-                    x = y = 0;
+                case 0: /* window position */
+                case 2: /* text area position */
+                    term_to_slave(term, reply, sizeof(reply) - 1);
                     break;
 
                 default:
@@ -1240,12 +1230,6 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     break;
                 }
 
-                if (x >= 0 && y >= 0) {
-                    char reply[64];
-                    size_t n = xsnprintf(reply, sizeof(reply), "\033[3;%d;%dt",
-                             x / term->scale, y / term->scale);
-                    term_to_slave(term, reply, n);
-                }
                 break;
             }
 
@@ -1616,15 +1600,12 @@ csi_dispatch(struct terminal *term, uint8_t final)
     }
 
     case '!': {
-        switch (final) {
-        case 'p':
+        if (final == 'p') {
             term_reset(term, false);
             break;
-
-        default:
-            UNHANDLED();
-            break;
         }
+
+        UNHANDLED();
         break; /* private[0] == '!' */
     }
 

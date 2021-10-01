@@ -6,8 +6,9 @@ foot.ini - configuration file for *foot*(1)
 # DESCRIPTION
 
 *foot* uses the standard _unix configuration format_, with section based
-key/value pairs. The default section is unnamed (i.e. not prefixed
-with a _[section]_).
+key/value pairs. The default section is usually unnamed, i.e. not prefixed
+with a _[section]_. However it can also be explicitly named _[main]_,
+say if it needs to be reopened after any of the other sections.
 
 foot will search for a configuration file in the following locations,
 in this order:
@@ -16,7 +17,7 @@ in this order:
 	- *~/.config/foot/foot.ini*
 	- *XDG_CONFIG_DIRS/foot/foot.ini*
 
-# SECTION: default
+# SECTION: main
 
 *shell*
 	Executable to launch. Typically a shell. Default: _$SHELL_ if set,
@@ -36,7 +37,8 @@ in this order:
 	Comma separated list of fonts to use, in fontconfig format. That
 	is, a font name followed by a list of colon-separated
 	options. Most noteworthy is *:size=n*, which is used to set the
-	font size.
+	font size. Note that the font size is also affected by the
+	*dpi-aware* option.
 	
 	Examples:
 		- Dina:weight=bold:slant=italic
@@ -144,11 +146,12 @@ in this order:
 	Default: _no_.
 
 *dpi-aware*
-	*auto*, *yes*, or *no*. When set to *yes*, fonts are sized using
-	the monitor's DPI, making a font of a given size have the same
-	physical size, regardless of monitor. In other words, if you drag
-	a foot window between different monitors, the font size remains
-	the same.
+	*auto*, *yes*, or *no*.
+	
+	When set to *yes*, fonts are sized using the monitor's DPI, making
+	a font of a given size have the same physical size, regardless of
+	monitor. In other words, if you drag a foot window between
+	different monitors, the font size remains the same.
 	
 	In this mode, the monitor's scaling factor is ignored; doubling
 	the scaling factor will *not* double the font size.
@@ -158,8 +161,22 @@ in this order:
 	scaling factor *does* double the font size.
 	
 	Finally, if set to *auto*, fonts will be sized using the monitor's
-	DPI on monitors with a scaling factor of 1, but otherwise using
-	the scaling factor.
+	DPI if _all_ monitors have a scaling factor of 1. If at least one
+	monitor as a scaling factor larger than 1 (regardless of whether
+	the foot window is mapped on that monitor or not), fonts will be
+	scaled using the scaling factor.
+	
+	Note that this option typically does not work with bitmap fonts,
+	which only contains a pre-defined set of sizes, and cannot be
+	dynamically scaled. Whichever size (of the available ones) that
+	best matches the DPI or scaling factor, will be used.
+	
+	Also note that if the font size has been specified in pixels
+	(*:pixelsize=*_N_, instead of *:size=*_N_), DPI scaling
+	(*dpi-aware=yes*) will have no effect (the specified pixel size
+	will be used as is). But, if the monitor's scaling factor is used
+	to size the font (*dpi-aware=no*), the font's pixel size will be
+	multiplied with the scaling factor.
 	
 	Default: _auto_
 
@@ -179,7 +196,7 @@ in this order:
 	Default: _2x2_.
 
 *resize-delay-ms*
-	Time, in milliseconds, of "idle time" "before foot sends the new
+	Time, in milliseconds, of "idle time" before foot sends the new
 	window dimensions to the client application while doing an
 	interactive resize of a foot window. Idle time in this context is
 	a period of time where the window size is not changing.
@@ -1021,6 +1038,17 @@ any of these options.
 	de-synchronization issues.
 	
 	Default: _double-width_
+
+*font-monospace-warn*
+	Boolean. When enabled, foot will use heuristics to try to verify
+	the primary font is a monospace font, and warn if it is not.
+	
+	Disable this if you still want to use the font, even if foot
+	thinks it is not monospaced.
+	
+	You may also want to disable it to get slightly faster startup times.
+	
+	Default: _yes_
 
 *max-shm-pool-size-mb*
 	This option controls the amount of virtual address space used by

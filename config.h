@@ -70,7 +70,6 @@ struct config {
     char *app_id;
     wchar_t *word_delimiters;
     bool login_shell;
-    bool no_wait;
     bool locked_title;
 
     struct {
@@ -253,6 +252,7 @@ struct config {
         off_t max_shm_pool_size;
         float box_drawing_base_thickness;
         bool box_drawing_solid_shades;
+        bool font_monospace_warn;
     } tweak;
 
     user_notifications_t notifications;
@@ -269,3 +269,6 @@ struct config *config_clone(const struct config *old);
 
 bool config_font_parse(const char *pattern, struct config_font *font);
 void config_font_list_destroy(struct config_font_list *font_list);
+
+bool check_if_font_is_monospaced(
+    const char *pattern, user_notifications_t *notifications);

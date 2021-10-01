@@ -513,7 +513,12 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     if (base != 0) {
         if (unlikely(
                 /* Classic box drawings */
-                (base >= 0x2500 && base <= 0x259f) ||
+                (base >= GLYPH_BOX_DRAWING_FIRST &&
+                 base <= GLYPH_BOX_DRAWING_LAST) ||
+
+                /* Braille */
+                (base >= GLYPH_BRAILLE_FIRST &&
+                 base <= GLYPH_BRAILLE_LAST) ||
 
                 /*
                  * Unicode 13 "Symbols for Legacy Computing"
@@ -521,38 +526,50 @@ render_cell(struct terminal *term, pixman_image_t *pix,
                  *
                  * Note, the full range is U+1FB00 - U+1FBF9
                  */
-
-                /* Unicode 13 sextants */
-                (base >= 0x1fb00 && base <= 0x1fb8b) ||
-                (base >= 0x1fb9a && base <= 0x1fb9b)) &&
+                (base >= GLYPH_LEGACY_FIRST &&
+                 base <= GLYPH_LEGACY_LAST)) &&
 
             likely(!term->conf->box_drawings_uses_font_glyphs))
         {
-            /* Box drawing characters */
-            size_t idx = base >= 0x1fb00
-                ? (base >= 0x1fb9a
-                   ? base - 0x1fb9a + 300
-                   : base - 0x1fb00 + 160)
-                : base - 0x2500;
-            xassert(idx < ALEN(term->box_drawing));
+            struct fcft_glyph ***arr;
+            size_t count;
+            size_t idx;
 
-            if (likely(term->box_drawing[idx] != NULL))
-                single = term->box_drawing[idx];
+            if (base >= GLYPH_LEGACY_FIRST) {
+                arr = &term->custom_glyphs.legacy;
+                count = GLYPH_LEGACY_COUNT;
+                idx = base - GLYPH_LEGACY_FIRST;
+            } else if (base >= GLYPH_BRAILLE_FIRST) {
+                arr = &term->custom_glyphs.braille;
+                count = GLYPH_BRAILLE_COUNT;
+                idx = base - GLYPH_BRAILLE_FIRST;
+            } else {
+                arr = &term->custom_glyphs.box_drawing;
+                count = GLYPH_BOX_DRAWING_COUNT;
+                idx = base - GLYPH_BOX_DRAWING_FIRST;
+            }
+
+            if (unlikely(*arr == NULL))
+                *arr = xcalloc(count, sizeof((*arr)[0]));
+
+            if (likely((*arr)[idx] != NULL))
+                single = (*arr)[idx];
             else {
                 mtx_lock(&term->render.workers.lock);
 
-                /* Parallel thread may have instantiated it while we took the lock */
-                if (term->box_drawing[idx] == NULL)
-                    term->box_drawing[idx] = box_drawing(term, base);
+                /* Other thread may have instantiated it while we
+                 * acquired the lock */
+                single = (*arr)[idx];
+                if (likely(single == NULL))
+                    single = (*arr)[idx] = box_drawing(term, base);
                 mtx_unlock(&term->render.workers.lock);
-
-                single = term->box_drawing[idx];
-                xassert(single != NULL);
             }
 
-            glyph_count = 1;
-            glyphs = &single;
-            cell_cols = single->cols;
+            if (single != NULL) {
+                glyph_count = 1;
+                glyphs = &single;
+                cell_cols = single->cols;
+            }
         }
 
         else if (base >= CELL_COMB_CHARS_LO && base <= CELL_COMB_CHARS_HI)
@@ -624,6 +641,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         &clip, x, y,
         render_width, term->cell_height);
     pixman_image_set_clip_region32(pix, &clip);
+    pixman_region32_fini(&clip);
 
     /* Background */
     pixman_image_fill_rectangles(

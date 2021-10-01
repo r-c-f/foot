@@ -35,17 +35,15 @@ add_project_arguments(
   language: 'c',
 )
 
-default_terminfo_install_location = join_paths(get_option('datadir'), 'foot', 'terminfo')
 terminfo_install_location = get_option('custom-terminfo-install-location')
-if terminfo_install_location == ''
-  terminfo_install_location = default_terminfo_install_location
-endif
 
-if terminfo_install_location != 'no'
+if terminfo_install_location != ''
   add_project_arguments(
     ['-DFOOT_TERMINFO_PATH="@0@"'.format(
       join_paths(get_option('prefix'), terminfo_install_location))],
     language: 'c')
+else
+  terminfo_install_location = join_paths(get_option('datadir'), 'terminfo')
 endif
 
 # Compute the relative path used by compiler invocations.
@@ -246,15 +244,24 @@ endif
 
 tic = find_program('tic', native: true, required: get_option('terminfo'))
 if tic.found()
+  conf_data = configuration_data(
+    {
+      'default_terminfo': get_option('default-terminfo'),
+    }
+  )
+
+  preprocessed = configure_file(
+    input: 'foot.info',
+    output: 'foot.info.preprocessed',
+    configuration: conf_data,
+  )
   custom_target(
     'terminfo',
-    output: 'f',
-    input: 'foot.info',
-    command: [tic, '-x', '-o', '@OUTDIR@', '-e', 'foot,foot-direct', '@INPUT@'],
+    output: get_option('default-terminfo')[0],
+    input: preprocessed,
+    command: [tic, '-x', '-o', '@OUTDIR@', '-e', '@0@,@0@-direct'.format(get_option('default-terminfo')), '@INPUT@'],
     install: true,
-    install_dir: (terminfo_install_location != 'no'
-                  ? terminfo_install_location
-                  : default_terminfo_install_location)
+    install_dir: terminfo_install_location
   )
 endif
 
@@ -267,8 +274,9 @@ summary(
     'IME': get_option('ime'),
     'Grapheme clustering': utf8proc.found(),
     'Build terminfo': tic.found(),
+    'Terminfo install location': terminfo_install_location,
     'Default TERM': get_option('default-terminfo'),
-    'Terminfo custom install location': terminfo_install_location,
+    'Set TERMINFO': get_option('custom-terminfo-install-location') != '',
   },
   bool_yn: true
 )

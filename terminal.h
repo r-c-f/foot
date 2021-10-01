@@ -329,16 +329,31 @@ struct terminal {
     struct config_font *font_sizes[4];
     struct pt_or_px font_line_height;
     float font_dpi;
+    bool font_is_sized_by_dpi;
     int16_t font_x_ofs;
     int16_t font_y_ofs;
     enum fcft_subpixel font_subpixel;
 
-    /*
-     *   0-159: U+02500+0259F
-     * 160-299: U+1FB00-1FB8B
-     * 300-301: U+1FB9A-1FB9B
-     */
-    struct fcft_glyph *box_drawing[302];
+    struct {
+        struct fcft_glyph **box_drawing;
+        struct fcft_glyph **braille;
+        struct fcft_glyph **legacy;
+
+        #define GLYPH_BOX_DRAWING_FIRST 0x2500
+        #define GLYPH_BOX_DRAWING_LAST  0x259F
+        #define GLYPH_BOX_DRAWING_COUNT \
+            (GLYPH_BOX_DRAWING_LAST - GLYPH_BOX_DRAWING_FIRST + 1)
+
+        #define GLYPH_BRAILLE_FIRST 0x2800
+        #define GLYPH_BRAILLE_LAST  0x28FF
+        #define GLYPH_BRAILLE_COUNT \
+            (GLYPH_BRAILLE_LAST - GLYPH_BRAILLE_FIRST + 1)
+
+        #define GLYPH_LEGACY_FIRST 0x1FB00
+        #define GLYPH_LEGACY_LAST  0x1FB9B
+        #define GLYPH_LEGACY_COUNT \
+            (GLYPH_LEGACY_LAST - GLYPH_LEGACY_FIRST + 1)
+    } custom_glyphs;
 
     bool is_sending_paste_data;
     ptmx_buffer_list_t ptmx_buffers;
@@ -560,6 +575,7 @@ struct terminal {
         uint32_t *private_palette;   /* Private palette, used when private mode 1070 is enabled */
         uint32_t *shared_palette;    /* Shared palette, used when private mode 1070 is disabled */
         uint32_t *palette;   /* Points to either private_palette or shared_palette */
+        uint32_t color;
 
         struct {
             uint32_t *data;  /* Raw image data, in ARGB */
@@ -576,6 +592,7 @@ struct terminal {
         unsigned param_idx;  /* Parameters seen */
 
         bool transparent_bg;
+        uint32_t default_bg;
 
         /* Application configurable */
         unsigned palette_size;  /* Number of colors in palette */
@@ -644,8 +661,6 @@ bool term_font_size_reset(struct terminal *term);
 bool term_font_dpi_changed(struct terminal *term, int old_scale);
 void term_font_subpixel_changed(struct terminal *term);
 
-bool term_font_sized_by_dpi(const struct terminal *term, int scale);
-bool term_font_sized_by_scale(const struct terminal *term, int scale);
 int term_pt_or_px_as_pixels(
     const struct terminal *term, const struct pt_or_px *pt_or_px);
 

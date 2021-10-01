@@ -56,16 +56,13 @@ version_and_features(void)
 static void
 print_usage(const char *prog_name)
 {
-    printf(
-        "Usage: %s [OPTIONS...]\n"
-        "Usage: %s [OPTIONS...] command [ARGS...]\n"
-        "\n"
-        "Options:\n"
+    static const char options[] =
+        "\nOptions:\n"
         "  -c,--config=PATH                         load configuration from PATH ($XDG_CONFIG_HOME/foot/foot.ini)\n"
         "  -C,--check-config                        verify configuration, exit with 0 if ok, otherwise exit with 1\n"
         "  -o,--override=[section.]key=value        override configuration option\n"
         "  -f,--font=FONT                           comma separated list of fonts in fontconfig format (monospace)\n"
-        "  -t,--term=TERM                           value to set the environment variable TERM to (%s)\n"
+        "  -t,--term=TERM                           value to set the environment variable TERM to (" FOOT_DEFAULT_TERM ")\n"
         "  -T,--title=TITLE                         initial window title (foot)\n"
         "  -a,--app-id=ID                           window application ID (foot)\n"
         "  -m,--maximized                           start in maximized mode\n"
@@ -81,8 +78,12 @@ print_usage(const char *prog_name)
         "  -d,--log-level={info|warning|error|none} log level (info)\n"
         "  -l,--log-colorize=[{never|always|auto}]  enable/disable colorization of log output on stderr\n"
         "  -s,--log-no-syslog                       disable syslog logging (only applicable in server mode)\n"
-        "  -v,--version                             show the version number and quit\n",
-        prog_name, prog_name, FOOT_DEFAULT_TERM);
+        "  -v,--version                             show the version number and quit\n"
+        "  -e                                       ignored (for compatibility with xterm -e)\n";
+
+    printf("Usage: %s [OPTIONS...]\n", prog_name);
+    printf("Usage: %s [OPTIONS...] command [ARGS...]\n", prog_name);
+    puts(options);
 }
 
 bool
@@ -216,7 +217,7 @@ main(int argc, char *const *argv)
     config_override_t overrides = tll_init();
 
     while (true) {
-        int c = getopt_long(argc, argv, "+c:Co:t:T:a:LD:f:w:W:s::HmFPp:d:l::Svh", longopts, NULL);
+        int c = getopt_long(argc, argv, "+c:Co:t:T:a:LD:f:w:W:s::HmFPp:d:l::Sveh", longopts, NULL);
 
         if (c == -1)
             break;
@@ -375,6 +376,9 @@ main(int argc, char *const *argv)
             print_usage(prog_name);
             return EXIT_SUCCESS;
 
+        case 'e':
+            break;
+
         case '?':
             return ret;
         }
@@ -479,6 +483,11 @@ main(int argc, char *const *argv)
         conf.startup_mode = STARTUP_FULLSCREEN;
     conf.presentation_timings = presentation_timings;
     conf.hold_at_exit = hold;
+
+    if (conf.tweak.font_monospace_warn && conf.fonts[0].count > 0) {
+        check_if_font_is_monospaced(
+            conf.fonts[0].arr[0].pattern, &conf.notifications);
+    }
 
     struct fdm *fdm = NULL;
     struct reaper *reaper = NULL;

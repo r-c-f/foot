@@ -1,3 +1,5 @@
+PGO=auto           # auto|none|partial|full-current-session|full-headless-sway|full-headless-cage
+
 pkgname=('foot-git' 'foot-terminfo-git')
 pkgver=1.9.0
 pkgrel=1
@@ -14,76 +16,7 @@ pkgver() {
 }
 
 build() {
-  local compiler=other
-  local do_pgo=no
-
-  # makepkg uses -O2 by default, but we *really* want -O3
-  CFLAGS+=" -O3"
-
-  # Figure out which compiler we're using, and whether or not to do PGO
-  case $(${CC-cc} --version) in
-    *GCC*)
-      compiler=gcc
-      do_pgo=yes
-      ;;
-
-    *clang*)
-      compiler=clang
-
-      # We need llvm to be able to manage the profiling data
-      if command -v llvm-profdata > /dev/null; then
-        do_pgo=yes
-
-        # Meson adds -fprofile-correction, which Clang doesn't
-        # understand
-        CFLAGS+=" -Wno-ignored-optimization-argument"
-      fi
-      ;;
-  esac
-
-  meson --prefix=/usr --buildtype=release --wrap-mode=nofallback -Db_lto=true ..
-
-  if [[ ${do_pgo} == yes ]]; then
-    find -name "*.gcda" -delete
-    meson configure -Db_pgo=generate
-    ninja
-
-    # If fcft/tllist are subprojects, we need to ensure their tests
-    # have been executed, or we’ll get “profile count data file not
-    # found” errors.
-    ninja test
-
-    local script_options="--scroll --scroll-region --colors-regular --colors-bright --colors-256 --colors-rgb --attr-bold --attr-italic --attr-underline --sixel"
-
-    tmp_file=$(mktemp)
-
-    if [[ -v WAYLAND_DISPLAY ]]; then
-      ./footclient --version
-      ./foot \
-        --config /dev/null \
-        --term=xterm \
-        sh -c "../scripts/generate-alt-random-writes.py ${script_options} ${tmp_file} && cat ${tmp_file}"
-    else
-      ./footclient --version
-      ./foot --version
-      ../scripts/generate-alt-random-writes.py \
-        --rows=67 \
-        --cols=135 \
-        ${script_options} \
-        ${tmp_file}
-      ./pgo ${tmp_file} ${tmp_file} ${tmp_file}
-    fi
-
-    rm "${tmp_file}"
-
-    if [[ ${compiler} == clang ]]; then
-      llvm-profdata merge default_*profraw --output=default.profdata
-    fi
-
-    meson configure -Db_pgo=use
-  fi
-
-  ninja
+  ../pgo/pgo.sh ${PGO} .. . --prefix=/usr --wrap-mode=nofallback
 }
 
 check() {
@@ -98,7 +31,7 @@ package_foot-git() {
   provides=('foot')
 
   DESTDIR="${pkgdir}/" ninja install
-  rm -rf "${pkgdir}/usr/share/foot/terminfo"
+  rm -rf "${pkgdir}/usr/share/terminfo"
 }
 
 package_foot-terminfo-git() {
@@ -107,6 +40,6 @@ package_foot-terminfo-git() {
   conflicts=('foot-terminfo')
   provides=('foot-terminfo')
 
-  install -dm 755 "${pkgdir}/usr/share/foot/terminfo/f/"
-  cp f/* "${pkgdir}/usr/share/foot/terminfo/f/"
+  install -dm 755 "${pkgdir}/usr/share/terminfo/f/"
+  cp f/* "${pkgdir}/usr/share/terminfo/f/"
 }

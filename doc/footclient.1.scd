@@ -79,6 +79,10 @@ terminal has terminated.
 *-v*,*--version*
 	Show the version number and quit
 
+*-e*
+	Ignored; for compatibility with *xterm -e*. See *foot*(1) for more
+	details.
+
 # EXIT STATUS
 
 Footlient will exit with code 220 if there is a failure in footclient
@@ -145,29 +149,6 @@ The following environment variables are set in the child process:
 	to determine which capabilities a terminal supports. The value is
 	set according to either the *--term* command-line option or the
 	*term* config option in *foot.ini*(5).
-
-*TERMINFO*
-	Path to foot's terminfo definitions. These are typically installed
-	in a non-standard location (though distributions may override
-	this), to allow them to co-exist with the foot terminfo
-	definitions in ncurses. Note that applications will search the
-	default location(s) if *TERM* does not exist in *TERMINFO*.
-	
-	Note that applications like sudo and ssh will remove this
-	environment variable.
-	
-	For sudo, you can create a file under _/etc/sudoers.d_ (name does
-	not matter) with the following content:
-	
-		*Defaults env_keep += "TERMINFO"*
-	
-	For ssh, you can edit _/etc/ssh/sshd_config_ (on the *server*),
-	and add:
-	
-		*SetEnv TERMINFO=*_<path>_
-	
-	Where path is the location of the terminfo definitions on the
-	*server*, typically /usr/share/foot/terminfo.
 
 *COLORTERM*
 	This variable is set to *truecolor*, to indicate to client

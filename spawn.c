@@ -48,6 +48,11 @@ spawn(struct reaper *reaper, const char *cwd, char *const argv[],
         if (sigaction(SIGHUP, &(struct sigaction){.sa_handler = SIG_DFL}, NULL) < 0)
             goto child_err;
 
+        if (cwd != NULL && chdir(cwd) < 0) {
+            LOG_WARN("failed to change working directory to %s: %s",
+                     cwd, strerror(errno));
+        }
+
         bool close_stderr = stderr_fd >= 0;
         bool close_stdout = stdout_fd >= 0 && stdout_fd != stderr_fd;
         bool close_stdin = stdin_fd >= 0 && stdin_fd != stdout_fd && stdin_fd != stderr_fd;
@@ -58,7 +63,6 @@ spawn(struct reaper *reaper, const char *cwd, char *const argv[],
                                 || (close_stdout && close(stdout_fd) < 0))) ||
             (stderr_fd >= 0 && (dup2(stderr_fd, STDERR_FILENO) < 0
                                 || (close_stderr && close(stderr_fd) < 0))) ||
-            (cwd != NULL && chdir(cwd) < 0) ||
             execvp(argv[0], argv) < 0)
         {
             goto child_err;
