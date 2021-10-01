@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.9.1](#1-9-1)
 * [1.9.0](#1-9-0)
 * [1.8.2](#1-8-2)
 * [1.8.1](#1-8-1)
@@ -30,7 +30,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.9.1
+
 ### Added
 
 * Warn when it appears the primary font is not monospaced. Can be
@@ -61,8 +62,6 @@
   (https://codeberg.org/dnkl/foot/issues/714).
 
 
-### Deprecated
-### Removed
 ### Fixed
 
 * Added workaround for GNOME bug where multiple button press events
@@ -72,10 +71,10 @@
   (https://codeberg.org/dnkl/foot/issues/726).
 
 
-### Security
 ### Contributors
 
 * [craigbarnes](https://codeberg.org/craigbarnes)
+* Arnavion
 
 
 ## 1.9.0
