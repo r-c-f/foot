@@ -1,7 +1,7 @@
 PGO=auto           # auto|none|partial|full-current-session|full-headless-sway|full-headless-cage
 
 pkgname=('foot-git' 'foot-terminfo-git')
-pkgver=1.9.0
+pkgver=1.9.1
 pkgrel=1
 arch=('x86_64' 'aarch64')
 url=https://codeberg.org/dnkl/foot
