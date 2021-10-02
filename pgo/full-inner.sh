@@ -15,10 +15,10 @@ rm -f "${blddir}"/pgo-ok
 # To ensure profiling data is generated in the build directory
 cd "${blddir}"
 
-LC_CTYPE=en_US.UTF-8 "${blddir}"/footclient --version
-LC_CTYPE=en_US.UTF-8 "${blddir}"/foot \
-        --config=/dev/null \
-        --term=xterm \
+"${blddir}"/footclient --version
+"${blddir}"/foot \
+           --config=/dev/null \
+           --term=xterm \
         sh -c "
           set -eux
 
