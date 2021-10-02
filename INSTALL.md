@@ -281,8 +281,8 @@ reason there are a number of helper scripts available.
 scripts in the `pgo` directory to do a complete PGO build. This script
 is intended to be used when doing manual builds.
 
-Note that all “full” (which `auto` will prefer, if possible) PGO
-builds **require** `LC_CTYPE` to be set to an UTF-8 locale. This is
+Note that all “full” PGO builds (which `auto` will prefer, if
+possible) **require** `LC_CTYPE` to be set to an UTF-8 locale. This is
 **not** done automatically.
 
 Example:
