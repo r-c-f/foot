@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.9.2](#1-9-2)
 * [1.9.1](#1-9-1)
 * [1.9.0](#1-9-0)
 * [1.8.2](#1-8-2)
@@ -31,21 +31,14 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
-### Added
+## 1.9.2
+
 ### Changed
 
 * PGO helper scripts no longer set `LC_CTYPE=en_US.UTF-8`. But, note
   that “full” PGO builds still **require** an UTF-8 locale; you need
   to set one manually in your build script
   (https://codeberg.org/dnkl/foot/issues/728).
-
-
-### Deprecated
-### Removed
-### Fixed
-### Security
-### Contributors
 
 
 ## 1.9.1
