@@ -13,7 +13,7 @@
 #
 #  - full-headless-cage: run a “full” PGO build inside a headless Cage
 #    instance. Requires cage to be installed. Will generate lots of
-#    Cage warnings, but seems to procude a fully working (and well
+#    Cage warnings, but seems to produce a fully working (and well
 #    optimized) foot build.
 #
 #  - partial: run a “partial” PGO build. This requires neither a
