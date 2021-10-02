@@ -17,7 +17,9 @@
 #    optimized) foot build.
 #
 #  - partial: run a “partial” PGO build. This requires neither a
-#    running Wayland session, nor an installed Wayland compositor.
+#    running Wayland session, nor an installed Wayland compositor, but
+#    the resulting binary is slower compared to “full” PGO builds
+#    (though still faster than regular release builds).
 #
 # Note that “full-*” (which “auto” will prefer) requires an UTF-8
 # locale. Either make sure LC_CTYPE is set to an UTF-8 locale, or do a
