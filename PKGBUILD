@@ -26,7 +26,7 @@
 PGO=auto
 
 pkgname=('foot-git' 'foot-terminfo-git')
-pkgver=1.9.1
+pkgver=1.9.2
 pkgrel=1
 arch=('x86_64' 'aarch64')
 url=https://codeberg.org/dnkl/foot
