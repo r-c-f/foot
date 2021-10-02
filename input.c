@@ -979,7 +979,7 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     }
 
     xkb_mod_mask_t mods = xkb_state_serialize_mods(
-        seat->kbd.xkb_state, XKB_STATE_MODS_DEPRESSED);
+        seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
     xkb_mod_mask_t consumed = xkb_state_key_get_consumed_mods(
         seat->kbd.xkb_state, key);
 
@@ -1237,13 +1237,13 @@ keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial,
 
         /* Update state of modifiers we're interested in for e.g mouse events */
         seat->kbd.shift = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_shift, XKB_STATE_MODS_DEPRESSED);
+            seat->kbd.xkb_state, seat->kbd.mod_shift, XKB_STATE_MODS_EFFECTIVE);
         seat->kbd.alt = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_alt, XKB_STATE_MODS_DEPRESSED);
+            seat->kbd.xkb_state, seat->kbd.mod_alt, XKB_STATE_MODS_EFFECTIVE);
         seat->kbd.ctrl = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_ctrl, XKB_STATE_MODS_DEPRESSED);
+            seat->kbd.xkb_state, seat->kbd.mod_ctrl, XKB_STATE_MODS_EFFECTIVE);
         seat->kbd.meta = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_meta, XKB_STATE_MODS_DEPRESSED);
+            seat->kbd.xkb_state, seat->kbd.mod_meta, XKB_STATE_MODS_EFFECTIVE);
     }
 
     if (seat->kbd_focus && seat->kbd_focus->active_surface == TERM_SURF_GRID)
@@ -1953,7 +1953,7 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                     /* Seat has keyboard - use mouse bindings *with* modifiers */
 
                     xkb_mod_mask_t mods = xkb_state_serialize_mods(
-                        seat->kbd.xkb_state, XKB_STATE_MODS_DEPRESSED);
+                        seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
 
                     /* Ignore Shift when matching modifiers, since it is
                      * used to enable selection in mouse grabbing client

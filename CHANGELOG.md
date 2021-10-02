@@ -38,6 +38,12 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* ‘Sticky’ modifiers in input handling; when determining modifier
+  state, foot was looking at **depressed** modifiers, not
+  **effective** modifiers, like it should.
+
+
 ### Security
 ### Contributors
 
