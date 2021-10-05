@@ -34,6 +34,11 @@
 
 ## Unreleased
 ### Added
+
+* `notify-focus-inhibit` boolean option, which can be used to control whether
+  desktop notifications should be inhibited when the terminal has keyboard
+  focus
+
 ### Changed
 ### Deprecated
 ### Removed
