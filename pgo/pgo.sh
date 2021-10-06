@@ -19,6 +19,11 @@ shift 3
 #     exit 1
 # fi
 
+if [ ! -f "${srcdir}"/generate-version.sh ]; then
+   echo "error: ${srcdir}: does not appear to be a foot source directory"
+   exit 1
+fi
+
 compiler=other
 do_pgo=no
 
