@@ -928,6 +928,29 @@ UNITTEST
 }
 
 static void
+get_current_modifiers(const struct seat *seat,
+                      xkb_mod_mask_t *effective,
+                      xkb_mod_mask_t *consumed, uint32_t key)
+{
+    const xkb_mod_mask_t ctrl = 1 << seat->kbd.mod_ctrl;
+    const xkb_mod_mask_t alt = 1 << seat->kbd.mod_alt;
+    const xkb_mod_mask_t shift = 1 << seat->kbd.mod_shift;
+    const xkb_mod_mask_t meta = 1 << seat->kbd.mod_meta;
+    const xkb_mod_mask_t significant = ctrl | alt | shift | meta;
+
+    if (effective != NULL) {
+        *effective = xkb_state_serialize_mods(
+            seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
+        *effective &= significant;
+    }
+
+    if (consumed != NULL) {
+        *consumed = xkb_state_key_get_consumed_mods(seat->kbd.xkb_state, key);
+        *consumed &= significant;
+    }
+}
+
+static void
 key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
                   uint32_t key, uint32_t state)
 {
@@ -938,10 +961,6 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         return;
     }
 
-    const xkb_mod_mask_t ctrl = 1 << seat->kbd.mod_ctrl;
-    const xkb_mod_mask_t alt = 1 << seat->kbd.mod_alt;
-    const xkb_mod_mask_t shift = 1 << seat->kbd.mod_shift;
-    const xkb_mod_mask_t meta = 1 << seat->kbd.mod_meta;
 
     if (state == XKB_KEY_UP) {
         stop_repeater(seat, key);
@@ -978,14 +997,8 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         return;
     }
 
-    xkb_mod_mask_t mods = xkb_state_serialize_mods(
-        seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
-    xkb_mod_mask_t consumed = xkb_state_key_get_consumed_mods(
-        seat->kbd.xkb_state, key);
-
-    xkb_mod_mask_t significant = ctrl | alt | shift | meta;
-    mods &= significant;
-    consumed &= significant;
+    xkb_mod_mask_t mods, consumed;
+    get_current_modifiers(seat, &mods, &consumed, key);
 
     xkb_layout_index_t layout_idx =
         xkb_state_key_get_layout(seat->kbd.xkb_state, key);
@@ -1155,7 +1168,7 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     }
 
     else {
-        if (mods & alt) {
+        if (mods & (1 << seat->kbd.mod_alt)) {
             /*
              * When the alt modifier is pressed, we do one out of three things:
              *
@@ -1952,8 +1965,8 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                 if (seat->wl_keyboard != NULL && seat->kbd.xkb_state != NULL) {
                     /* Seat has keyboard - use mouse bindings *with* modifiers */
 
-                    xkb_mod_mask_t mods = xkb_state_serialize_mods(
-                        seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
+                    xkb_mod_mask_t mods;
+                    get_current_modifiers(seat, &mods, NULL, 0);
 
                     /* Ignore Shift when matching modifiers, since it is
                      * used to enable selection in mouse grabbing client
