@@ -238,6 +238,7 @@ struct config {
     } selection_target;
 
     struct config_spawn_template notify;
+    bool notify_focus_inhibit;
 
     struct {
         enum fcft_scaling_filter fcft_filter;

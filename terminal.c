@@ -3081,10 +3081,10 @@ term_bell(struct terminal *term)
                 term_damage_margins(term);
             }
         }
-
-        if (term->conf->bell.notify)
-            notify_notify(term, "Bell", "Bell in terminal");
     }
+
+    if (term->conf->bell.notify)
+        notify_notify(term, "Bell", "Bell in terminal");
 
     if ((term->conf->bell.command.argv.args != NULL) &&
         (!term->kbd_focus || term->conf->bell.command_focused))

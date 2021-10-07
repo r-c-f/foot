@@ -279,10 +279,16 @@ in this order:
 	
 		- OSC 777: *\\e]777;notify;<title>;<body>\\e\\\\*
 	
-	Notifications are *inhibited* if the foot window has keyboard
-	focus.
+	By default, notifications are *inhibited* if the foot window
+	has keyboard focus. See _notify-focus-inhibit_.
 	
 	Default: _notify-send -a ${app-id} -i ${app-id} ${title} ${body}_.
+
+*notify-focus-inhibit*
+	Boolean. If enabled, foot will not display notifications if the
+	terminal window has keyboard focus.
+
+	Default: _yes_
 
 *selection-target*
 	Clipboard target to automatically copy selected text to. One of
@@ -316,8 +322,10 @@ in this order:
 *notify*
 	When set to _yes_, foot will emit a desktop notification using
 	the command specified in the *notify* option whenever *BEL* is
-	received and the window does *not* have keyboard focus. Default:
-	_no_
+	received. By default, bell notifications are shown only when the
+	window does *not* have keyboard focus. See _notify-focus-inhibit_.
+
+	Default: _no_
 
 *command*
 	When set, foot will execute this command when *BEL* is received.

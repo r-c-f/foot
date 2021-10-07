@@ -1012,6 +1012,10 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         }
     }
 
+    else if (strcmp(key, "notify-focus-inhibit") == 0) {
+        conf->notify_focus_inhibit = str_to_bool(value);
+    }
+
     else if (strcmp(key, "url-launch") == 0) {
         deprecated_url_option(
             conf, "url-launch", "launch", path, lineno);
@@ -2956,6 +2960,7 @@ config_load(struct config *conf, const char *conf_path,
         .notify = {
             .argv = {.args = NULL},
         },
+        .notify_focus_inhibit = true,
 
         .tweak = {
             .fcft_filter = FCFT_SCALING_FILTER_LANCZOS3,
