@@ -322,6 +322,8 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
         sizes[i] = stride[i] * heights[i];
         total_size += sizes[i];
     }
+    if (total_size == 0)
+        return;
 
     int pool_fd = -1;
 
@@ -486,7 +488,7 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
     }
 #endif
 
-    if (!shm_can_scroll(bufs[0])) {
+    if (!(bufs[0] && shm_can_scroll(bufs[0]))) {
         /* We only need to keep the pool FD open if we’re going to SHM
          * scroll it */
         close(pool_fd);

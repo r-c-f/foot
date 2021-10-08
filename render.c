@@ -1673,7 +1673,8 @@ render_csd_title(struct terminal *term, const struct csd_data *info,
     xassert(term->window->csd_mode == CSD_YES);
 
     struct wl_surf_subsurf *surf = &term->window->csd.surface[CSD_SURF_TITLE];
-    xassert(info->width > 0 && info->height > 0);
+    if (info->width == 0 || info->height == 0)
+        return;
 
     xassert(info->width % term->scale == 0);
     xassert(info->height % term->scale == 0);
