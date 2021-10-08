@@ -18,7 +18,7 @@ trap cleanup EXIT INT HUP TERM
 > "${sway_conf}" echo "exec '${srcdir}'/pgo/full-headless-sway-inner.sh '${srcdir}' '${blddir}'"
 
 # Run Sway. full-headless-sway-inner.sh ends with a ‘swaymsg exit’
-XDG_RUNTIME_DIR="${runtime_dir}" WLR_BACKENDS=headless sway -c "${sway_conf}"
+XDG_RUNTIME_DIR="${runtime_dir}" WLR_RENDERER=pixman WLR_BACKENDS=headless sway -c "${sway_conf}"
 
 # Sway’s exit code doesn’t reflect our script’s exit code
 [ -f "${blddir}"/pgo-ok ] || exit 1
