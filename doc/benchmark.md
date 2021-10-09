@@ -67,15 +67,15 @@ Scrollback=10000 lines
 ### Results
 
 
-| Benchmark (times in ms)       | Foot (GCC+PGO) 1.8.0 | Foot 1.8.0 | Alacritty 0.8.0 | URxvt 9.26 | XTerm 368 |
+| Benchmark (times in ms)       | Foot (GCC+PGO) 1.9.2 | Foot 1.9.2 | Alacritty 0.9.0 | URxvt 9.26 | XTerm 369 |
 |-------------------------------|---------------------:|-----------:|----------------:|-----------:|----------:|
-| cursor motion                 |                14.49 |      16.60 |           26.89 |      23.45 |   1303.38 |
-| dense cells                   |                41.00 |      52.45 |           92.02 |    1486.57 |  11957.00 |
-| light cells                   |                 7.97 |       8.54 |           21.43 |      20.45 |    111.96 |
-| scrollling                    |               158.85 |     158.90 |          148.06 |     138.98 |  10083.00 |
-| scrolling bottom region       |               153.83 |     151.38 |          142.13 |     151.30 |   9988.50 |
-| scrolling bottom small region |               143.51 |     141.46 |          162.03 |     192.37 |   9938.00 |
-| scrolling fullscreen          |                11.56 |      11.75 |           22.96 |      21.49 |    295.40 |
-| scrolling top region          |               148.96 |     148.18 |          155.05 |     482.05 |  10036.00 |
-| scrolling top small region    |               144.26 |     149.76 |          159.40 |     321.69 |   9942.50 |
-| unicode                       |                21.02 |      22.09 |           25.79 |   14959.00 |  88697.00 |
+| cursor motion                 |                13.50 |      16.32 |           27.10 |      23.46 |   1415.38 |
+| dense cells                   |                38.77 |      53.13 |           89.36 |    2007.00 |   2126.60 |
+| light cells                   |                 7.73 |       8.72 |           20.35 |      21.06 |    113.34 |
+| scrollling                    |               150.27 |     153.76 |          145.07 |     139.23 |  10088.00 |
+| scrolling bottom region       |               144.88 |     148.44 |          129.13 |     156.86 |  10166.00 |
+| scrolling bottom small region |               142.45 |     137.81 |          167.63 |     183.35 |   9831.50 |
+| scrolling fullscreen          |                11.23 |      11.91 |           20.12 |      21.21 |    290.80 |
+| scrolling top region          |               143.80 |     147.37 |          148.63 |     489.57 |  10029.00 |
+| scrolling top small region    |               139.76 |     144.37 |          165.97 |     308.76 |   9877.00 |
+| unicode                       |                21.94 |      21.50 |           27.72 |    1344.88 |   7402.00 |
