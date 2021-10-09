@@ -30,21 +30,18 @@ Scrollback: 10000 lines
 
 ### Results
 
-| Benchmark (times in ms)       | Foot (GCC+PGO) 1.8.0 | Foot 1.8.0 | Alacritty 0.8.0 | URxvt 9.26 | XTerm 368 |
+| Benchmark (times in ms)       | Foot (GCC+PGO) 1.9.2 | Foot 1.9.2 | Alacritty 0.9.0 | URxvt 9.26 | XTerm 369 |
 |-------------------------------|---------------------:|-----------:|----------------:|-----------:|----------:|
-| cursor motion                 |                12.93 |      15.37 |           26.47 |      23.41 |   1304.00 |
-| dense cells                   |                39.16 |      47.19 |           87.26 |    9110.00 |  10883.00 |
-| light cells                   |                 5.34 |       6.42 |           12.76 |      16.00 |     60.00 |
-| scrollling                    |               144.26 |     139.93 |          133.98 |     117.52 |   3772.67 |
-| scrolling bottom region       |               130.81 |     125.34 |          116.10 |     117.31 |   3574.67 |
-| scrolling bottom small region |               142.46 |     127.52 |          127.32 |     135.18 |   3572.67 |
-| scrolling fullscreen          |                 5.43 |       5.27 |           12.06 |      11.97 |    118.62 |
-| scrolling top region          |               129.05 |     120.24 |          121.65 |     341.70 |   3567.33 |
-| scrolling top small region    |               121.59 |     109.82 |          137.03 |     219.96 |   3558.67 |
-| unicode                       |                12.03 |      11.95 |           13.94 |     667.67 |   4905.67 |
-
-
-![Graph of benchmark results for a beefy desktop system](benchmark-results-desktop.svg)
+| cursor motion                 |                13.69 |      15.63 |           29.16 |      23.69 |   1341.75 |
+| dense cells                   |                40.77 |      50.76 |           92.39 |   13912.00 |   1959.00 |
+| light cells                   |                 5.41 |       6.49 |           12.25 |      16.14 |     66.21 |
+| scrollling                    |               125.43 |     133.00 |          110.90 |      98.29 |   4010.67 |
+| scrolling bottom region       |               111.90 |     103.95 |          106.35 |     103.65 |   3787.00 |
+| scrolling bottom small region |               120.93 |     112.48 |          129.61 |     137.21 |   3796.67 |
+| scrolling fullscreen          |                 5.42 |       5.67 |           11.52 |      12.00 |    124.33 |
+| scrolling top region          |               110.66 |     107.61 |          100.52 |     340.90 |   3835.33 |
+| scrolling top small region    |               120.48 |     111.66 |          129.62 |     213.72 |   3805.33 |
+| unicode                       |                10.19 |      11.27 |           14.72 |     787.77 |   4741.00 |
 
 
 ## 2021-03-20
@@ -82,5 +79,3 @@ Scrollback=10000 lines
 | scrolling top region          |               148.96 |     148.18 |          155.05 |     482.05 |  10036.00 |
 | scrolling top small region    |               144.26 |     149.76 |          159.40 |     321.69 |   9942.50 |
 | unicode                       |                21.02 |      22.09 |           25.79 |   14959.00 |  88697.00 |
-
-![Graph of benchmark results for a laptop](benchmark-results-laptop.svg)
