@@ -1324,6 +1324,18 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
         return true;
     }
 
+    else if (strcmp(key, "scrollback-indicator") == 0) {
+        if (!str_to_two_colors(
+                value, &conf->colors.scrollback_indicator.fg, &conf->colors.scrollback_indicator.bg,
+                false, conf, path, lineno, "colors", "scrollback-indicator"))
+        {
+            return false;
+        }
+
+        conf->colors.use_custom.scrollback_indicator = true;
+        return true;
+    }
+
     else if (strcmp(key, "urls") == 0) {
         if (!str_to_color(value, &conf->colors.url, false,
                           conf, path, lineno, "colors", "urls"))
@@ -2926,6 +2938,7 @@ config_load(struct config *conf, const char *conf_path,
             .use_custom = {
                 .selection = false,
                 .jump_label = false,
+                .scrollback_indicator = false,
                 .url = false,
             },
         },

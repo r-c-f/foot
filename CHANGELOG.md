@@ -38,6 +38,8 @@
 * `notify-focus-inhibit` boolean option, which can be used to control whether
   desktop notifications should be inhibited when the terminal has keyboard
   focus
+* `colors.scrollback-indicator` color-pair option, which specifies foreground
+  and background colors for the scrollback indicator.
 
 ### Changed
 ### Deprecated

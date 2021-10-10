@@ -513,6 +513,13 @@ _alpha_ option.
 	colors to use when rendering jump labels in URL mode. Default:
 	_regular0 regular3_.
 
+*scrollback-indicator*
+	Two RRGGBB values specifying the foreground (text) and background
+	(indicator itself) colors for the scrollback indicator.
+	
+	Default: first regular color (black) for foreground,
+	and fifth bright color (light blue) for background.
+
 *urls*
 	Color to use for the underline used to highlight URLs in URL
 	mode. Default: _regular3_.
