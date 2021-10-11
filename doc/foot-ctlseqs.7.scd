@@ -128,13 +128,13 @@ equivalent to 8-bit C1 controls.
 
 # CSI
 
-All sequences begin with *\\E[*, sometimes abbreviated _CSI_. Spaces
+All sequences begin with *\\E[*, sometimes abbreviated "CSI". Spaces
 are used in the sequence strings to make them easier to read, but are
-not actually part of the string. I.e. *\\E[ 1 m* is really *\\E[1m*.
+not actually part of the string (i.e. *\\E[ 1 m* is really *\\E[1m*).
 
 ## SGR
 
-All SGR sequences are in the form *\\E[ <N> m*, where _N_ is a decimal
+All SGR sequences are in the form *\\E[* _N_ *m*, where _N_ is a decimal
 number - the _parameter_. Multiple parameters can be combined in a
 single CSI sequence by separating them with semicolons: *\\E[ 1;2;3
 m*.
@@ -197,14 +197,14 @@ parameter based variants for setting foreground and background colors.
 
 Indexed colors:
 
-- *\\E[ 38:5:<idx> m*
-- *\\E[ 38;5;<idx> m*
+- *\\E[ 38 : 5 :* _idx_ *m*
+- *\\E[ 38 ; 5 ;* _idx_ *m*
 
 RGB colors:
 
-- *\\E[ 38:2:<cs>:<r>:<g>:<b> m*
-- *\\E[ 38:2:<r>:<g>:<b> m*
-- *\\E[ 38;2;<r>;<g>;<b> m*
+- *\\E[ 38 : 2 :* _cs_ *:* _r_ *:* _g_ *:* _b_ *m*
+- *\\E[ 38 : 2 :* _r_ *:* _g_ *:* _b_ *m*
+- *\\E[ 38 ; 2 ;* _r_ *;* _g_ *;* _b_ *m*
 
 The first variant is the "correct" one (and foot also recognizes, but
 ignores, the optional _tolerance_ parameters).
@@ -212,8 +212,8 @@ ignores, the optional _tolerance_ parameters).
 The second one is allowed since many programs "forget" the color space
 ID, _cs_.
 
-The sub-parameter based variants are preferred, and what foot's
-terminfo uses.
+The sub-parameter based variants are preferred, and are what foot's
+*terminfo*(5) entry uses.
 
 ## Private Modes
 
