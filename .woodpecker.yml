@@ -1,8 +1,3 @@
-clone:
-  git:
-    image: plugins/git
-    tags: true
-
 pipeline:
   codespell:
     when: { branch: master }
@@ -42,6 +37,8 @@ pipeline:
       - meson --buildtype=debug -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled -Dfcft:test-text-shaping=true ../..
       - ninja -v -k0
       - ninja -v test
+      - ./foot --version
+      - ./footclient --version
       - cd ../..
 
       # Release
@@ -50,6 +47,8 @@ pipeline:
       - meson --buildtype=release -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled  -Dfcft:test-text-shaping=true ../..
       - ninja -v -k0
       - ninja -v test
+      - ./foot --version
+      - ./footclient --version
       - cd ../..
 
       # no grapheme clustering
@@ -59,6 +58,8 @@ pipeline:
       - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:text-shaping=disabled -Dfcft:test-text-shaping=false ../..
       - ninja -v -k0
       - ninja -v test
+      - ./foot --version
+      - ./footclient --version
       - cd ../..
 
   x86:
@@ -80,6 +81,8 @@ pipeline:
       - meson --buildtype=debug -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled  -Dfcft:test-text-shaping=true ../..
       - ninja -v -k0
       - ninja -v test
+      - ./foot --version
+      - ./footclient --version
       - cd ../..
 
       # Release
@@ -88,4 +91,6 @@ pipeline:
       - meson --buildtype=release -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled  -Dfcft:test-text-shaping=true ../..
       - ninja -v -k0
       - ninja -v test
+      - ./foot --version
+      - ./footclient --version
       - cd ../..
