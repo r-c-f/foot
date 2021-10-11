@@ -134,12 +134,12 @@ not actually part of the string. I.e. *\\E[ 1 m* is really *\\E[1m*.
 
 ## SGR
 
-All SGR sequences are on the form *\\E[ <N> m*, where _N_ is a decimal
+All SGR sequences are in the form *\\E[ <N> m*, where _N_ is a decimal
 number - the _parameter_. Multiple parameters can be combined in a
 single CSI sequence by separating them with semicolons: *\\E[ 1;2;3
 m*.
 
-[[ *Sequence*
+[[ *Parameter*
 :[ *Description*
 |  0
 :  Reset all attributes
