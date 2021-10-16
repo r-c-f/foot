@@ -18,6 +18,7 @@ cd "${blddir}"
 "${blddir}"/footclient --version
 "${blddir}"/foot \
            --config=/dev/null \
+           --override tweak.grapheme-shaping=no \
            --term=xterm \
         sh -c "
           set -eux

@@ -47,6 +47,8 @@
   itself, and fcft has been compiled with support for it.
 * Default value of `[tweak].grapheme-width-method` changed from
   `double-width` to `wcswidth`.
+* INSTALL.md: `--override tweak.grapheme-shaping=no` added to PGO
+  command line.
 
 
 ### Deprecated
