@@ -441,10 +441,12 @@ contributing foot's [logo](icons/hicolor/48x48/apps/foot.png).
 
 Please report bugs to https://codeberg.org/dnkl/foot/issues
 
+Before you open a new issue, please search existing bug reports, both
+open **and** closed ones. Chances are someone else has already
+reported the same issue.
+
 The report should contain the following:
 
-- Search existing bug reports, both open **and** closed ones. Chances
-  are someone else has already reported the same issue.
 - Foot version (`foot --version`).
 - Log output from foot (start foot from another terminal).
 - Which Wayland compositor (and version) you are running.
