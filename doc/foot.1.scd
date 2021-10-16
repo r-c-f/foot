@@ -422,12 +422,15 @@ Please report bugs to https://codeberg.org/dnkl/foot/issues
 
 The report should contain the following:
 
-- Which Wayland compositor (and version) you are running
-- Foot version (*foot --version*)
-- Log output from foot (start foot from another terminal)
+- Search existing bug reports, both open **and** closed ones. Chances
+  are someone else has already reported the same issue.
+- Foot version (*foot --version*).
+- Log output from foot (start foot from another terminal).
+- Which Wayland compositor (and version) you are running.
 - If reporting a crash, please try to provide a *bt full* backtrace
-  with symbols
-- Steps to reproduce. The more details the better
+  with symbols.
+- Steps to reproduce. The more details the better.
+
 
 # IRC
 
