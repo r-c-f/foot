@@ -2396,8 +2396,8 @@ parse_section_tweak(
              * grapheme-clustering at least */
         }
 
-        if (conf->tweak.grapheme_shaping)
-            LOG_WARN("tweak: grapheme shaping");
+        if (!conf->tweak.grapheme_shaping)
+            LOG_WARN("tweak: grapheme shaping disabled");
     }
 
     else if (strcmp(key, "grapheme-width-method") == 0) {
@@ -2978,8 +2978,10 @@ config_load(struct config *conf, const char *conf_path,
         .tweak = {
             .fcft_filter = FCFT_SCALING_FILTER_LANCZOS3,
             .overflowing_glyphs = true,
-            .grapheme_shaping = false,
-            .grapheme_width_method = GRAPHEME_WIDTH_DOUBLE,
+#if defined(FOOT_GRAPHEME_CLUSTERING) && FOOT_GRAPHEME_CLUSTERING
+            .grapheme_shaping = fcft_caps & FCFT_CAPABILITY_GRAPHEME_SHAPING,
+#endif
+            .grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH,
             .delayed_render_lower_ns = 500000,         /* 0.5ms */
             .delayed_render_upper_ns = 16666666 / 2,   /* half a frame period (60Hz) */
             .max_shm_pool_size = 512 * 1024 * 1024,

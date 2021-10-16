@@ -42,6 +42,13 @@
   and background colors for the scrollback indicator.
 
 ### Changed
+
+* `[tweak].grapheme-shaping` is now enabled by default when both foot
+  itself, and fcft has been compiled with support for it.
+* Default value of `[tweak].grapheme-width-method` changed from
+  `double-width` to `wcswidth`.
+
+
 ### Deprecated
 ### Removed
 ### Fixed

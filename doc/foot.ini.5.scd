@@ -1020,23 +1020,15 @@ any of these options.
 	
 	This is required to render e.g. flag (emoji) sequences, keycap
 	sequences, modifier sequences, zero-width-joiner (ZWJ) sequences
-	andn emoji tag sequences. It might also improve rendering of
+	and emoji tag sequences. It might also improve rendering of
 	composed characters, depending on font.
-	
-	This is an experimental feature with the following requirements
-	and limitations:
 	
 		- foot must have been compiled with utf8proc support
 		- fcft must have been compiled with HarfBuzz support
-		- This option must be set to true
-		- Foot will use *wcswidth*(3) to calculate a cluster's display
-	      width. This will typically _not_ match the shaped glyph's
-	      width, but is necessary to not break cursor synchronization
-	      with the application running in foot.
 	
 	See also: *grapheme-width-method*.
 	
-	Default: _no_
+	Default: _yes_
 
 *grapheme-width-method*
 	Selects which method to use when calculating the width
@@ -1047,12 +1039,12 @@ any of these options.
 	codepoints making up the cluster.
 	
 	*double-width* does the same, but limits the maximum number of
-	columns to 2. This is more correct, but is likely to break
+	columns to 2. This is more correct, but may break some
 	applications since applications typically use *wcswidth*(3)
 	internally to calculate the width. This results in cursor
 	de-synchronization issues.
 	
-	Default: _double-width_
+	Default: _wcswidth_
 
 *font-monospace-warn*
 	Boolean. When enabled, foot will use heuristics to try to verify
