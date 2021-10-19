@@ -59,6 +59,8 @@
   state, foot was looking at **depressed** modifiers, not
   **effective** modifiers, like it should.
 * Fix crashes after enabling CSD at runtime when `csd.size` is 0.
+* Convert `\r` to `\n` when reading clipboard data
+  (https://codeberg.org/dnkl/foot/issues/752).
 
 
 ### Security
