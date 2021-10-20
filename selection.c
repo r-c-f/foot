@@ -1609,6 +1609,11 @@ fdm_receive_timeout(struct fdm *fdm, int fd, int events, void *data)
 static void
 fdm_receive_decoder_plain(struct clipboard_receive *ctx, char *data, size_t size)
 {
+    /* \r -> \n */
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] == '\r')
+            data[i] = '\n';
+    }
     ctx->cb(data, size, ctx->user);
 }
 
