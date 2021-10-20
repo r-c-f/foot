@@ -11,6 +11,7 @@
 #include "base64.h"
 #include "config.h"
 #include "grid.h"
+#include "macros.h"
 #include "notify.h"
 #include "render.h"
 #include "selection.h"
@@ -345,12 +346,10 @@ parse_rgb(const char *string, uint32_t *color, bool *_have_alpha,
 
     /* Verify we have the minimum required length (for "") */
     if (have_alpha) {
-        /* rgba:x/x/x/x */
-        if (len < 4 /* 'rgba' */ + 1 /* ':' */ + 3 /* '/' */ + 4 * 1 /* 4 * 'x' */)
+        if (len < STRLEN("rgba:x/x/x/x"))
             return false;
     } else {
-        /* rgb:x/x/x */
-        if (len < 3 /* 'rgb' */ + 1 /* ':' */ + 2 /* '/' */ + 3 * 1 /* 3 * 'x' */)
+        if (len < STRLEN("rgb:x/x/x"))
             return false;
     }
 
