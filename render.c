@@ -2147,12 +2147,12 @@ render_scrollback_position(struct terminal *term)
     wl_subsurface_set_position(
         win->scrollback_indicator.sub, x / scale, y / scale);
 
-	uint32_t fg = term->colors.table[0];
-	uint32_t bg = term->colors.table[8 + 4];
-	if (term->conf->colors.use_custom.scrollback_indicator) {
-	    fg = term->conf->colors.scrollback_indicator.fg;
-	    bg = term->conf->colors.scrollback_indicator.bg;
-	}
+    uint32_t fg = term->colors.table[0];
+    uint32_t bg = term->colors.table[8 + 4];
+    if (term->conf->colors.use_custom.scrollback_indicator) {
+        fg = term->conf->colors.scrollback_indicator.fg;
+        bg = term->conf->colors.scrollback_indicator.bg;
+    }
 
     render_osd(
         term,
