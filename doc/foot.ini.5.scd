@@ -383,7 +383,13 @@ in this order:
 
 *label-letters*
 	String of characters to use when generating key sequences for URL
-	jump labels. Default: _sadfjklewcmpgh_.
+	jump labels.
+	
+	If you change this option to include the letter *t*, you should
+	also change the default *[url-bindings].toggle-url-visible* key
+	binding to avoid a clash.
+	
+	Default: _sadfjklewcmpgh_.
 
 *protocols*
 	Comma separated list of protocols (schemes) that should be
@@ -772,6 +778,9 @@ scrollback search mode. The syntax is exactly the same as the regular
 
 This section lets you override the default key bindings used in URL
 mode. The syntax is exactly the same as the regular **key-bindings**.
+
+Be careful; do not use single-letter keys that are also used in
+*[url].label-letters*, as doing so will make some URLs inaccessible.
 
 *cancel*
 	Exits URL mode without opening an URL. Default: _Control+g
