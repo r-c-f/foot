@@ -158,6 +158,7 @@ vtlib = static_library(
   'composed.c', 'composed.h',
   'csi.c', 'csi.h',
   'dcs.c', 'dcs.h',
+  'macros.h',
   'osc.c', 'osc.h',
   'sixel.c', 'sixel.h',
   'vt.c', 'vt.h',
