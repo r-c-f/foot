@@ -159,7 +159,11 @@ from_clipboard_done(void *user)
         term_to_slave(term, res, 4);
     }
 
-    term_to_slave(term, "\033\\", 2);
+    if (term->vt.osc.bel)
+        term_to_slave(term, "\a", 1);
+    else
+        term_to_slave(term, "\033\\", 2);
+
     free(ctx);
 }
 
@@ -642,10 +646,12 @@ osc_dispatch(struct terminal *term)
                 uint8_t r = (color >> 16) & 0xff;
                 uint8_t g = (color >>  8) & 0xff;
                 uint8_t b = (color >>  0) & 0xff;
+                const char *terminator = term->vt.osc.bel ? "\a" : "\033\\";
 
                 char reply[32];
-                size_t n = xsnprintf(reply, sizeof(reply), "\033]4;%u;rgb:%02x/%02x/%02x\033\\",
-                         idx, r, g, b);
+                size_t n = xsnprintf(
+                    reply, sizeof(reply), "\033]4;%u;rgb:%02x/%02x/%02x%s",
+                    idx, r, g, b, terminator);
                 term_to_slave(term, reply, n);
             }
 
@@ -695,6 +701,7 @@ osc_dispatch(struct terminal *term)
             uint8_t r = (color >> 16) & 0xff;
             uint8_t g = (color >>  8) & 0xff;
             uint8_t b = (color >>  0) & 0xff;
+            const char *terminator = term->vt.osc.bel ? "\a" : "\033\\";
 
             /*
              * Reply in XParseColor format
@@ -702,8 +709,8 @@ osc_dispatch(struct terminal *term)
              */
             char reply[32];
             size_t n = xsnprintf(
-                reply, sizeof(reply), "\033]%u;rgb:%02x/%02x/%02x\033\\",
-                param, r, g, b);
+                reply, sizeof(reply), "\033]%u;rgb:%02x/%02x/%02x%s",
+                param, r, g, b, terminator);
 
             term_to_slave(term, reply, n);
             break;
@@ -761,9 +768,13 @@ osc_dispatch(struct terminal *term)
             uint8_t r = (term->cursor_color.cursor >> 16) & 0xff;
             uint8_t g = (term->cursor_color.cursor >>  8) & 0xff;
             uint8_t b = (term->cursor_color.cursor >>  0) & 0xff;
+            const char *terminator = term->vt.osc.bel ? "\a" : "\033\\";
 
             char reply[32];
-            size_t n = xsnprintf(reply, sizeof(reply), "\033]12;rgb:%02x/%02x/%02x\033\\", r, g, b);
+            size_t n = xsnprintf(
+                reply, sizeof(reply), "\033]12;rgb:%02x/%02x/%02x%s",
+                r, g, b, terminator);
+
             term_to_slave(term, reply, n);
             break;
         }

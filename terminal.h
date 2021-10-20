@@ -172,6 +172,7 @@ struct vt {
         uint8_t *data;
         size_t size;
         size_t idx;
+        bool bel; /* true if OSC string was terminated by BEL */
     } osc;
 
     /* Start coordinate for current OSC-8 URI */

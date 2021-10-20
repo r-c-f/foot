@@ -579,6 +579,7 @@ action_osc_end(struct terminal *term, uint8_t c)
     if (!osc_ensure_size(term, term->vt.osc.idx + 1))
         return;
     term->vt.osc.data[term->vt.osc.idx] = '\0';
+    term->vt.osc.bel = c == '\a';
     osc_dispatch(term);
 }
 
