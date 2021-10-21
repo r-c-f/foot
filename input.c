@@ -954,6 +954,7 @@ static void
 key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
                   uint32_t key, uint32_t state)
 {
+    seat->kbd.serial = serial;
     if (seat->kbd.xkb == NULL ||
         seat->kbd.xkb_keymap == NULL ||
         seat->kbd.xkb_state == NULL)
@@ -1723,6 +1724,7 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
     struct wayland *wayl = seat->wayl;
     struct terminal *term = seat->mouse_focus;
 
+    seat->pointer.serial = serial;
     seat->pointer.hidden = false;
 
     xassert(term != NULL);
