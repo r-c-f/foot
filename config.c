@@ -2405,6 +2405,13 @@ parse_section_tweak(
             conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_DOUBLE;
         else if (strcmp(value, "wcswidth") == 0)
             conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH;
+        else {
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak]: %s: invalid 'grapheme-width-method, "
+                "expected one of 'wcswidth' or 'double-width'",
+                path, lineno, value);
+            return false;
+        }
 
         LOG_WARN("%s:%d [tweak]: grapheme-width-method=%s", path, lineno, value);
     }
