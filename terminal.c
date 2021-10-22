@@ -3041,6 +3041,9 @@ term_set_window_title(struct terminal *term, const char *title)
     if (term->conf->locked_title && term->window_title_has_been_set)
         return;
 
+    if (term->window_title != NULL && strcmp(term->window_title, title) == 0)
+        return;
+
     free(term->window_title);
     term->window_title = xstrdup(title);
     render_refresh_title(term);

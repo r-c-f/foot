@@ -63,6 +63,8 @@
   (https://codeberg.org/dnkl/foot/issues/752).
 * Clipboard occasionally ceasing to work, until window has been
   re-focused (https://codeberg.org/dnkl/foot/issues/753).
+* Don’t propagate window title updates to the Wayland compositor
+  unless the new title is different from the old title.
 
 
 ### Security
