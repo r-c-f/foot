@@ -3072,17 +3072,15 @@ term_bell(struct terminal *term)
     if (!term->bell_action_enabled)
         return;
 
-    if (!term->kbd_focus) {
-        if (term->conf->bell.urgent) {
-            if (!wayl_win_set_urgent(term->window)) {
-                /*
-                 * Urgency (xdg-activation) is relatively new in
-                 * Wayland. Fallback to our old, “faked”, urgency -
-                 * rendering our window margins in red
-                 */
-                term->render.urgency = true;
-                term_damage_margins(term);
-            }
+    if (term->conf->bell.urgent && !term->kbd_focus) {
+        if (!wayl_win_set_urgent(term->window)) {
+            /*
+             * Urgency (xdg-activation) is relatively new in
+             * Wayland. Fallback to our old, “faked”, urgency -
+             * rendering our window margins in red
+             */
+            term->render.urgency = true;
+            term_damage_margins(term);
         }
     }
 
