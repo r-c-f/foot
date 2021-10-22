@@ -304,19 +304,16 @@ in this order:
 # SECTION: bell
 
 *urgent*
-	When set to _yes_, the margins will be painted in red
-	whenever *BEL* is received while the window does *not* have
-	keyboard focus. Note that Wayland currently does not have an
-	_urgency_ hint like X11. The name *urgent* was chosen for
-	forward-compatibility in the hopes that a corresponding Wayland
-	protocol is added in the future (in which case foot will use that
-	instead of painting its margins red).
+	When set to _yes_, foot will signal urgency to the compositor
+	through the XDG activation protocol whenever *BEL* is received,
+	and the window does NOT have keyboard foccus.
+	
+	If the compositor does not implement this protocol, the margins
+	will be painted in red instead.
 	
 	Applications can enable/disable this feature programmatically with
 	the *CSI ? 1042 h* and *CSI ? 1042 l* escape sequences.
 	
-	_Note_: expect this feature to be *replaced* with proper
-	compositor urgency support once/if that gets implemented.
 	Default: _no_
 
 *notify*
