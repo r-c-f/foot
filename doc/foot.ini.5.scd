@@ -823,7 +823,7 @@ say you want to bind *BTN\_MIDDLE* to *fullscreen*. Since
 need to unmap the default binding. This can be done by setting
 _action=none_; e.g. *primary-paste=none*.
 
-All actions listed under *key-bindings* can be user here as well.
+All actions listed under *key-bindings* can be used here as well.
 
 *select-begin*
 	Begin an interactive selection. The selection is finalized, and
