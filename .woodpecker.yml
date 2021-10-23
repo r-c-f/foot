@@ -1,6 +1,9 @@
 pipeline:
   codespell:
-    when: { branch: master }
+    when:
+      branch:
+        - master
+        - releases/*
     image: alpine:latest
     commands:
       - apk add python3
@@ -9,7 +12,10 @@ pipeline:
       - codespell -Ldoas README.md INSTALL.md CHANGELOG.md *.c *.h doc/*.scd
 
   subprojects:
-    when: { branch: master }
+    when:
+      branch:
+        - master
+        - releases/*
     image: alpine:latest
     commands:
       - apk add git
@@ -19,7 +25,10 @@ pipeline:
       - cd ..
 
   x64:
-    when: { branch: master }
+    when:
+      branch:
+        - master
+        - releases/*
     group: build
     image: alpine:latest
     commands:
@@ -63,7 +72,10 @@ pipeline:
       - cd ../..
 
   x86:
-    when: { branch: master }
+    when:
+      branch:
+        - master
+        - releases/*
     group: build
     image: i386/alpine:latest
     commands:
