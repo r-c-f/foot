@@ -87,6 +87,9 @@ execute_binding(struct seat *seat, struct terminal *term,
     case BIND_ACTION_NONE:
         return true;
 
+    case BIND_ACTION_NOOP:
+        return true;
+
     case BIND_ACTION_SCROLLBACK_UP_PAGE:
         if (term->grid == &term->normal) {
             cmd_scrollback_up(term, term->rows);
