@@ -2091,6 +2091,8 @@ alternate_scroll(struct seat *seat, int amount, int button)
     xassert(seat->mouse_focus != NULL);
     struct terminal *term = seat->mouse_focus;
 
+    assert(button == BTN_BACK || button == BTN_FORWARD);
+
     xkb_keycode_t key = button == BTN_BACK
         ? seat->kbd.key_arrow_up : seat->kbd.key_arrow_down;
 
@@ -2110,19 +2112,30 @@ mouse_scroll(struct seat *seat, int amount, enum wl_pointer_axis axis)
         : amount < 0 ? BTN_WHEEL_LEFT : BTN_WHEEL_RIGHT;
     amount = abs(amount);
 
-    if (term->mouse_tracking == MOUSE_NONE) {
+    if (term_mouse_grabbed(term, seat)) {
         if (term->grid == &term->alt) {
-            if (term->alt_scrolling)
-                alternate_scroll(seat, amount, button);
+            if (term->alt_scrolling) {
+                switch (button) {
+                case BTN_BACK:
+                case BTN_FORWARD:
+                    alternate_scroll(seat, amount, button);
+                    break;
+                }
+            }
         } else {
-            if (button == BTN_BACK)
+            switch (button) {
+            case BTN_BACK:
                 cmd_scrollback_up(term, amount);
-            else
+                break;
+
+            case BTN_FORWARD:
                 cmd_scrollback_down(term, amount);
+                break;
+            }
         }
-    } else if (!term_mouse_grabbed(term, seat) &&
-               seat->mouse.col >= 0 && seat->mouse.row >= 0)
-    {
+    }
+
+    else if (seat->mouse.col >= 0 && seat->mouse.row >= 0) {
         xassert(seat->mouse.col < term->cols);
         xassert(seat->mouse.row < term->rows);
 
