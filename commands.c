@@ -18,9 +18,6 @@ cmd_scrollback_up(struct terminal *term, int rows)
     if (urls_mode_is_active(term))
         return;
 
-    if (term->mouse_tracking != MOUSE_NONE)
-        return;
-
     rows = min(rows, term->rows);
     xassert(term->grid->offset >= 0);
 
@@ -96,9 +93,6 @@ cmd_scrollback_down(struct terminal *term, int rows)
     if (term->grid == &term->alt)
         return;
     if (urls_mode_is_active(term))
-        return;
-
-    if (term->mouse_tracking != MOUSE_NONE)
         return;
 
     if (term->grid->view == term->grid->offset)
