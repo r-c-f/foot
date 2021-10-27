@@ -84,6 +84,7 @@ static const uint32_t default_color_table[256] = {
 
 static const char *const binding_action_map[] = {
     [BIND_ACTION_NONE] = NULL,
+    [BIND_ACTION_NOOP] = "noop",
     [BIND_ACTION_SCROLLBACK_UP_PAGE] = "scrollback-up-page",
     [BIND_ACTION_SCROLLBACK_UP_HALF_PAGE] = "scrollback-up-half-page",
     [BIND_ACTION_SCROLLBACK_UP_LINE] = "scrollback-up-line",
