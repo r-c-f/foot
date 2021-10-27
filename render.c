@@ -1508,7 +1508,8 @@ get_csd_data(const struct terminal *term, enum csd_surface surf_idx)
 
     /* Only title bar is rendered in maximized mode */
     const int border_width = !term->window->is_maximized
-        ? term->conf->csd.border_width * term->scale : 0;
+        ? max(term->conf->csd.border_width,
+              term->conf->csd.border_width_visible) * term->scale : 0;
 
     const int title_height = term->window->is_fullscreen
         ? 0
@@ -1565,12 +1566,12 @@ render_csd_part(struct terminal *term,
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    pixman_image_t *src = pixman_image_create_solid_fill(color);
+    //pixman_image_t *src = pixman_image_create_solid_fill(color);
 
     pixman_image_fill_rectangles(
         PIXMAN_OP_SRC, buf->pix[0], color, 1,
         &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
-    pixman_image_unref(src);
+    //pixman_image_unref(src);
 }
 
 static void
@@ -1729,8 +1730,56 @@ render_csd_border(struct terminal *term, enum csd_surface surf_idx,
     xassert(info->width % term->scale == 0);
     xassert(info->height % term->scale == 0);
 
-    pixman_color_t color = color_hex_to_pixman_with_alpha(0, 0);
-    render_csd_part(term, surf, buf, info->width, info->height, &color);
+    {
+        pixman_color_t color = color_hex_to_pixman_with_alpha(0, 0);
+        render_csd_part(term, surf, buf, info->width, info->height, &color);
+    }
+
+    /*
+     * The “visible” border.
+     */
+
+    int bwidth = term->conf->csd.border_width;          /* Full border size */
+    int vwidth = term->conf->csd.border_width_visible;  /* Visibls size */
+
+    if (vwidth > 0) {
+
+        const struct config *conf = term->conf;
+        int x = 0, y = 0, w = 0, h = 0;
+
+        switch (surf_idx) {
+        case CSD_SURF_TOP:
+        case CSD_SURF_BOTTOM:
+            x = bwidth - vwidth;
+            y = surf_idx == CSD_SURF_TOP ? info->height - vwidth : 0;
+            w = info->width - 2 * x;
+            h = vwidth;
+            break;
+
+        case CSD_SURF_LEFT:
+        case CSD_SURF_RIGHT:
+            x = surf_idx == CSD_SURF_LEFT ? bwidth - vwidth : 0;
+            y = 0;
+            w = vwidth;
+            h = info->height;
+            break;
+
+        default:
+            break;
+        }
+
+        uint32_t _color =
+            conf->csd.color.border_set ? conf->csd.color.border :
+            conf->csd.color.title_set ? conf->csd.color.title :
+            0xffu << 24 | term->conf->colors.fg;
+        uint16_t alpha = _color >> 24 | (_color >> 24 << 8);
+        pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
+
+        pixman_image_fill_rectangles(
+            PIXMAN_OP_SRC, buf->pix[0], &color, 1,
+            &(pixman_rectangle16_t){x, y, w, h});
+    }
+
     csd_commit(term, surf, buf);
 }
 

@@ -214,6 +214,7 @@ struct config {
 
         int title_height;
         int border_width;
+        int border_width_visible;
         int button_width;
 
         struct {
@@ -222,11 +223,13 @@ struct config {
             bool minimize_set:1;
             bool maximize_set:1;
             bool close_set:1;
+            bool border_set:1;
             uint32_t title;
             uint32_t buttons;
             uint32_t minimize;
             uint32_t maximize;
             uint32_t close;
+            uint32_t border;
         } color;
 
         struct config_font_list font;
