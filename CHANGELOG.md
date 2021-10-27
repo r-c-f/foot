@@ -43,6 +43,7 @@
 * `[key-bindings].noop` action. Key combinations assigned to this
   action will not be sent to the application
   (https://codeberg.org/dnkl/foot/issues/765).
+* Color schemes are now installed to `${datadir}/foot/themes`.
 
 
 ### Changed
