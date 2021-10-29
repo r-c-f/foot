@@ -39,6 +39,27 @@ sig_handler(int signo)
     aborted = 1;
 }
 
+static ssize_t
+sendall(int sock, const void *_buf, size_t len)
+{
+    const uint8_t *buf = _buf;
+    size_t left = len;
+
+    while (left > 0) {
+        ssize_t r = send(sock, buf, left, 0);
+        if (r < 0) {
+            if (errno == EINTR)
+                continue;
+            return r;
+        }
+
+        buf += r;
+        left -= r;
+    }
+
+    return len;
+}
+
 static const char *
 version_and_features(void)
 {
@@ -385,9 +406,9 @@ main(int argc, char *const *argv)
     }
 
     /* Send everything except argv[] */
-    if (send(fd, &(uint32_t){total_len}, sizeof(uint32_t), 0) != sizeof(uint32_t) ||
-        send(fd, &data, sizeof(data), 0) != sizeof(data) ||
-        send(fd, cwd, cwd_len, 0) != cwd_len)
+    if (sendall(fd, &(uint32_t){total_len}, sizeof(uint32_t)) < 0 ||
+        sendall(fd, &data, sizeof(data)) < 0 ||
+        sendall(fd, cwd, cwd_len) < 0)
     {
         LOG_ERRNO("failed to send setup packet to server");
         goto err;
@@ -397,8 +418,8 @@ main(int argc, char *const *argv)
     tll_foreach(overrides, it) {
         const struct override *o = &it->item;
         struct client_string s = {o->len};
-        if (send(fd, &s, sizeof(s), 0) != sizeof(s) ||
-            send(fd, o->str, o->len, 0) != o->len)
+        if (sendall(fd, &s, sizeof(s)) < 0 ||
+            sendall(fd, o->str, o->len) < 0)
         {
             LOG_ERRNO("failed to send setup packet (overrides) to server");
             goto err;
@@ -407,8 +428,8 @@ main(int argc, char *const *argv)
 
     /* Send argv[] */
     for (size_t i = 0; i < argc; i++) {
-        if (send(fd, &cargv[i], sizeof(cargv[i]), 0) != sizeof(cargv[i]) ||
-            send(fd, argv[i], cargv[i].len, 0) != cargv[i].len)
+        if (sendall(fd, &cargv[i], sizeof(cargv[i])) < 0 ||
+            sendall(fd, argv[i], cargv[i].len) < 0)
         {
             LOG_ERRNO("failed to send setup packet (argv) to server");
             goto err;
