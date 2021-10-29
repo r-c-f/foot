@@ -1489,7 +1489,9 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "size") == 0) {
         unsigned long pixels;
         if (!str_to_ulong(value, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [csd]: size: expected an integer, got '%s'",
+                path, lineno, value);
             return false;
         }
 
@@ -1499,7 +1501,9 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "button-width") == 0) {
         unsigned long pixels;
         if (!str_to_ulong(value, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [csd]: button-width: expected an integer, got '%s'",
+                path, lineno, value);
             return false;
         }
 
@@ -1540,6 +1544,27 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
 
         conf->csd.color.close_set = true;
         conf->csd.color.close = color;
+    }
+
+    else if (strcmp(key, "border-color") == 0) {
+        uint32_t color;
+        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "border-color"))
+            return false;
+
+        conf->csd.color.border_set = true;
+        conf->csd.color.border = color;
+    }
+
+    else if (strcmp(key, "border-width") == 0) {
+        unsigned long width;
+        if (!str_to_ulong(value, 10, &width)) {
+            LOG_AND_NOTIFY_ERR(
+                "%s:%u: [csd]: border-width: expected an integer, got '%s'",
+                path, lineno, value);
+            return false;
+        }
+
+        conf->csd.border_width_visible = width;
     }
 
     else {

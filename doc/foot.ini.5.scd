@@ -564,6 +564,17 @@ component.
 	title bar size. That is, all *:size* and *:pixelsize* attributes
 	will be ignored. Default: _primary font_.
 
+*border-width*
+	Width of the border, in pixels (subject to output scaling). Note
+	that the border encompasses the entire window, including the title
+	bar. Default: _0_.
+
+*border-color*
+	Color of border, on the format AARRGGBB. By default, the title bar
+	color is used. If the title bar color has not been set, the
+	default foreground color (from the color scheme) is used. Default:
+	_titlebar color_.
+
 *button-width*
 	Width, in pixels (subject to output scaling), of the
 	minimize/maximize/close buttons. Default: _26_.
