@@ -1566,12 +1566,9 @@ render_csd_part(struct terminal *term,
 {
     xassert(term->window->csd_mode == CSD_YES);
 
-    //pixman_image_t *src = pixman_image_create_solid_fill(color);
-
     pixman_image_fill_rectangles(
         PIXMAN_OP_SRC, buf->pix[0], color, 1,
         &(pixman_rectangle16_t){0, 0, buf->width, buf->height});
-    //pixman_image_unref(src);
 }
 
 static void
