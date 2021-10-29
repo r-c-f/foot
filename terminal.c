@@ -1033,7 +1033,7 @@ static void fdm_client_terminated(
 struct terminal *
 term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
           struct wayland *wayl, const char *foot_exe, const char *cwd,
-          int argc, char *const *argv,
+          const char *token, int argc, char *const *argv,
           void (*shutdown_cb)(void *data, int exit_code), void *shutdown_data)
 {
     int ptmx = -1;
@@ -1257,7 +1257,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
            sizeof(term->colors.table));
 
     /* Initialize the Wayland window backend */
-    if ((term->window = wayl_win_init(term)) == NULL)
+    if ((term->window = wayl_win_init(term, token)) == NULL)
         goto err;
 
     /* Load fonts */

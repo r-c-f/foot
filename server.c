@@ -244,6 +244,17 @@ fdm_client(struct fdm *fdm, int fd, int events, void *data)
     const char *cwd = (const char *)p; p += cdata.cwd_len;
     LOG_DBG("CWD = %.*s", cdata.cwd_len, cwd);
 
+    /* XDGA token */
+    const char *token = NULL;
+    if (cdata.xdga_token) {
+
+        CHECK_BUF_AND_NULL(cdata.token_len);
+        token = (const char *)p; p += cdata.token_len;
+        LOG_DBG("XDGA = %.*s", cdata.token_len, token);
+    } else {
+        LOG_DBG("No XDGA token");
+    }
+
     /* Overrides */
     for (uint16_t i = 0; i < cdata.override_count; i++) {
         struct client_string arg;
@@ -303,7 +314,7 @@ fdm_client(struct fdm *fdm, int fd, int events, void *data)
 
     instance->terminal = term_init(
         conf != NULL ? conf : server->conf,
-        server->fdm, server->reaper, server->wayl, "footclient", cwd,
+        server->fdm, server->reaper, server->wayl, "footclient", cwd, token,
         cdata.argc, argv, &term_shutdown_handler, instance);
 
     if (instance->terminal == NULL) {
