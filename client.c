@@ -46,7 +46,7 @@ sendall(int sock, const void *_buf, size_t len)
     size_t left = len;
 
     while (left > 0) {
-        ssize_t r = send(sock, buf, left, 0);
+        ssize_t r = send(sock, buf, left, MSG_NOSIGNAL);
         if (r < 0) {
             if (errno == EINTR)
                 continue;
