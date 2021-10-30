@@ -35,6 +35,7 @@ The fast, lightweight and minimalistic Wayland terminal emulator.
 1. [Contact](#contact)
    1. [IRC](#irc)
    1. [Mastodon](#mastodon)
+1. [Sponsoring/donations](#sponsoring-donations)
 1. [License](#license)
 
 
@@ -468,6 +469,11 @@ at https://libera.irclog.whitequark.org/foot.
 
 Every now and then I post foot related updates on
 [@dnkl@linuxrocks.online](https://linuxrocks.online/@dnkl)
+
+
+# Sponsoring/donations
+
+* GitHub Sponsors: https://github.com/sponsors/dnkl
 
 
 # License
