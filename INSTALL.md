@@ -95,15 +95,9 @@ Or use [makepkg](https://wiki.archlinux.org/title/Makepkg) to
 build the bundled [PKGBUILD](PKGBUILD) (run `makepkg` in the source
 root directory).
 
-Unlike the AUR packages, the bundled PKGBUILD **requires**
-[tllist](https://codeberg.org/dnkl/tllist) and
-[fcft](https://codeberg.org/dnkl/fcft) to be installed as system
-libraries. If you do not want this, please edit the PKGBUILD file, or
-install manually (see [Other](#other) below).
-
-Note that it will do a profiling-guided build, and that this requires
-a running wayland session since it needs to run an intermediate build
-of foot.
+The AUR packages, and the bundled PKGBUILD alike, will attempt to do a
+PGO build. This can be tweaked, or disabled, by modifying the `PGO`
+variable in the `PKGBUILD`.
 
 
 ## Other
