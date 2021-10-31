@@ -452,7 +452,7 @@ str_to_wchars(const char *s, wchar_t **res, struct config *conf,
 
     size_t chars = mbstowcs(NULL, s, 0);
     if (chars == (size_t)-1) {
-        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: invalid string: %s",
+        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s is not a valid string value",
                            path, lineno, section, key, s);
         return false;
     }
@@ -470,13 +470,14 @@ str_to_color(const char *s, uint32_t *color, bool allow_alpha,
     unsigned long value;
     if (!str_to_ulong(s, 16, &value)) {
         LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: invalid color: %s", path, lineno, section, key, s);
+            "%s:%d: [%s].%s: %s is not a valid color value",
+            path, lineno, section, key, s);
         return false;
     }
 
     if (!allow_alpha && (value & 0xff000000) != 0) {
         LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: color value must not have an alpha component: %s",
+            "%s:%d: [%s].%s: %s: color value must not have an alpha component",
             path, lineno, section, key, s);
         return false;
     }
@@ -519,8 +520,8 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
         long value = strtol(s, &end, 10);
         if (!(errno == 0 && end == s + len - 2)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: "
-                "expected an integer directly followed by 'px', got '%s'",
+                "%s:%d: [%s].%s: %s: invalid px value "
+                "(must be on the form 12px)",
                 path, lineno, section, key, s);
             return false;
         }
@@ -530,7 +531,7 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
         double value;
         if (!str_to_double(s, &value)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: expected a decimal value, got '%s'",
+                "%s:%d: [%s].%s: %s: invalid decimal value",
                 path, lineno, section, key, s);
             return false;
         }
@@ -564,7 +565,7 @@ str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
         struct config_font font_data;
         if (!config_font_parse(font, &font_data)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: invalid font specification: %s",
+                "%s:%d: [%s].%s: %s: invalid font specification",
                 path, lineno, section, key, font);
             goto err;
         }
@@ -645,8 +646,8 @@ str_to_spawn_template(struct config *conf,
 
     if (!tokenize_cmdline(s, &argv)) {
         LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: syntax error in command line",
-            path, lineno, section, key);
+            "%s:%d: [%s].%s: %s: syntax error in command line",
+            path, lineno, section, key, s);
         return false;
     }
 
@@ -758,9 +759,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         unsigned width, height;
         if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-pixels: "
-                "expected WIDTHxHEIGHT, where both are positive integers, "
-                "got '%s'", path, lineno, value);
+                "%s:%d: [main].initial-window-size-pixels: %s: invalid size "
+                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
             return false;
         }
 
@@ -773,9 +773,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         unsigned width, height;
         if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-chars: "
-                "expected WIDTHxHEIGHT, where both are positive integers, "
-                "got '%s'", path, lineno, value);
+                "%s:%d: [main].initial-window-size-chars: %s: invalid size "
+                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
             return false;
         }
 
@@ -794,8 +793,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
         if ((ret != 2 && ret != 3) || invalid_mode) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].pad: expected PAD_XxPAD_Y [center], "
-                "where both are positive integers, got '%s'",
+                "%s:%d: [main].pad: %s: invalid padding "
+                "(must be on the form PAD_XxPAD_Y [center])",
                 path, lineno, value);
             return false;
         }
@@ -809,8 +808,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         unsigned long ms;
         if (!str_to_ulong(value, 10, &ms)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].resize-delay-ms: "
-                "expected an integer, got '%s'",
+                "%s:%d: [main].resize-delay-ms: %s: invalid integer value",
                 path, lineno, value);
             return false;
         }
@@ -856,9 +854,9 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         }
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s%d: [main].bell: "
-                "expected either 'set-urgency', 'notify' or 'none'",
-                path, lineno);
+                "%s%d: [main].bell: %s: "
+                "not one of 'set-urgency', 'notify' or 'none'",
+                path, lineno, value);
             return false;
         }
     }
@@ -872,9 +870,9 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             conf->startup_mode = STARTUP_FULLSCREEN;
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-mode: expected either "
-                "'windowed', 'maximized' or 'fullscreen'",
-                path, lineno);
+                "%s:%d: [main].initial-window-mode: %s: not one of "
+                "'windows', 'maximized' or 'fullscreen'",
+                path, lineno, value);
             return false;
         }
     }
@@ -890,74 +888,46 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             strcmp(key, "font-bold") == 0 ? 1 :
             strcmp(key, "font-italic") == 0 ? 2 : 3;
 
+        struct config_font_list new_list = str_to_fonts(
+            value, conf, path, lineno, "main", key);
+
+        if (new_list.arr == NULL)
+            return false;
+
         config_font_list_destroy(&conf->fonts[idx]);
-
-        size_t count = 0;
-        size_t size = 0;
-        struct config_font *fonts = NULL;
-
-        char *copy = xstrdup(value);
-        for (const char *font = strtok(copy, ","); font != NULL; font = strtok(NULL, ",")) {
-            /* Trim spaces, strictly speaking not necessary, but looks nice :) */
-            while (*font != '\0' && isspace(*font))
-                font++;
-
-            if (font[0] == '\0')
-                continue;
-
-            struct config_font font_data;
-            if (!config_font_parse(font, &font_data)) {
-                LOG_AND_NOTIFY_ERR(
-                    "%s:%d: [main].%s: invalid font specification: %s",
-                    path, lineno, key, font);
-                free(copy);
-                return false;
-            }
-
-            if (count + 1 > size) {
-                size += 4;
-                fonts = xrealloc(fonts, size * sizeof(fonts[0]));
-            }
-
-            xassert(count + 1 <= size);
-            fonts[count++] = font_data;
-        }
-
-        conf->fonts[idx].count = count;
-        conf->fonts[idx].arr = fonts;
-        free(copy);
+        conf->fonts[idx] = new_list;
     }
 
     else if (strcmp(key, "line-height") == 0) {
         if (!str_to_pt_or_px(value, &conf->line_height,
-                             conf, path, lineno, "default", "line-height"))
+                             conf, path, lineno, "main", "line-height"))
             return false;
     }
 
     else if (strcmp(key, "letter-spacing") == 0) {
         if (!str_to_pt_or_px(value, &conf->letter_spacing,
-                             conf, path, lineno, "default", "letter-spacing"))
+                             conf, path, lineno, "main", "letter-spacing"))
             return false;
     }
 
     else if (strcmp(key, "horizontal-letter-offset") == 0) {
         if (!str_to_pt_or_px(
                 value, &conf->horizontal_letter_offset,
-                conf, path, lineno, "default", "horizontal-letter-offset"))
+                conf, path, lineno, "main", "horizontal-letter-offset"))
             return false;
     }
 
     else if (strcmp(key, "vertical-letter-offset") == 0) {
         if (!str_to_pt_or_px(
                 value, &conf->vertical_letter_offset,
-                conf, path, lineno, "default", "vertical-letter-offset"))
+                conf, path, lineno, "main", "vertical-letter-offset"))
             return false;
     }
 
     else if (strcmp(key, "underline-offset") == 0) {
         if (!str_to_pt_or_px(
                 value, &conf->underline_offset,
-                conf, path, lineno, "default", "underline-offset"))
+                conf, path, lineno, "main", "underline-offset"))
             return false;
         conf->use_custom_underline_offset = true;
     }
@@ -973,7 +943,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         unsigned long count;
         if (!str_to_ulong(value, 10, &count)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].workers: expected an integer, got '%s'",
+                "%s:%d: [main].workers: %s: invalid integer value",
                 path, lineno, value);
             return false;
         }
@@ -983,7 +953,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "word-delimiters") == 0) {
         wchar_t *word_delimiters;
         if (!str_to_wchars(value, &word_delimiters, conf, path, lineno,
-                           "default", "word-delimiters"))
+                           "main", "word-delimiters"))
         {
             return false;
         }
@@ -997,7 +967,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
         wchar_t *letters;
         if (!str_to_wchars(value, &letters, conf, path, lineno,
-                           "default", "label-letters"))
+                           "main", "label-letters"))
         {
             return false;
         }
@@ -1007,7 +977,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 
     else if (strcmp(key, "notify") == 0) {
         if (!str_to_spawn_template(conf, value, &conf->notify, path, lineno,
-                                   "default", "notify"))
+                                   "main", "notify"))
         {
             return false;
         }
@@ -1022,7 +992,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             conf, "url-launch", "launch", path, lineno);
 
         if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
-                                   "default", "url-launch"))
+                                   "main", "url-launch"))
         {
             return false;
         }
@@ -1044,8 +1014,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         }
 
         LOG_AND_NOTIFY_ERR(
-            "%s:%d: [main].%s: invalid 'selection-target'; "
-            "must be one of 'none', 'primary', 'clipboard' or 'both",
+            "%s:%d: [main].selection-target: %s: not one of "
+            "'none', 'primary', 'clipboard' or 'both",
             path, lineno, value);
         return false;
     }
@@ -1060,8 +1030,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%u: [main].%s: invalid 'osc8-underline'; "
-                "must be one of 'url-mode', or 'always'", path, lineno, value);
+                "%s:%u: [main].osc8-underline: %s: not one of "
+                "'url-mode', or 'always'", path, lineno, value);
             return false;
         }
     }
@@ -1108,7 +1078,9 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
     if (strcmp(key, "lines") == 0) {
         unsigned long lines;
         if (!str_to_ulong(value, 10, &lines)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [scrollback].lines: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [scrollback].lines: %s: invalid integer value",
+                path, lineno, value);
             return false;
         }
         conf->scrollback.lines = lines;
@@ -1122,9 +1094,10 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
         else if (strcmp(value, "relative") == 0)
             conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_RELATIVE;
         else {
-            LOG_AND_NOTIFY_ERR("%s:%d: [scrollback].indicator-position must be one of "
-                    "'none', 'fixed' or 'relative'",
-                    path, lineno);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [scrollback].indicator-position: %s: not one of "
+                "'none', 'fixed' or 'relative'",
+                path, lineno, value);
             return false;
         }
     }
@@ -1143,8 +1116,8 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
             size_t len = mbstowcs(NULL, value, 0);
             if (len == (size_t)-1) {
                 LOG_AND_NOTIFY_ERRNO(
-                    "%s:%d: [scrollback].indicator-format: "
-                    "invalid value: %s", path, lineno, value);
+                    "%s:%d: [scrollback].indicator-format: %s: "
+                    "invalid free form text", path, lineno, value);
                 return false;
             }
 
@@ -1156,8 +1129,9 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
     else if (strcmp(key, "multiplier") == 0) {
         double multiplier;
         if (!str_to_double(value, &multiplier)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [scrollback].multiplier: "
-                               "invalid value: %s", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [scrollback].multiplier: %s: invalid decimal value",
+                path, lineno, value);
             return false;
         }
 
@@ -1201,8 +1175,8 @@ parse_section_url(const char *key, const char *value, struct config *conf,
             conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%u: [url].%s: invalid 'osc8-underline'; "
-                "must be one of 'url-mode', or 'always'", path, lineno, value);
+                "%s:%u: [url].osc8-underline: %s: not one of "
+                "'url-mode', or 'always'", path, lineno, value);
             return false;
         }
     }
@@ -1235,7 +1209,7 @@ parse_section_url(const char *key, const char *value, struct config *conf,
             size_t chars = mbstowcs(NULL, prot, 0);
             if (chars == (size_t)-1) {
                 LOG_AND_NOTIFY_ERRNO(
-                    "%s:%u: [url].protocols: invalid protocol name: %s",
+                    "%s:%u: [url].protocols: %s: invalid protocol",
                     path, lineno, prot);
                 return false;
             }
@@ -1296,11 +1270,14 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     if (isdigit(key[0])) {
         unsigned long index;
         if (!str_to_ulong(key, 0, &index)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [colors].invalid numeric key", path, lineno);
+            LOG_AND_NOTIFY_ERR("%s:%d: [colors].%s: %s: invalid integer value",
+                               path, lineno, key, value);
             return false;
         }
         if (index >= ALEN(conf->colors.table)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [colors].numeric key out of range", path, lineno);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [colors].%s: %s: color index outside range 0-%zu",
+                path, lineno, key, value, ALEN(conf->colors.table));
             return false;
         }
         color = &conf->colors.table[index];
@@ -1355,8 +1332,10 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "alpha") == 0) {
         double alpha;
         if (!str_to_double(value, &alpha) || alpha < 0. || alpha > 1.) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [colors].alpha: expected a value in the range 0.0-1.0",
-                    path, lineno);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [colors].alpha: %s: "
+                "invalid decimal value, or not in range 0.0-1.0",
+                path, lineno, value);
             return false;
         }
 
@@ -1391,8 +1370,9 @@ parse_section_cursor(const char *key, const char *value, struct config *conf,
             conf->cursor.style = CURSOR_UNDERLINE;
 
         else {
-            LOG_AND_NOTIFY_ERR("%s:%d: style: one of block, beam or underline",
-                               path, lineno);
+            LOG_AND_NOTIFY_ERR("%s:%d: [cursor].style: %s: not one of "
+                               "'block', 'beam' or 'underline'",
+                               path, lineno, value);
             return false;
         }
     }
@@ -1467,8 +1447,8 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
             conf->csd.preferred = CONF_CSD_PREFER_NONE;
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: csd.preferred: expected either "
-                "'server', 'client' or 'none'", path, lineno);
+                "%s:%d: csd.preferred: %s: not one of "
+                "'server', 'client' or 'none'", path, lineno, value);
             return false;
         }
     }
@@ -1497,7 +1477,7 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
         unsigned long pixels;
         if (!str_to_ulong(value, 10, &pixels)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].size: expected an integer, got '%s'",
+                "%s:%d: [csd].size: %s: invalid integer value",
                 path, lineno, value);
             return false;
         }
@@ -1509,7 +1489,7 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
         unsigned long pixels;
         if (!str_to_ulong(value, 10, &pixels)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].button-width: expected an integer, got '%s'",
+                "%s:%d: [csd].button-width: %s: invalid integer value",
                 path, lineno, value);
             return false;
         }
@@ -1566,7 +1546,7 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
         unsigned long width;
         if (!str_to_ulong(value, 10, &width)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%u: [csd].border-width: expected an integer, got '%s'",
+                "%s:%u: [csd].border-width: %s: invalid integer value",
                 path, lineno, value);
             return false;
         }
@@ -1575,7 +1555,7 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [csd].%s: invalid action",
+        LOG_AND_NOTIFY_ERR("%s:%u: [csd].%s is not a valid action",
                            path, lineno, key);
         return false;
     }
@@ -1694,7 +1674,7 @@ parse_key_combos(struct config *conf, const char *combos,
         xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
         if (sym == XKB_KEY_NoSymbol) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: ]%s: key is not a valid XKB key name",
+                "%s:%d: [%s].%s: %s: is not a valid XKB key name",
                 path, lineno, section, option, key);
             goto err;
         }
@@ -1958,7 +1938,7 @@ parse_key_binding_section(
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [%s].%s: invalid action",
+    LOG_AND_NOTIFY_ERR("%s:%u: [%s].%s is not a valid action",
                        path, lineno, section, key);
     free(pipe_argv);
     return false;
@@ -2115,7 +2095,8 @@ parse_section_url_bindings(
 static bool
 parse_mouse_combos(struct config *conf, const char *combos,
                    struct key_combo_list *key_combos,
-                   const char *path, unsigned lineno)
+                   const char *path, unsigned lineno,
+                   const char *section, const char *conf_key)
 {
     xassert(key_combos != NULL);
     xassert(key_combos->count == 0 && key_combos->combos == NULL);
@@ -2140,8 +2121,8 @@ parse_mouse_combos(struct config *conf, const char *combos,
                 goto err;
             if (modifiers.shift) {
                 LOG_AND_NOTIFY_ERR(
-                    "%s:%d: Shift cannot be used in mouse bindings",
-                    path, lineno);
+                    "%s:%d: [%s].%s: Shift cannot be used in mouse bindings",
+                    path, lineno, section, conf_key);
                 goto err;
             }
             key++;  /* Skip past the '+' */
@@ -2160,10 +2141,12 @@ parse_mouse_combos(struct config *conf, const char *combos,
                 if (_count[0] == '\0' || *end != '\0' || errno != 0) {
                     if (errno != 0)
                         LOG_AND_NOTIFY_ERRNO(
-                            "%s:%d: %s: invalid click count", path, lineno, _count);
+                            "%s:%d: [%s].%s: %s: invalid click count"
+                            , path, lineno, section, conf_key, _count);
                     else
                         LOG_AND_NOTIFY_ERR(
-                            "%s:%d: %s: invalid click count", path, lineno, _count);
+                            "%s:%d: [%s].%s: %s: invalid click count",
+                            path, lineno, section, conf_key, _count);
                     goto err;
                 }
                 count = value;
@@ -2193,7 +2176,8 @@ parse_mouse_combos(struct config *conf, const char *combos,
         }
 
         if (button == 0) {
-            LOG_AND_NOTIFY_ERR("%s:%d: %s: invalid mouse button name", path, lineno, key);
+            LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid mouse button name",
+                               path, lineno, section, conf_key, key);
             goto err;
         }
 
@@ -2306,7 +2290,8 @@ parse_section_mouse_bindings(
         }
 
         struct key_combo_list key_combos = {0};
-        if (!parse_mouse_combos(conf, value, &key_combos, path, lineno) ||
+        if (!parse_mouse_combos(
+                conf, value, &key_combos, path, lineno, "mouse-bindings", key) ||
             has_mouse_binding_collisions(conf, &key_combos, path, lineno))
         {
             free(pipe_argv);
@@ -2389,9 +2374,9 @@ parse_section_tweak(
         }
 
         LOG_AND_NOTIFY_ERR(
-            "%s:%d: [tweak].%s: invalid 'scaling-filter' value, "
-            "expected one of 'none', 'nearest', 'bilinear', 'cubic' or "
-            "'lanczos3'", path, lineno, value);
+            "%s:%d: [tweak].scaling-filter: %s: not one of "
+            "'none', 'nearest', 'bilinear', 'cubic' or 'lanczos3'",
+            path, lineno, value);
         return false;
     }
 
@@ -2413,18 +2398,18 @@ parse_section_tweak(
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
         if (conf->tweak.grapheme_shaping) {
             LOG_AND_NOTIFY_WARN(
-                "%s:%d: [tweak]."
-                "grapheme-shaping enabled but foot was not compiled with "
-                "support for it", path, lineno);
+                "%s:%d: [tweak].grapheme-shaping: "
+                "enabled, but foot was not compiled with support for it",
+                path, lineno);
             conf->tweak.grapheme_shaping = false;
         }
 #endif
 
         if (conf->tweak.grapheme_shaping && !conf->can_shape_grapheme) {
             LOG_WARN(
-                "%s:%d [tweak]."
-                "grapheme-shaping enabled but fcft was not compiled with "
-                "support for it", path, lineno);
+                "%s:%d [tweak].grapheme-shaping: "
+                "enabled, but fcft was not compiled with support for it",
+                path, lineno);
 
             /* Keep it enabled though - this will cause us to do
              * grapheme-clustering at least */
@@ -2441,9 +2426,8 @@ parse_section_tweak(
             conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH;
         else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].%s: invalid 'grapheme-width-method, "
-                "expected one of 'wcswidth' or 'double-width'",
-                path, lineno, value);
+                "%s:%d: [tweak].grapheme-width-method: %s: not one of "
+                "'wcswidth' or 'double-width'", path, lineno, value);
             return false;
         }
 
@@ -2465,9 +2449,8 @@ parse_section_tweak(
             conf->tweak.render_timer_log = true;
         } else {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].%s: invalid 'render-timer' value, "
-                "expected one of 'none', 'osd', 'log' or 'both'",
-                path, lineno, value);
+                "%s:%d: [tweak].render-timer: %s: not one of "
+                "none', 'osd', 'log' or 'both'", path, lineno, value);
             return false;
         }
     }
@@ -2475,12 +2458,16 @@ parse_section_tweak(
     else if (strcmp(key, "delayed-render-lower") == 0) {
         unsigned long ns;
         if (!str_to_ulong(value, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak].delayed-render-lower: %s: invalid integer value",
+                path, lineno, value);
             return false;
         }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR("%s:%d: timeout must not exceed 16ms", path, lineno);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak].delayed-render-lower: %s: "
+                "timeout must not exceed 16ms", path, lineno, value);
             return false;
         }
 
@@ -2491,12 +2478,16 @@ parse_section_tweak(
     else if (strcmp(key, "delayed-render-upper") == 0) {
         unsigned long ns;
         if (!str_to_ulong(value, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak].delayed-render-upper: %s: invalid integer value",
+                path, lineno, value);
             return false;
         }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR("%s:%d: timeout must not exceed 16ms", path, lineno);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak].delayed-render-upper: %s: "
+                "timeout must not exceed 16ms", path, lineno, value);
             return false;
         }
 
@@ -2507,7 +2498,9 @@ parse_section_tweak(
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
         unsigned long mb;
         if (!str_to_ulong(value, 10, &mb)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: expected an integer, got '%s'", path, lineno, value);
+            LOG_AND_NOTIFY_ERR(
+                "%s:%d: [tweak].max-shm-pool-size-mb: %s: invalid integer value",
+                path, lineno, value);
             return false;
         }
 
@@ -2520,8 +2513,8 @@ parse_section_tweak(
         double base_thickness;
         if (!str_to_double(value, &base_thickness)) {
             LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].box-drawing-base-thickness: "
-                "expected a decimal value, got '%s'", path, lineno, value);
+                "%s:%d: [tweak].box-drawing-base-thickness: %s: "
+                "invalid decimal value", path, lineno, value);
             return false;
         }
 
