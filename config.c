@@ -1070,7 +1070,8 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         conf->box_drawings_uses_font_glyphs = str_to_bool(value);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [default]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%u: [default]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1092,7 +1093,8 @@ parse_section_bell(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "command-focused") == 0)
         conf->bell.command_focused = str_to_bool(value);
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [bell]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%u: [bell]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1163,7 +1165,8 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [scrollback]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%u: [scrollback]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1274,7 +1277,8 @@ parse_section_url(const char *key, const char *value, struct config *conf,
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [url]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%d: [url]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1361,7 +1365,8 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [colors]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%d: [colors]: %s is not valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1422,7 +1427,8 @@ parse_section_cursor(const char *key, const char *value, struct config *conf,
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [cursor]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%d: [cursor]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -1440,7 +1446,8 @@ parse_section_mouse(const char *key, const char *value, struct config *conf,
         conf->mouse.alternate_scroll_mode = str_to_bool(value);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [mouse]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%d: [mouse]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
@@ -2353,7 +2360,8 @@ parse_section_mouse_bindings(
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [mouse-bindings]: %s: invalid key", path, lineno, key);
+    LOG_AND_NOTIFY_ERR("%s:%u: [mouse-bindings]: %s is not a valid option",
+                       path, lineno, key);
     free(pipe_argv);
     return false;
 }
@@ -2534,7 +2542,8 @@ parse_section_tweak(
         conf->tweak.font_monospace_warn = str_to_bool(value);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [tweak]: %s: invalid key", path, lineno, key);
+        LOG_AND_NOTIFY_ERR("%s:%u: [tweak]: %s is not a valid option",
+                           path, lineno, key);
         return false;
     }
 
