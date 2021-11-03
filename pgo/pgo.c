@@ -75,7 +75,7 @@ render_xcursor_set(struct seat *seat, struct terminal *term, const char *xcursor
 }
 
 struct wl_window *
-wayl_win_init(struct terminal *term)
+wayl_win_init(struct terminal *term, const char *token)
 {
     return NULL;
 }

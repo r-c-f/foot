@@ -156,6 +156,11 @@ main(int argc, char *const *argv)
     /* Used to format overrides */
     bool no_wait = false;
 
+    /* For XDG activation */
+    const char *token = getenv("XDG_ACTIVATION_TOKEN");
+    bool xdga_token = token != NULL;
+    size_t token_len = xdga_token ? strlen(token) + 1 : 0;
+
     char buf[1024];
 
     /* Total packet length, not (yet) including overrides or argv[] */
@@ -373,13 +378,15 @@ main(int argc, char *const *argv)
     const struct client_data data = {
         .hold = hold,
         .no_wait = no_wait,
+        .xdga_token = xdga_token,
+        .token_len = token_len,
         .cwd_len = cwd_len,
         .override_count = override_count,
         .argc = argc,
     };
 
     /* Total packet length, not (yet) including argv[] */
-    total_len += sizeof(data) + cwd_len;
+    total_len += sizeof(data) + cwd_len + token_len;
 
     /* Add argv[] size to total packet length */
     cargv = xmalloc(argc * sizeof(cargv[0]));
@@ -398,6 +405,7 @@ main(int argc, char *const *argv)
     /* Check for size overflows */
     if (total_len >= 1llu << (8 * sizeof(uint32_t)) ||
         cwd_len >= 1 << (8 * sizeof(data.cwd_len)) ||
+        token_len >= 1 << (8 * sizeof(data.token_len)) ||
         override_count > (size_t)(unsigned int)data.override_count ||
         argc > (int)(unsigned int)data.argc)
     {
@@ -412,6 +420,15 @@ main(int argc, char *const *argv)
     {
         LOG_ERRNO("failed to send setup packet to server");
         goto err;
+    }
+
+    /* Send XDGA token, if we have one */
+    if (xdga_token) {
+        if (sendall(fd, token, token_len) != token_len)
+        {
+            LOG_ERRNO("failed to send xdg activation token to server");
+            goto err;
+        }
     }
 
     /* Send overrides */

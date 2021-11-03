@@ -160,6 +160,10 @@ main(int argc, char *const *argv)
     static const int foot_exit_failure = -26;
     int ret = foot_exit_failure;
 
+    /* XDG startup notifications */
+    const char *token = getenv("XDG_ACTIVATION_TOKEN");
+    unsetenv("XDG_ACTIVATION_TOKEN");
+
     /* Startup notifications; we don't support it, but must ensure we
      * don't pass this on to programs launched by us */
     unsetenv("DESKTOP_STARTUP_ID");
@@ -530,7 +534,8 @@ main(int argc, char *const *argv)
         goto out;
 
     if (!as_server && (term = term_init(
-                           &conf, fdm, reaper, wayl, "foot", cwd, argc, argv,
+                           &conf, fdm, reaper, wayl, "foot", cwd, token,
+                           argc, argv,
                            &term_shutdown_cb, &shutdown_ctx)) == NULL) {
         goto out;
     }

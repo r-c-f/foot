@@ -1374,7 +1374,7 @@ wayl_destroy(struct wayland *wayl)
 }
 
 struct wl_window *
-wayl_win_init(struct terminal *term)
+wayl_win_init(struct terminal *term, const char *token)
 {
     struct wayland *wayl = term->wl;
     const struct config *conf = term->conf;
@@ -1443,6 +1443,10 @@ wayl_win_init(struct terminal *term)
     }
 
     wl_surface_commit(win->surface);
+
+    /* Complete XDG startup notification */
+    if (token)
+        xdg_activation_v1_activate(wayl->xdg_activation, token, win->surface);
 
     if (conf->tweak.render_timer_osd) {
         if (!wayl_win_subsurface_new(win, &win->render_timer)) {
