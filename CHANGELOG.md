@@ -47,6 +47,8 @@
 * `[csd].border-width` and `[csd].border-color`, allowing you to
   configure the width and color of the CSD border.
 * Support for `XTMODKEYS` with `Pp=4` and `Pv=2` (_modifyOtherKeys=2_).
+* `[colors].dim0-7` options, allowing you to configure custom “dim”
+  colors (https://codeberg.org/dnkl/foot/issues/776).
 
 
 ### Changed

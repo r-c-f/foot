@@ -244,12 +244,39 @@ color_hex_to_pixman(uint32_t color)
 }
 
 static inline uint32_t
-color_dim(uint32_t color)
+color_decrease_luminance(uint32_t color)
 {
     uint32_t alpha = color & 0xff000000;
     int hue, sat, lum;
     rgb_to_hsl(color, &hue, &sat, &lum);
     return alpha | hsl_to_rgb(hue, sat, lum / 1.5);
+}
+
+static inline uint32_t
+color_dim(const struct terminal *term, uint32_t color)
+{
+    const struct config *conf = term->conf;
+    const uint8_t custom_dim = conf->colors.use_custom.dim;
+
+    if (likely(custom_dim == 0))
+        return color_decrease_luminance(color);
+
+    for (size_t i = 0; i < 8; i++) {
+        if (((custom_dim >> i) & 1) == 0)
+            continue;
+
+        if (term->colors.table[0 + i] == color) {
+            /* “Regular” color, return the corresponding “dim” */
+            return conf->colors.dim[i];
+        }
+
+        else if (term->colors.table[8 + i] == color) {
+            /* “Bright” color, return the corresponding “regular” */
+            return term->colors.table[i];
+        }
+    }
+
+    return color_decrease_luminance(color);
 }
 
 static inline uint32_t
@@ -485,12 +512,12 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     }
 
     if (cell->attrs.dim)
-        _fg = color_dim(_fg);
+        _fg = color_dim(term, _fg);
     if (term->conf->bold_in_bright.enabled && cell->attrs.bold)
         _fg = color_brighten(term, _fg);
 
     if (cell->attrs.blink && term->blink.state == BLINK_OFF)
-        _fg = color_dim(_fg);
+        _fg = color_decrease_luminance(_fg);
 
     pixman_color_t fg = color_hex_to_pixman(_fg);
     pixman_color_t bg = color_hex_to_pixman_with_alpha(_bg, alpha);
@@ -779,7 +806,7 @@ render_urgency(struct terminal *term, struct buffer *buf)
 {
     uint32_t red = term->colors.table[1];
     if (term->is_searching)
-        red = color_dim(red);
+        red = color_decrease_luminance(red);
 
     pixman_color_t bg = color_hex_to_pixman(red);
 
@@ -1685,8 +1712,8 @@ render_csd_title(struct terminal *term, const struct csd_data *info,
         : term->conf->colors.bg;
 
     if (!term->visual_focus) {
-        bg = color_dim(bg);
-        fg = color_dim(fg);
+        bg = color_dim(term, bg);
+        fg = color_dim(term, fg);
     }
 
     const wchar_t *title_text = L"";
@@ -2001,7 +2028,7 @@ render_csd_button(struct terminal *term, enum csd_surface surf_idx,
     }
 
     if (!term->visual_focus)
-        _color = color_dim(_color);
+        _color = color_dim(term, _color);
 
     pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
     render_csd_part(term, surf, buf, info->width, info->height, &color);

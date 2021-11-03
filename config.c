@@ -1290,6 +1290,14 @@ parse_section_colors(struct context *ctx)
     else if (key_len == 7 && str_has_prefix(key, "bright") && last_digit < 8)
         color = &conf->colors.table[8 + last_digit];
 
+    else if (key_len == 4 && str_has_prefix(key, "dim") && last_digit < 8) {
+        if (!value_to_color(ctx, &conf->colors.dim[last_digit], false))
+            return false;
+
+        conf->colors.use_custom.dim |= 1 << last_digit;
+        return true;
+    }
+
     else if (strcmp(key, "foreground") == 0) color = &conf->colors.fg;
     else if (strcmp(key, "background") == 0) color = &conf->colors.bg;
     else if (strcmp(key, "selection-foreground") == 0) color = &conf->colors.selection_fg;

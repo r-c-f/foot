@@ -1253,8 +1253,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
             term->scale = it->item.scale;
     }
 
-    memcpy(term->colors.table, term->conf->colors.table,
-           sizeof(term->colors.table));
+    memcpy(term->colors.table, term->conf->colors.table, sizeof(term->colors.table));
 
     /* Initialize the Wayland window backend */
     if ((term->window = wayl_win_init(term, token)) == NULL)
