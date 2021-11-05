@@ -465,21 +465,22 @@ value_to_double(struct context *ctx, double *res)
 }
 
 static bool NOINLINE
-str_to_wchars(const char *s, wchar_t **res, struct config *conf,
-              const char  *path, int lineno,
-              const char *section, const char *key)
+value_to_wchars(struct context *ctx, wchar_t **res)
 {
+    /* TODO: remove! */
+    struct config *conf = ctx->conf;
+
     *res = NULL;
 
-    size_t chars = mbstowcs(NULL, s, 0);
+    size_t chars = mbstowcs(NULL, ctx->value, 0);
     if (chars == (size_t)-1) {
         LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s is not a valid string value",
-                           path, lineno, section, key, s);
+                           ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
         return false;
     }
 
     *res = xmalloc((chars + 1) * sizeof(wchar_t));
-    mbstowcs(*res, s, chars + 1);
+    mbstowcs(*res, ctx->value, chars + 1);
     return true;
 }
 
@@ -992,11 +993,9 @@ parse_section_main(struct context *ctx)
 
     else if (strcmp(key, "word-delimiters") == 0) {
         wchar_t *word_delimiters;
-        if (!str_to_wchars(value, &word_delimiters, conf, path, lineno,
-                           "main", "word-delimiters"))
-        {
+        if (!value_to_wchars(ctx, &word_delimiters))
             return false;
-        }
+
         free(conf->word_delimiters);
         conf->word_delimiters = word_delimiters;
     }
@@ -1006,11 +1005,9 @@ parse_section_main(struct context *ctx)
             conf, "jump-label-letters", "label-letters", path, lineno);
 
         wchar_t *letters;
-        if (!str_to_wchars(value, &letters, conf, path, lineno,
-                           "main", "label-letters"))
-        {
+        if (!value_to_wchars(ctx, &letters))
             return false;
-        }
+
         free(conf->url.label_letters);
         conf->url.label_letters = letters;
     }
@@ -1216,7 +1213,7 @@ parse_section_url(struct context *ctx)
 
     else if (strcmp(key, "label-letters") == 0) {
         wchar_t *letters;
-        if (!str_to_wchars(value, &letters, conf, path, lineno, "url", "letters"))
+        if (!value_to_wchars(ctx, &letters))
             return false;
 
         free(conf->url.label_letters);
@@ -1289,11 +1286,8 @@ parse_section_url(struct context *ctx)
 
     else if (strcmp(key, "uri-characters") == 0) {
         wchar_t *uri_characters;
-        if (!str_to_wchars(value, &uri_characters, conf, path, lineno,
-                           "url", "uri-characters"))
-        {
+        if (!value_to_wchars(ctx, &uri_characters))
             return false;
-        }
 
         free(conf->url.uri_characters);
 
