@@ -421,8 +421,9 @@ str_has_prefix(const char *str, const char *prefix)
 }
 
 static bool NOINLINE
-str_to_bool(const char *s)
+value_to_bool(const struct context *ctx)
 {
+    const char *s = ctx->value;
     return strcasecmp(s, "on") == 0 ||
         strcasecmp(s, "true") == 0 ||
         strcasecmp(s, "yes") == 0 ||
@@ -757,7 +758,7 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "login-shell") == 0) {
-        conf->login_shell = str_to_bool(value);
+        conf->login_shell = value_to_bool(ctx);
     }
 
     else if (strcmp(key, "title") == 0) {
@@ -766,7 +767,7 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "locked-title") == 0)
-        conf->locked_title = str_to_bool(value);
+        conf->locked_title = value_to_bool(ctx);
 
     else if (strcmp(key, "app-id") == 0) {
         free(conf->app_id);
@@ -839,7 +840,7 @@ parse_section_main(struct context *ctx)
             conf->bold_in_bright.enabled = true;
             conf->bold_in_bright.palette_based = true;
         } else {
-            conf->bold_in_bright.enabled = str_to_bool(value);
+            conf->bold_in_bright.enabled = value_to_bool(ctx);
             conf->bold_in_bright.palette_based = false;
         }
     }
@@ -954,7 +955,7 @@ parse_section_main(struct context *ctx)
         if (strcmp(value, "auto") == 0)
             conf->dpi_aware = DPI_AWARE_AUTO;
         else
-            conf->dpi_aware = str_to_bool(value) ? DPI_AWARE_YES : DPI_AWARE_NO;
+            conf->dpi_aware = value_to_bool(ctx) ? DPI_AWARE_YES : DPI_AWARE_NO;
     }
 
     else if (strcmp(key, "workers") == 0) {
@@ -1002,7 +1003,7 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "notify-focus-inhibit") == 0) {
-        conf->notify_focus_inhibit = str_to_bool(value);
+        conf->notify_focus_inhibit = value_to_bool(ctx);
     }
 
     else if (strcmp(key, "url-launch") == 0) {
@@ -1055,7 +1056,7 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)
-        conf->box_drawings_uses_font_glyphs = str_to_bool(value);
+        conf->box_drawings_uses_font_glyphs = value_to_bool(ctx);
 
     else {
         LOG_AND_NOTIFY_ERR("%s:%u: [main].%s is not a valid option",
@@ -1076,15 +1077,15 @@ parse_section_bell(struct context *ctx)
     unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "urgent") == 0)
-        conf->bell.urgent = str_to_bool(value);
+        conf->bell.urgent = value_to_bool(ctx);
     else if (strcmp(key, "notify") == 0)
-        conf->bell.notify = str_to_bool(value);
+        conf->bell.notify = value_to_bool(ctx);
     else if (strcmp(key, "command") == 0) {
         if (!str_to_spawn_template(conf, value, &conf->bell.command, path, lineno, "bell", key))
             return false;
     }
     else if (strcmp(key, "command-focused") == 0)
-        conf->bell.command_focused = str_to_bool(value);
+        conf->bell.command_focused = value_to_bool(ctx);
     else {
         LOG_AND_NOTIFY_ERR("%s:%u: [bell].%s is not a valid option",
                            path, lineno, key);
@@ -1421,7 +1422,7 @@ parse_section_cursor(struct context *ctx)
     }
 
     else if (strcmp(key, "blink") == 0)
-        conf->cursor.blink = str_to_bool(value);
+        conf->cursor.blink = value_to_bool(ctx);
 
     else if (strcmp(key, "color") == 0) {
         if (!str_to_two_colors(
@@ -1463,15 +1464,14 @@ parse_section_mouse(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
     const char *path = ctx->path;
     unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "hide-when-typing") == 0)
-        conf->mouse.hide_when_typing = str_to_bool(value);
+        conf->mouse.hide_when_typing = value_to_bool(ctx);
 
     else if (strcmp(key, "alternate-scroll-mode") == 0)
-        conf->mouse.alternate_scroll_mode = str_to_bool(value);
+        conf->mouse.alternate_scroll_mode = value_to_bool(ctx);
 
     else {
         LOG_AND_NOTIFY_ERR("%s:%d: [mouse].%s is not a valid option",
@@ -2454,19 +2454,19 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "overflowing-glyphs") == 0) {
-        conf->tweak.overflowing_glyphs = str_to_bool(value);
+        conf->tweak.overflowing_glyphs = value_to_bool(ctx);
         if (!conf->tweak.overflowing_glyphs)
             LOG_WARN("tweak: disabled overflowing glyphs");
     }
 
     else if (strcmp(key, "damage-whole-window") == 0) {
-        conf->tweak.damage_whole_window = str_to_bool(value);
+        conf->tweak.damage_whole_window = value_to_bool(ctx);
         if (conf->tweak.damage_whole_window)
             LOG_WARN("tweak: damage whole window");
     }
 
     else if (strcmp(key, "grapheme-shaping") == 0) {
-        conf->tweak.grapheme_shaping = str_to_bool(value);
+        conf->tweak.grapheme_shaping = value_to_bool(ctx);
 
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
         if (conf->tweak.grapheme_shaping) {
@@ -2597,7 +2597,7 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "box-drawing-solid-shades") == 0) {
-        conf->tweak.box_drawing_solid_shades = str_to_bool(value);
+        conf->tweak.box_drawing_solid_shades = value_to_bool(ctx);
 
         if (!conf->tweak.box_drawing_solid_shades)
             LOG_WARN("tweak: box-drawing-solid-shades=%s",
@@ -2605,7 +2605,7 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "font-monospace-warn") == 0)
-        conf->tweak.font_monospace_warn = str_to_bool(value);
+        conf->tweak.font_monospace_warn = value_to_bool(ctx);
 
     else {
         LOG_AND_NOTIFY_ERR("%s:%u: [tweak].%s is not a valid option",
