@@ -450,8 +450,10 @@ value_to_ulong(struct context *ctx, int base, unsigned long *res)
 }
 
 static bool NOINLINE
-str_to_double(const char *s, double *res)
+value_to_double(struct context *ctx, double *res)
 {
+    const char *s = ctx->value;
+
     if (s == NULL)
         return false;
 
@@ -545,9 +547,13 @@ out:
 }
 
 static bool NOINLINE
-str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
-                const char *path, int lineno, const char *section, const char *key)
+value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 {
+    /* TODO: remove! */
+    struct config *conf = ctx->conf;
+
+    const char *s = ctx->value;
+
     size_t len = s != NULL ? strlen(s) : 0;
     if (len >= 2 && s[len - 2] == 'p' && s[len - 1] == 'x') {
         errno = 0;
@@ -558,17 +564,17 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [%s].%s: %s: invalid px value "
                 "(must be on the form 12px)",
-                path, lineno, section, key, s);
+                ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
             return false;
         }
         res->pt = 0;
         res->px = value;
     } else {
         double value;
-        if (!str_to_double(s, &value)) {
+        if (!value_to_double(ctx, &value)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [%s].%s: %s: invalid decimal value",
-                path, lineno, section, key, s);
+                ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
             return false;
         }
         res->pt = value;
@@ -941,35 +947,27 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "line-height") == 0) {
-        if (!str_to_pt_or_px(value, &conf->line_height,
-                             conf, path, lineno, "main", "line-height"))
+        if (!value_to_pt_or_px(ctx, &conf->line_height))
             return false;
     }
 
     else if (strcmp(key, "letter-spacing") == 0) {
-        if (!str_to_pt_or_px(value, &conf->letter_spacing,
-                             conf, path, lineno, "main", "letter-spacing"))
+        if (!value_to_pt_or_px(ctx, &conf->letter_spacing))
             return false;
     }
 
     else if (strcmp(key, "horizontal-letter-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->horizontal_letter_offset,
-                conf, path, lineno, "main", "horizontal-letter-offset"))
+        if (!value_to_pt_or_px(ctx, &conf->horizontal_letter_offset))
             return false;
     }
 
     else if (strcmp(key, "vertical-letter-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->vertical_letter_offset,
-                conf, path, lineno, "main", "vertical-letter-offset"))
+        if (!value_to_pt_or_px(ctx, &conf->vertical_letter_offset))
             return false;
     }
 
     else if (strcmp(key, "underline-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->underline_offset,
-                conf, path, lineno, "main", "underline-offset"))
+        if (!value_to_pt_or_px(ctx, &conf->underline_offset))
             return false;
         conf->use_custom_underline_offset = true;
     }
@@ -1180,7 +1178,7 @@ parse_section_scrollback(struct context *ctx)
 
     else if (strcmp(key, "multiplier") == 0) {
         double multiplier;
-        if (!str_to_double(value, &multiplier)) {
+        if (!value_to_double(ctx, &multiplier)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [scrollback].multiplier: %s: invalid decimal value",
                 path, lineno, value);
@@ -1394,7 +1392,7 @@ parse_section_colors(struct context *ctx)
 
     else if (strcmp(key, "alpha") == 0) {
         double alpha;
-        if (!str_to_double(value, &alpha) || alpha < 0. || alpha > 1.) {
+        if (!value_to_double(ctx, &alpha) || alpha < 0. || alpha > 1.) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [colors].alpha: %s: "
                 "invalid decimal value, or not in range 0.0-1.0",
@@ -1463,16 +1461,12 @@ parse_section_cursor(struct context *ctx)
     }
 
     else if (strcmp(key, "beam-thickness") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->cursor.beam_thickness,
-                conf, path, lineno, "cursor", "beam-thickness"))
+        if (!value_to_pt_or_px(ctx, &conf->cursor.beam_thickness))
             return false;
     }
 
     else if (strcmp(key, "underline-thickness") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->cursor.underline_thickness,
-                conf, path, lineno, "cursor", "underline-thickness"))
+        if (!value_to_pt_or_px(ctx, &conf->cursor.underline_thickness))
             return false;
     }
 
@@ -2610,7 +2604,7 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "box-drawing-base-thickness") == 0) {
         double base_thickness;
-        if (!str_to_double(value, &base_thickness)) {
+        if (!value_to_double(ctx, &base_thickness)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [tweak].box-drawing-base-thickness: %s: "
                 "invalid decimal value", path, lineno, value);
