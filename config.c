@@ -586,14 +586,16 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 }
 
 static struct config_font_list NOINLINE
-str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
-             const char *section, const char *key)
+value_to_fonts(struct context *ctx)
 {
+    /* TODO: remove! */
+    struct config *conf = ctx->conf;
+
     size_t count = 0;
     size_t size = 0;
     struct config_font *fonts = NULL;
 
-    char *copy = xstrdup(s);
+    char *copy = xstrdup(ctx->value);
     for (const char *font = strtok(copy, ",");
          font != NULL;
          font = strtok(NULL, ","))
@@ -609,7 +611,7 @@ str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
         if (!config_font_parse(font, &font_data)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [%s].%s: %s: invalid font specification",
-                path, lineno, section, key, font);
+                ctx->path, ctx->lineno, ctx->section, ctx->key, font);
             goto err;
         }
 
@@ -937,9 +939,7 @@ parse_section_main(struct context *ctx)
             strcmp(key, "font-bold") == 0 ? 1 :
             strcmp(key, "font-italic") == 0 ? 2 : 3;
 
-        struct config_font_list new_list = str_to_fonts(
-            value, conf, path, lineno, "main", key);
-
+        struct config_font_list new_list = value_to_fonts(ctx);
         if (new_list.arr == NULL)
             return false;
 
@@ -1521,9 +1521,7 @@ parse_section_csd(struct context *ctx)
     }
 
     else if (strcmp(key, "font") == 0) {
-        struct config_font_list new_list = str_to_fonts(
-            value, conf, path, lineno, "csd", "font");
-
+        struct config_font_list new_list = value_to_fonts(ctx);
         if (new_list.arr == NULL)
             return false;
 
