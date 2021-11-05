@@ -421,7 +421,7 @@ str_has_prefix(const char *str, const char *prefix)
 }
 
 static bool NOINLINE
-value_to_bool(const struct context *ctx)
+value_to_bool(struct context *ctx)
 {
     const char *s = ctx->value;
     return strcasecmp(s, "on") == 0 ||
