@@ -501,7 +501,12 @@ value_to_double(struct context *ctx, double *res)
     char *end = NULL;
 
     *res = strtod(s, &end);
-    return errno == 0 && *end == '\0';
+    if (!(errno == 0 && *end == '\0')) {
+        LOG_CONTEXTUAL_ERR("invalid decimal value");
+        return false;
+    }
+
+    return true;
 }
 
 static bool NOINLINE
@@ -590,10 +595,8 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
         res->px = value;
     } else {
         double value;
-        if (!value_to_double(ctx, &value)) {
-            LOG_CONTEXTUAL_ERR("invalid decimal value");
+        if (!value_to_double(ctx, &value))
             return false;
-        }
         res->pt = value;
         res->px = 0;
     }
@@ -1130,11 +1133,8 @@ parse_section_scrollback(struct context *ctx)
 
     else if (strcmp(key, "multiplier") == 0) {
         double multiplier;
-        if (!value_to_double(ctx, &multiplier)) {
-            LOG_CONTEXTUAL_ERR("invalid decimal value");
+        if (!value_to_double(ctx, &multiplier))
             return false;
-        }
-
         conf->scrollback.multiplier = multiplier;
     }
 
@@ -1324,8 +1324,11 @@ parse_section_colors(struct context *ctx)
 
     else if (strcmp(key, "alpha") == 0) {
         double alpha;
-        if (!value_to_double(ctx, &alpha) || alpha < 0. || alpha > 1.) {
-            LOG_CONTEXTUAL_ERR("invalid decimal value, or not in range 0.0-1.0");
+        if (!value_to_double(ctx, &alpha))
+            return false;
+
+        if (alpha < 0. || alpha > 1.) {
+            LOG_CONTEXTUAL_ERR("not in range 0.0-1.0");
             return false;
         }
 
@@ -2429,10 +2432,8 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "box-drawing-base-thickness") == 0) {
         double base_thickness;
-        if (!value_to_double(ctx, &base_thickness)) {
-            LOG_CONTEXTUAL_ERR("invalid decimal value");
+        if (!value_to_double(ctx, &base_thickness))
             return false;
-        }
 
         conf->tweak.box_drawing_base_thickness = base_thickness;
         LOG_WARN("tweak: box-drawing-base-thickness=%f",
