@@ -121,6 +121,18 @@ static const char *const binding_action_map[] = {
 static_assert(ALEN(binding_action_map) == BIND_ACTION_COUNT,
               "binding action map size mismatch");
 
+struct context {
+    struct config *conf;
+    const char *section;
+    const char *key;
+    const char *value;
+
+    const char *path;
+    unsigned lineno;
+
+    bool errors_are_fatal;
+};
+
 static void NOINLINE PRINTF(5)
 log_and_notify(struct config *conf, enum log_class log_class,
                const char *file, int lineno, const char *fmt, ...)
@@ -679,9 +691,15 @@ static bool parse_config_file(
     FILE *f, struct config *conf, const char *path, bool errors_are_fatal);
 
 static bool
-parse_section_main(const char *key, const char *value, struct config *conf,
-                   const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_main(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+    bool errors_are_fatal = ctx->errors_are_fatal;
+
     if (strcmp(key, "include") == 0) {
         char *_include_path = NULL;
         const char *include_path = NULL;
@@ -1049,9 +1067,14 @@ parse_section_main(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_bell(const char *key, const char *value, struct config *conf,
-                   const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_bell(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "urgent") == 0)
         conf->bell.urgent = str_to_bool(value);
     else if (strcmp(key, "notify") == 0)
@@ -1072,9 +1095,14 @@ parse_section_bell(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_scrollback(const char *key, const char *value, struct config *conf,
-                         const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_scrollback(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "lines") == 0) {
         unsigned long lines;
         if (!str_to_ulong(value, 10, &lines)) {
@@ -1148,9 +1176,14 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
 }
 
 static bool
-parse_section_url(const char *key, const char *value, struct config *conf,
-                  const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_url(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "launch") == 0) {
         if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
                                    "url", "launch"))
@@ -1260,9 +1293,14 @@ parse_section_url(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_colors(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_colors(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     size_t key_len = strlen(key);
     uint8_t last_digit = (unsigned char)key[key_len - 1] - '0';
     uint32_t *color = NULL;
@@ -1358,9 +1396,14 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_cursor(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_cursor(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "style") == 0) {
         if (strcmp(value, "block") == 0)
             conf->cursor.style = CURSOR_BLOCK;
@@ -1416,9 +1459,14 @@ parse_section_cursor(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_mouse(const char *key, const char *value, struct config *conf,
-                    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_mouse(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "hide-when-typing") == 0)
         conf->mouse.hide_when_typing = str_to_bool(value);
 
@@ -1435,9 +1483,14 @@ parse_section_mouse(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_csd(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_csd(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "preferred") == 0) {
         if (strcmp(value, "server") == 0)
             conf->csd.preferred = CONF_CSD_PREFER_SERVER;
@@ -2029,20 +2082,28 @@ UNITTEST
 }
 
 static bool
-parse_section_key_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_key_bindings(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     return parse_key_binding_section(
         "key-bindings", key, value, BIND_ACTION_KEY_COUNT, binding_action_map,
         &conf->bindings.key, conf, path, lineno);
 }
 
 static bool
-parse_section_search_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_search_bindings(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     static const char *const search_binding_action_map[] = {
         [BIND_ACTION_SEARCH_NONE] = NULL,
         [BIND_ACTION_SEARCH_CANCEL] = "cancel",
@@ -2074,10 +2135,14 @@ parse_section_search_bindings(
 }
 
 static bool
-parse_section_url_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_url_bindings(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     static const char *const url_binding_action_map[] = {
         [BIND_ACTION_URL_NONE] = NULL,
         [BIND_ACTION_URL_CANCEL] = "cancel",
@@ -2249,10 +2314,14 @@ has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *k
 
 
 static bool
-parse_section_mouse_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_mouse_bindings(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     char **pipe_argv;
 
     ssize_t pipe_remove_len = pipe_argv_from_string(
@@ -2352,10 +2421,14 @@ parse_section_mouse_bindings(
 }
 
 static bool
-parse_section_tweak(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_tweak(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+
     if (strcmp(key, "scaling-filter") == 0) {
         static const char filters[][12] = {
             [FCFT_SCALING_FILTER_NONE] = "none",
@@ -2544,7 +2617,7 @@ parse_section_tweak(
 }
 
 static bool
-parse_key_value(char *kv, char **section, char **key, char **value)
+parse_key_value(char *kv, const char **section, const char **key, const char **value)
 {
 
     /*strip leading whitespace*/
@@ -2579,7 +2652,7 @@ parse_key_value(char *kv, char **section, char **key, char **value)
     {
         xassert(!isspace(**key));
 
-        char *end = *key + strlen(*key) - 1;
+        char *end = (char *)*key + strlen(*key) - 1;
         while (isspace(*end))
             end--;
         *(end + 1) = '\0';
@@ -2591,7 +2664,7 @@ parse_key_value(char *kv, char **section, char **key, char **value)
             ++*value;
 
         if (*value[0] != '\0') {
-            char *end = *value + strlen(*value) - 1;
+            char *end = (char *)*value + strlen(*value) - 1;
             while (isspace(*end))
                 end--;
             *(end + 1) = '\0';
@@ -2618,9 +2691,7 @@ enum section {
 };
 
 /* Function pointer, called for each key/value line */
-typedef bool (*parser_fun_t)(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal);
+typedef bool (*parser_fun_t)(struct context *ctx);
 
 static const struct {
     parser_fun_t fun;
@@ -2658,8 +2729,6 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 {
     enum section section = SECTION_MAIN;
 
-    unsigned lineno = 0;
-
     char *_line = NULL;
     size_t count = 0;
 
@@ -2671,9 +2740,17 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;                           \
     }
 
+    struct context ctx = {
+        .conf = conf,
+        .section = "main",
+        .path = path,
+        .lineno = 0,
+        .errors_are_fatal = errors_are_fatal,
+    };
+
     while (true) {
         errno = 0;
-        lineno++;
+        ctx.lineno++;
 
         ssize_t ret = getline(&_line, &count, f);
 
@@ -2720,7 +2797,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         if (key_value[0] == '[') {
             char *end = strchr(key_value, ']');
             if (end == NULL) {
-                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, lineno, key_value);
+                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, ctx.lineno, key_value);
                 error_or_continue();
             }
 
@@ -2728,9 +2805,12 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 
             section = str_to_section(&key_value[1]);
             if (section == SECTION_COUNT) {
-                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, lineno, &key_value[1]);
+                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, ctx.lineno, &key_value[1]);
                 error_or_continue();
             }
+
+            ctx.section = &key_value[1];
+            LOG_INFO("section=\"%s\"", ctx.section);
 
             /* Process next line */
             continue;
@@ -2741,9 +2821,8 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;
         }
 
-        char *key, *value;
-        if (!parse_key_value(key_value, NULL, &key, &value)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, lineno, key_value);
+        if (!parse_key_value(key_value, NULL, &ctx.key, &ctx.value)) {
+            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, ctx.lineno, key_value);
             if (errors_are_fatal)
                 goto err;
             break;
@@ -2757,7 +2836,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(key, value, conf, path, lineno, errors_are_fatal))
+        if (!section_parser(&ctx))
             error_or_continue();
     }
 
@@ -3148,20 +3227,26 @@ out:
 bool
 config_override_apply(struct config *conf, config_override_t *overrides, bool errors_are_fatal)
 {
-    int i = -1;
+    struct context ctx = {
+        .conf = conf,
+        .path = "override",
+        .lineno = 0,
+        .errors_are_fatal = errors_are_fatal,
+    };
+
     tll_foreach(*overrides, it) {
-        ++i;
-        char *section_str, *key, *value;
-        if (!parse_key_value(it->item, &section_str, &key, &value)) {
+        ctx.lineno++;
+
+        if (!parse_key_value(it->item, &ctx.section, &ctx.key, &ctx.value)) {
             LOG_AND_NOTIFY_ERR("syntax error: %s", it->item);
             if (errors_are_fatal)
                 return false;
             continue;
         }
 
-        enum section section = str_to_section(section_str);
+        enum section section = str_to_section(ctx.section);
         if (section == SECTION_COUNT) {
-            LOG_AND_NOTIFY_ERR("override: invalid section name: %s", section_str);
+            LOG_AND_NOTIFY_ERR("override: invalid section name: %s", ctx.section);
             if (errors_are_fatal)
                 return false;
             continue;
@@ -3169,7 +3254,7 @@ config_override_apply(struct config *conf, config_override_t *overrides, bool er
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(key, value, conf, "override", i, errors_are_fatal)) {
+        if (!section_parser(&ctx)) {
             if (errors_are_fatal)
                 return false;
             continue;
