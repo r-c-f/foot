@@ -430,7 +430,7 @@ value_to_bool(struct context *ctx)
         strtoul(s, NULL, 0) > 0;
 }
 
-static bool NOINLINE
+static bool
 str_to_ulong(const char *s, int base, unsigned long *res)
 {
     if (s == NULL)
@@ -441,6 +441,12 @@ str_to_ulong(const char *s, int base, unsigned long *res)
 
     *res = strtoul(s, &end, base);
     return errno == 0 && *end == '\0';
+}
+
+static bool NOINLINE
+value_to_ulong(struct context *ctx, int base, unsigned long *res)
+{
+    return str_to_ulong(ctx->value, base, res);
 }
 
 static bool NOINLINE
@@ -476,22 +482,23 @@ str_to_wchars(const char *s, wchar_t **res, struct config *conf,
 }
 
 static bool NOINLINE
-str_to_color(const char *s, uint32_t *color, bool allow_alpha,
-             struct config *conf, const char *path, int lineno,
-             const char *section, const char *key)
+value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
+    /* TODO: remove! */
+    struct config *conf = ctx->conf;
+
     unsigned long value;
-    if (!str_to_ulong(s, 16, &value)) {
+    if (!value_to_ulong(ctx, 16, &value)) {
         LOG_AND_NOTIFY_ERR(
             "%s:%d: [%s].%s: %s is not a valid color value",
-            path, lineno, section, key, s);
+            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
         return false;
     }
 
     if (!allow_alpha && (value & 0xff000000) != 0) {
         LOG_AND_NOTIFY_ERR(
             "%s:%d: [%s].%s: %s: color value must not have an alpha component",
-            path, lineno, section, key, s);
+            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
         return false;
     }
 
@@ -500,25 +507,41 @@ str_to_color(const char *s, uint32_t *color, bool allow_alpha,
 }
 
 static bool NOINLINE
-str_to_two_colors(const char *s, uint32_t *first, uint32_t *second,
-                  bool allow_alpha, struct config *conf, const char *path,
-                  int lineno, const char *section, const char *key)
+value_to_two_colors(struct context *ctx,
+                    uint32_t *first, uint32_t *second, bool allow_alpha)
 {
+    /* TODO: remove! */
+    struct config *conf = ctx->conf;
+
+    bool ret = false;
+    const char *original_value = ctx->value;
+
     /* TODO: do this without strdup() */
-    char *value_copy = xstrdup(s);
+    char *value_copy = xstrdup(ctx->value);
     const char *first_as_str = strtok(value_copy, " ");
     const char *second_as_str = strtok(NULL, " ");
 
-    if (first_as_str == NULL || second_as_str == NULL ||
-        !str_to_color(first_as_str, first, allow_alpha, conf, path, lineno, section, key) ||
-        !str_to_color(second_as_str, second, allow_alpha, conf, path, lineno, section, key))
-    {
-        free(value_copy);
-        return false;
+    if (first_as_str == NULL || second_as_str == NULL) {
+        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid double color value",
+                           ctx->path, ctx->lineno, ctx->section, ctx->key,
+                           ctx->value);
+        goto out;
     }
 
+    ctx->value = first_as_str;
+    if (!value_to_color(ctx, first, allow_alpha))
+        goto out;
+
+    ctx->value = second_as_str;
+    if (!value_to_color(ctx, second, allow_alpha))
+        goto out;
+
+    ret = true;
+
+out:
     free(value_copy);
-    return true;
+    ctx->value = original_value;
+    return ret;
 }
 
 static bool NOINLINE
@@ -825,7 +848,7 @@ parse_section_main(struct context *ctx)
 
     else if (strcmp(key, "resize-delay-ms") == 0) {
         unsigned long ms;
-        if (!str_to_ulong(value, 10, &ms)) {
+        if (!value_to_ulong(ctx, 10, &ms)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [main].resize-delay-ms: %s: invalid integer value",
                 path, lineno, value);
@@ -960,7 +983,7 @@ parse_section_main(struct context *ctx)
 
     else if (strcmp(key, "workers") == 0) {
         unsigned long count;
-        if (!str_to_ulong(value, 10, &count)) {
+        if (!value_to_ulong(ctx, 10, &count)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [main].workers: %s: invalid integer value",
                 path, lineno, value);
@@ -1106,7 +1129,7 @@ parse_section_scrollback(struct context *ctx)
 
     if (strcmp(key, "lines") == 0) {
         unsigned long lines;
-        if (!str_to_ulong(value, 10, &lines)) {
+        if (!value_to_ulong(ctx, 10, &lines)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [scrollback].lines: %s: invalid integer value",
                 path, lineno, value);
@@ -1334,9 +1357,11 @@ parse_section_colors(struct context *ctx)
     else if (strcmp(key, "selection-background") == 0) color = &conf->colors.selection_bg;
 
     else if (strcmp(key, "jump-labels") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->colors.jump_label.fg, &conf->colors.jump_label.bg,
-                false, conf, path, lineno, "colors", "jump-labels"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->colors.jump_label.fg,
+                &conf->colors.jump_label.bg,
+                false))
         {
             return false;
         }
@@ -1346,9 +1371,11 @@ parse_section_colors(struct context *ctx)
     }
 
     else if (strcmp(key, "scrollback-indicator") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->colors.scrollback_indicator.fg, &conf->colors.scrollback_indicator.bg,
-                false, conf, path, lineno, "colors", "scrollback-indicator"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->colors.scrollback_indicator.fg,
+                &conf->colors.scrollback_indicator.bg,
+                false))
         {
             return false;
         }
@@ -1358,11 +1385,8 @@ parse_section_colors(struct context *ctx)
     }
 
     else if (strcmp(key, "urls") == 0) {
-        if (!str_to_color(value, &conf->colors.url, false,
-                          conf, path, lineno, "colors", "urls"))
-        {
+        if (!value_to_color(ctx, &conf->colors.url, false))
             return false;
-        }
 
         conf->colors.use_custom.url = true;
         return true;
@@ -1389,7 +1413,7 @@ parse_section_colors(struct context *ctx)
     }
 
     uint32_t color_value;
-    if (!str_to_color(value, &color_value, false, conf, path, lineno, "colors", key))
+    if (!value_to_color(ctx, &color_value, false))
         return false;
 
     *color = color_value;
@@ -1425,9 +1449,11 @@ parse_section_cursor(struct context *ctx)
         conf->cursor.blink = value_to_bool(ctx);
 
     else if (strcmp(key, "color") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->cursor.color.text, &conf->cursor.color.cursor,
-                false, conf, path, lineno, "cursor", "color"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->cursor.color.text,
+                &conf->cursor.color.cursor,
+                false))
         {
             return false;
         }
@@ -1519,7 +1545,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.title_set = true;
@@ -1528,7 +1554,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "size") == 0) {
         unsigned long pixels;
-        if (!str_to_ulong(value, 10, &pixels)) {
+        if (!value_to_ulong(ctx, 10, &pixels)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [csd].size: %s: invalid integer value",
                 path, lineno, value);
@@ -1540,7 +1566,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "button-width") == 0) {
         unsigned long pixels;
-        if (!str_to_ulong(value, 10, &pixels)) {
+        if (!value_to_ulong(ctx, 10, &pixels)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [csd].button-width: %s: invalid integer value",
                 path, lineno, value);
@@ -1552,7 +1578,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "button-color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.buttons_set = true;
@@ -1561,7 +1587,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "button-minimize-color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-minimize-color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.minimize_set = true;
@@ -1570,7 +1596,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "button-maximize-color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-maximize-color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.maximize_set = true;
@@ -1579,7 +1605,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "button-close-color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-close-color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.close_set = true;
@@ -1588,7 +1614,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "border-color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "border-color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.border_set = true;
@@ -1597,7 +1623,7 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "border-width") == 0) {
         unsigned long width;
-        if (!str_to_ulong(value, 10, &width)) {
+        if (!value_to_ulong(ctx, 10, &width)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%u: [csd].border-width: %s: invalid integer value",
                 path, lineno, value);
@@ -2530,7 +2556,7 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
         unsigned long ns;
-        if (!str_to_ulong(value, 10, &ns)) {
+        if (!value_to_ulong(ctx, 10, &ns)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [tweak].delayed-render-lower: %s: invalid integer value",
                 path, lineno, value);
@@ -2550,7 +2576,7 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "delayed-render-upper") == 0) {
         unsigned long ns;
-        if (!str_to_ulong(value, 10, &ns)) {
+        if (!value_to_ulong(ctx, 10, &ns)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [tweak].delayed-render-upper: %s: invalid integer value",
                 path, lineno, value);
@@ -2570,7 +2596,7 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
         unsigned long mb;
-        if (!str_to_ulong(value, 10, &mb)) {
+        if (!value_to_ulong(ctx, 10, &mb)) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [tweak].max-shm-pool-size-mb: %s: invalid integer value",
                 path, lineno, value);
