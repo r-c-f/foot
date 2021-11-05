@@ -481,7 +481,12 @@ str_to_ulong(const char *s, int base, unsigned long *res)
 static bool NOINLINE
 value_to_ulong(struct context *ctx, int base, unsigned long *res)
 {
-    return str_to_ulong(ctx->value, base, res);
+    if (!str_to_ulong(ctx->value, base, res)) {
+        LOG_CONTEXTUAL_ERR("invalid integer value");
+        return false;
+    }
+
+    return true;
 }
 
 static bool NOINLINE
@@ -519,7 +524,7 @@ static bool NOINLINE
 value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
     unsigned long value;
-    if (!value_to_ulong(ctx, 16, &value)) {
+    if (!str_to_ulong(ctx->value, 16, &value)) {
         LOG_CONTEXTUAL_ERR("not a valid color value");
         return false;
     }
@@ -848,10 +853,8 @@ parse_section_main(struct context *ctx)
 
     else if (strcmp(key, "resize-delay-ms") == 0) {
         unsigned long ms;
-        if (!value_to_ulong(ctx, 10, &ms)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &ms))
             return false;
-        }
 
         conf->resize_delay_ms = ms;
     }
@@ -965,10 +968,8 @@ parse_section_main(struct context *ctx)
 
     else if (strcmp(key, "workers") == 0) {
         unsigned long count;
-        if (!value_to_ulong(ctx, 10, &count)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &count))
             return false;
-        }
         conf->render_worker_count = count;
     }
 
@@ -1087,10 +1088,8 @@ parse_section_scrollback(struct context *ctx)
 
     if (strcmp(key, "lines") == 0) {
         unsigned long lines;
-        if (!value_to_ulong(ctx, 10, &lines)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &lines))
             return false;
-        }
         conf->scrollback.lines = lines;
     }
 
@@ -1463,20 +1462,16 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "size") == 0) {
         unsigned long pixels;
-        if (!value_to_ulong(ctx, 10, &pixels)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &pixels))
             return false;
-        }
 
         conf->csd.title_height = pixels;
     }
 
     else if (strcmp(key, "button-width") == 0) {
         unsigned long pixels;
-        if (!value_to_ulong(ctx, 10, &pixels)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &pixels))
             return false;
-        }
 
         conf->csd.button_width = pixels;
     }
@@ -1528,10 +1523,8 @@ parse_section_csd(struct context *ctx)
 
     else if (strcmp(key, "border-width") == 0) {
         unsigned long width;
-        if (!value_to_ulong(ctx, 10, &width)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &width))
             return false;
-        }
 
         conf->csd.border_width_visible = width;
     }
@@ -2398,10 +2391,8 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
         unsigned long ns;
-        if (!value_to_ulong(ctx, 10, &ns)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &ns))
             return false;
-        }
 
         if (ns > 16666666) {
             LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
@@ -2414,10 +2405,8 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "delayed-render-upper") == 0) {
         unsigned long ns;
-        if (!value_to_ulong(ctx, 10, &ns)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &ns))
             return false;
-        }
 
         if (ns > 16666666) {
             LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
@@ -2430,10 +2419,8 @@ parse_section_tweak(struct context *ctx)
 
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
         unsigned long mb;
-        if (!value_to_ulong(ctx, 10, &mb)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
+        if (!value_to_ulong(ctx, 10, &mb))
             return false;
-        }
 
         conf->tweak.max_shm_pool_size = min(mb * 1024 * 1024, INT32_MAX);
         LOG_WARN("tweak: max-shm-pool-size=%lld bytes",
