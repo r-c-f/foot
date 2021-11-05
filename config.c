@@ -680,19 +680,20 @@ spawn_template_clone(struct config_spawn_template *dst,
 }
 
 static bool NOINLINE
-str_to_spawn_template(struct config *conf,
-                      const char *s, struct config_spawn_template *template,
-                      const char *path, int lineno, const char *section,
-                      const char *key)
+value_to_spawn_template(struct context *ctx,
+                        struct config_spawn_template *template)
 {
+    /* TODO: remove */
+    struct config *conf = ctx->conf;
+
     spawn_template_free(template);
 
     char **argv = NULL;
 
-    if (!tokenize_cmdline(s, &argv)) {
+    if (!tokenize_cmdline(ctx->value, &argv)) {
         LOG_AND_NOTIFY_ERR(
             "%s:%d: [%s].%s: %s: syntax error in command line",
-            path, lineno, section, key, s);
+            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
         return false;
     }
 
@@ -1013,11 +1014,8 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "notify") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->notify, path, lineno,
-                                   "main", "notify"))
-        {
+        if (!value_to_spawn_template(ctx, &conf->notify))
             return false;
-        }
     }
 
     else if (strcmp(key, "notify-focus-inhibit") == 0) {
@@ -1028,11 +1026,8 @@ parse_section_main(struct context *ctx)
         deprecated_url_option(
             conf, "url-launch", "launch", path, lineno);
 
-        if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
-                                   "main", "url-launch"))
-        {
+        if (!value_to_spawn_template(ctx, &conf->url.launch))
             return false;
-        }
     }
 
     else if (strcmp(key, "selection-target") == 0) {
@@ -1090,7 +1085,6 @@ parse_section_bell(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
     const char *path = ctx->path;
     unsigned lineno = ctx->lineno;
 
@@ -1099,7 +1093,7 @@ parse_section_bell(struct context *ctx)
     else if (strcmp(key, "notify") == 0)
         conf->bell.notify = value_to_bool(ctx);
     else if (strcmp(key, "command") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->bell.command, path, lineno, "bell", key))
+        if (!value_to_spawn_template(ctx, &conf->bell.command))
             return false;
     }
     else if (strcmp(key, "command-focused") == 0)
@@ -1204,11 +1198,8 @@ parse_section_url(struct context *ctx)
     unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "launch") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
-                                   "url", "launch"))
-        {
+        if (!value_to_spawn_template(ctx, &conf->url.launch))
             return false;
-        }
     }
 
     else if (strcmp(key, "label-letters") == 0) {
