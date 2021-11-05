@@ -134,7 +134,7 @@ struct context {
 };
 
 static void NOINLINE PRINTF(5)
-log_and_notify(struct config *conf, enum log_class log_class,
+log_and_notify(struct context *ctx, enum log_class log_class,
                const char *file, int lineno, const char *fmt, ...)
 {
     enum user_notification_kind kind;
@@ -159,7 +159,7 @@ log_and_notify(struct config *conf, enum log_class log_class,
 
     char *text = xvasprintf(fmt, va2);
     tll_push_back(
-        conf->notifications,
+        ctx->conf->notifications,
         ((struct user_notification){.kind = kind, .text = text}));
 
     va_end(va2);
@@ -167,7 +167,7 @@ log_and_notify(struct config *conf, enum log_class log_class,
 }
 
 static void NOINLINE PRINTF(5)
-log_errno_and_notify(struct config *conf, enum log_class log_class,
+log_errno_and_notify(struct context *ctx, enum log_class log_class,
                      const char *file, int lineno, const char *fmt, ...)
 {
     int errno_copy = errno;
@@ -188,7 +188,7 @@ log_errno_and_notify(struct config *conf, enum log_class log_class,
     snprintf(&text[len], errno_len + 1, ": %s", strerror(errno_copy));
 
     tll_push_back(
-        conf->notifications,
+        ctx->conf->notifications,
         ((struct user_notification){
             .kind = USER_NOTIFICATION_ERROR, .text = text}));
 
@@ -198,13 +198,13 @@ log_errno_and_notify(struct config *conf, enum log_class log_class,
 }
 
 #define LOG_AND_NOTIFY_ERR(...) \
-    log_and_notify(conf, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_WARN(...) \
-    log_and_notify(conf, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify(ctx, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_ERRNO(...) \
-    log_errno_and_notify(conf, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_errno_and_notify(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 static char *
 get_shell(void)
@@ -467,9 +467,6 @@ value_to_double(struct context *ctx, double *res)
 static bool NOINLINE
 value_to_wchars(struct context *ctx, wchar_t **res)
 {
-    /* TODO: remove! */
-    struct config *conf = ctx->conf;
-
     *res = NULL;
 
     size_t chars = mbstowcs(NULL, ctx->value, 0);
@@ -487,9 +484,6 @@ value_to_wchars(struct context *ctx, wchar_t **res)
 static bool NOINLINE
 value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
-    /* TODO: remove! */
-    struct config *conf = ctx->conf;
-
     unsigned long value;
     if (!value_to_ulong(ctx, 16, &value)) {
         LOG_AND_NOTIFY_ERR(
@@ -513,9 +507,6 @@ static bool NOINLINE
 value_to_two_colors(struct context *ctx,
                     uint32_t *first, uint32_t *second, bool allow_alpha)
 {
-    /* TODO: remove! */
-    struct config *conf = ctx->conf;
-
     bool ret = false;
     const char *original_value = ctx->value;
 
@@ -550,9 +541,6 @@ out:
 static bool NOINLINE
 value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 {
-    /* TODO: remove! */
-    struct config *conf = ctx->conf;
-
     const char *s = ctx->value;
 
     size_t len = s != NULL ? strlen(s) : 0;
@@ -588,9 +576,6 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 static struct config_font_list NOINLINE
 value_to_fonts(struct context *ctx)
 {
-    /* TODO: remove! */
-    struct config *conf = ctx->conf;
-
     size_t count = 0;
     size_t size = 0;
     struct config_font *fonts = NULL;
@@ -683,9 +668,6 @@ static bool NOINLINE
 value_to_spawn_template(struct context *ctx,
                         struct config_spawn_template *template)
 {
-    /* TODO: remove */
-    struct config *conf = ctx->conf;
-
     spawn_template_free(template);
 
     char **argv = NULL;
@@ -1648,8 +1630,8 @@ free_key_combo_list(struct key_combo_list *key_combos)
 }
 
 static bool
-parse_modifiers(struct config *conf, const char *text, size_t len,
-                struct config_key_modifiers *modifiers, const char *path, unsigned lineno)
+parse_modifiers(struct context *ctx, const char *text, size_t len,
+                struct config_key_modifiers *modifiers)
 {
     bool ret = false;
 
@@ -1670,7 +1652,7 @@ parse_modifiers(struct config *conf, const char *text, size_t len,
             modifiers->meta = true;
         else {
             LOG_AND_NOTIFY_ERR("%s:%d: %s: not a valid modifier name",
-                               path, lineno, key);
+                               ctx->path, ctx->lineno, ctx->key);
             goto out;
         }
     }
@@ -1683,17 +1665,14 @@ out:
 }
 
 static bool
-parse_key_combos(struct config *conf, const char *combos,
-                 struct key_combo_list *key_combos,
-                 const char *section, const char *option,
-                 const char *path, unsigned lineno)
+value_to_key_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
     xassert(key_combos != NULL);
     xassert(key_combos->count == 0 && key_combos->combos == NULL);
 
     size_t size = 0;  /* Size of ‘combos’ array in the key-combo list */
 
-    char *copy = xstrdup(combos);
+    char *copy = xstrdup(ctx->value);
 
     for (char *tok_ctx = NULL, *combo = strtok_r(copy, " ", &tok_ctx);
          combo != NULL;
@@ -1706,7 +1685,7 @@ parse_key_combos(struct config *conf, const char *combos,
             /* No modifiers */
             key = combo;
         } else {
-            if (!parse_modifiers(conf, combo, key - combo, &modifiers, path, lineno))
+            if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
             key++;  /* Skip past the '+' */
         }
@@ -1731,7 +1710,7 @@ parse_key_combos(struct config *conf, const char *combos,
         if (sym == XKB_KEY_NoSymbol) {
             LOG_AND_NOTIFY_ERR(
                 "%s:%d: [%s].%s: %s: is not a valid XKB key name",
-                path, lineno, section, option, key);
+                ctx->path, ctx->lineno, ctx->section, ctx->key, key);
             goto err;
         }
 
@@ -1759,11 +1738,10 @@ err:
 }
 
 static bool
-has_key_binding_collisions(struct config *conf,
+has_key_binding_collisions(struct context *ctx,
                            int action, const char *const action_map[],
                            const struct config_key_binding_list *bindings,
-                           const struct key_combo_list *key_combos,
-                           const char *path, unsigned lineno)
+                           const struct key_combo_list *key_combos)
 {
     for (size_t j = 0; j < bindings->count; j++) {
         const struct config_key_binding *combo1 = &bindings->arr[j];
@@ -1789,7 +1767,7 @@ has_key_binding_collisions(struct config *conf,
             if (shift && alt && ctrl && meta && sym) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
                 LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   path, lineno, combo2->text,
+                                   ctx->path, ctx->lineno, combo2->text,
                                    action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -1847,34 +1825,32 @@ argv_compare(char *const *argv1, char *const *argv2)
  *  - argv: allocatd array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
  */
 static ssize_t
-pipe_argv_from_string(const char *value, char ***argv,
-                      struct config *conf,
-                      const char *path, unsigned lineno)
+pipe_argv_from_value(struct context *ctx, char ***argv)
 {
     *argv = NULL;
 
-    if (value[0] != '[')
+    if (ctx->value[0] != '[')
         return 0;
 
-    const char *pipe_cmd_end = strrchr(value, ']');
+    const char *pipe_cmd_end = strrchr(ctx->value, ']');
     if (pipe_cmd_end == NULL) {
-        LOG_AND_NOTIFY_ERR("%s:%d: unclosed '['", path, lineno);
+        LOG_AND_NOTIFY_ERR("%s:%d: unclosed '['", ctx->path, ctx->lineno);
         return -1;
     }
 
-    size_t pipe_len = pipe_cmd_end - value - 1;
-    char *cmd = xstrndup(&value[1], pipe_len);
+    size_t pipe_len = pipe_cmd_end - ctx->value - 1;
+    char *cmd = xstrndup(&ctx->value[1], pipe_len);
 
     if (!tokenize_cmdline(cmd, argv)) {
-        LOG_AND_NOTIFY_ERR("%s:%d: syntax error in command line", path, lineno);
+        LOG_AND_NOTIFY_ERR("%s:%d: syntax error in command line", ctx->path, ctx->lineno);
         free(cmd);
         return -1;
     }
 
-    ssize_t remove_len = pipe_cmd_end + 1 - value;
-    value = pipe_cmd_end + 1;
-    while (isspace(*value)) {
-        value++;
+    ssize_t remove_len = pipe_cmd_end + 1 - ctx->value;
+    ctx->value = pipe_cmd_end + 1;
+    while (isspace(*ctx->value)) {
+        ctx->value++;
         remove_len++;
     }
 
@@ -1920,42 +1896,37 @@ remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
 }
 
 static bool NOINLINE
-parse_key_binding_section(
-    const char *section, const char *key, const char *value,
-    int action_count, const char *const action_map[static action_count],
-    struct config_key_binding_list *bindings,
-    struct config *conf, const char *path, unsigned lineno)
+parse_key_binding_section(struct context *ctx,
+                          int action_count,
+                          const char *const action_map[static action_count],
+                          struct config_key_binding_list *bindings)
 {
     char **pipe_argv;
 
-    ssize_t pipe_remove_len = pipe_argv_from_string(
-        value, &pipe_argv, conf, path, lineno);
-
+    ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
 
-    value += pipe_remove_len;
+    ctx->value += pipe_remove_len;
 
     for (int action = 0; action < action_count; action++) {
         if (action_map[action] == NULL)
             continue;
 
-        if (strcmp(key, action_map[action]) != 0)
+        if (strcmp(ctx->key, action_map[action]) != 0)
             continue;
 
         /* Unset binding */
-        if (strcasecmp(value, "none") == 0) {
+        if (strcasecmp(ctx->value, "none") == 0) {
             remove_action_from_key_bindings_list(bindings, action, pipe_argv);
             free(pipe_argv);
             return true;
         }
 
         struct key_combo_list key_combos = {0};
-        if (!parse_key_combos(
-                conf, value, &key_combos, section, key, path, lineno) ||
+        if (!value_to_key_combos(ctx, &key_combos) ||
             has_key_binding_collisions(
-                conf, action, action_map, bindings, &key_combos,
-                path, lineno))
+                ctx, action, action_map, bindings, &key_combos))
         {
             free(pipe_argv);
             free_key_combo_list(&key_combos);
@@ -1995,7 +1966,7 @@ parse_key_binding_section(
     }
 
     LOG_AND_NOTIFY_ERR("%s:%u: [%s].%s is not a valid action",
-                       path, lineno, section, key);
+                       ctx->path, ctx->lineno, ctx->section, ctx->key);
     free(pipe_argv);
     return false;
 }
@@ -2018,13 +1989,20 @@ UNITTEST
     struct config conf = {0};
     struct config_key_binding_list bindings = {0};
 
+    struct context ctx = {
+        .conf = &conf,
+        .section = "",
+        .key = "foo",
+        .value = "Escape",
+        .path = "",
+    };
+
     /*
      * ADD foo=Escape
      *
      * This verifies we can bind a single key combo to an action.
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "Escape", ALEN(map), map, &bindings, &conf, "", 0));
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 1);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[0].sym == XKB_KEY_Escape);
@@ -2034,9 +2012,9 @@ UNITTEST
      *
      * This verifies we can bind multiple key combos to an action.
      */
-    xassert(parse_key_binding_section(
-                "", "bar", "Control+g Control+Shift+x", ALEN(map), map,
-                &bindings, &conf, "", 0));
+    ctx.key = "bar";
+    ctx.value = "Control+g Control+Shift+x";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 3);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[1].action == TEST_ACTION_BAR);
@@ -2052,9 +2030,9 @@ UNITTEST
      * This verifies we can update a single-combo action with multiple
      * key combos.
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "Mod1+v Shift+q", ALEN(map), map,
-                &bindings, &conf, "", 0));
+    ctx.key = "foo";
+    ctx.value = "Mod1+v Shift+q";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 4);
     xassert(bindings.arr[0].action == TEST_ACTION_BAR);
     xassert(bindings.arr[1].action == TEST_ACTION_BAR);
@@ -2068,8 +2046,9 @@ UNITTEST
     /*
      * REMOVE bar
      */
-    xassert(parse_key_binding_section(
-                "", "bar", "none", ALEN(map), map, &bindings, &conf, "", 0));
+    ctx.key = "bar";
+    ctx.value = "none";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 2);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[1].action == TEST_ACTION_FOO);
@@ -2077,8 +2056,9 @@ UNITTEST
     /*
      * REMOVE foo
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "none", ALEN(map), map, &bindings, &conf, "", 0));
+    ctx.key = "foo";
+    ctx.value = "none";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 0);
 
     free(bindings.arr);
@@ -2087,26 +2067,15 @@ UNITTEST
 static bool
 parse_section_key_bindings(struct context *ctx)
 {
-    struct config *conf = ctx->conf;
-    const char *key = ctx->key;
-    const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
-
     return parse_key_binding_section(
-        "key-bindings", key, value, BIND_ACTION_KEY_COUNT, binding_action_map,
-        &conf->bindings.key, conf, path, lineno);
+        ctx,
+        BIND_ACTION_KEY_COUNT, binding_action_map,
+        &ctx->conf->bindings.key);
 }
 
 static bool
 parse_section_search_bindings(struct context *ctx)
 {
-    struct config *conf = ctx->conf;
-    const char *key = ctx->key;
-    const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
-
     static const char *const search_binding_action_map[] = {
         [BIND_ACTION_SEARCH_NONE] = NULL,
         [BIND_ACTION_SEARCH_CANCEL] = "cancel",
@@ -2133,19 +2102,14 @@ parse_section_search_bindings(struct context *ctx)
                   "search binding action map size mismatch");
 
     return parse_key_binding_section(
-        "search-bindings", key, value, BIND_ACTION_SEARCH_COUNT,
-        search_binding_action_map, &conf->bindings.search, conf, path, lineno);
+        ctx,
+        BIND_ACTION_SEARCH_COUNT, search_binding_action_map,
+        &ctx->conf->bindings.search);
 }
 
 static bool
 parse_section_url_bindings(struct context *ctx)
 {
-    struct config *conf = ctx->conf;
-    const char *key = ctx->key;
-    const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
-
     static const char *const url_binding_action_map[] = {
         [BIND_ACTION_URL_NONE] = NULL,
         [BIND_ACTION_URL_CANCEL] = "cancel",
@@ -2156,22 +2120,20 @@ parse_section_url_bindings(struct context *ctx)
                   "URL binding action map size mismatch");
 
     return parse_key_binding_section(
-        "url-bindings", key, value, BIND_ACTION_URL_COUNT,
-        url_binding_action_map, &conf->bindings.url, conf, path, lineno);
+        ctx,
+        BIND_ACTION_URL_COUNT, url_binding_action_map,
+        &ctx->conf->bindings.url);
 }
 
 static bool
-parse_mouse_combos(struct config *conf, const char *combos,
-                   struct key_combo_list *key_combos,
-                   const char *path, unsigned lineno,
-                   const char *section, const char *conf_key)
+value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
     xassert(key_combos != NULL);
     xassert(key_combos->count == 0 && key_combos->combos == NULL);
 
     size_t size = 0;  /* Size of the ‘combos’ array in key_combos */
 
-    char *copy = xstrdup(combos);
+    char *copy = xstrdup(ctx->value);
 
     for (char *tok_ctx = NULL, *combo = strtok_r(copy, " ", &tok_ctx);
          combo != NULL;
@@ -2185,12 +2147,12 @@ parse_mouse_combos(struct config *conf, const char *combos,
             key = combo;
         } else {
             *key = '\0';
-            if (!parse_modifiers(conf, combo, key - combo, &modifiers, path, lineno))
+            if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
             if (modifiers.shift) {
                 LOG_AND_NOTIFY_ERR(
                     "%s:%d: [%s].%s: Shift cannot be used in mouse bindings",
-                    path, lineno, section, conf_key);
+                    ctx->path, ctx->lineno, ctx->section, ctx->key);
                 goto err;
             }
             key++;  /* Skip past the '+' */
@@ -2209,12 +2171,12 @@ parse_mouse_combos(struct config *conf, const char *combos,
                 if (_count[0] == '\0' || *end != '\0' || errno != 0) {
                     if (errno != 0)
                         LOG_AND_NOTIFY_ERRNO(
-                            "%s:%d: [%s].%s: %s: invalid click count"
-                            , path, lineno, section, conf_key, _count);
+                            "%s:%d: [%s].%s: %s: invalid click count",
+                            ctx->path, ctx->lineno, ctx->section, ctx->key, _count);
                     else
                         LOG_AND_NOTIFY_ERR(
                             "%s:%d: [%s].%s: %s: invalid click count",
-                            path, lineno, section, conf_key, _count);
+                            ctx->path, ctx->lineno, ctx->section, ctx->key, _count);
                     goto err;
                 }
                 count = value;
@@ -2245,7 +2207,7 @@ parse_mouse_combos(struct config *conf, const char *combos,
 
         if (button == 0) {
             LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid mouse button name",
-                               path, lineno, section, conf_key, key);
+                               ctx->path, ctx->lineno, ctx->section, ctx->key, key);
             goto err;
         }
 
@@ -2278,9 +2240,11 @@ err:
 }
 
 static bool
-has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *key_combos,
-                             const char *path, unsigned lineno)
+has_mouse_binding_collisions(struct context *ctx,
+                             const struct key_combo_list *key_combos)
 {
+    struct config *conf = ctx->conf;
+
     for (size_t j = 0; j < conf->bindings.mouse.count; j++) {
         const struct config_mouse_binding *combo1 = &conf->bindings.mouse.arr[j];
         if (combo1->action == BIND_ACTION_NONE)
@@ -2302,7 +2266,7 @@ has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *k
             if (shift && alt && ctrl && meta && button && count) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
                 LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   path, lineno, combo2->text,
+                                   ctx->path, ctx->lineno, combo2->text,
                                    binding_action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -2327,9 +2291,7 @@ parse_section_mouse_bindings(struct context *ctx)
 
     char **pipe_argv;
 
-    ssize_t pipe_remove_len = pipe_argv_from_string(
-        value, &pipe_argv, conf, path, lineno);
-
+    ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
 
@@ -2362,9 +2324,8 @@ parse_section_mouse_bindings(struct context *ctx)
         }
 
         struct key_combo_list key_combos = {0};
-        if (!parse_mouse_combos(
-                conf, value, &key_combos, path, lineno, "mouse-bindings", key) ||
-            has_mouse_binding_collisions(conf, &key_combos, path, lineno))
+        if (!value_to_mouse_combos(ctx, &key_combos) ||
+            has_mouse_binding_collisions(ctx, &key_combos))
         {
             free(pipe_argv);
             free_key_combo_list(&key_combos);
@@ -2743,17 +2704,18 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;                           \
     }
 
-    struct context ctx = {
+    struct context context = {
         .conf = conf,
         .section = "main",
         .path = path,
         .lineno = 0,
         .errors_are_fatal = errors_are_fatal,
     };
+    struct context *ctx = &context;  /* For LOG_AND_*() */
 
     while (true) {
         errno = 0;
-        ctx.lineno++;
+        context.lineno++;
 
         ssize_t ret = getline(&_line, &count, f);
 
@@ -2800,7 +2762,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         if (key_value[0] == '[') {
             char *end = strchr(key_value, ']');
             if (end == NULL) {
-                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, ctx.lineno, key_value);
+                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, context.lineno, key_value);
                 error_or_continue();
             }
 
@@ -2808,12 +2770,11 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 
             section = str_to_section(&key_value[1]);
             if (section == SECTION_COUNT) {
-                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, ctx.lineno, &key_value[1]);
+                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, context.lineno, &key_value[1]);
                 error_or_continue();
             }
 
-            ctx.section = &key_value[1];
-            LOG_INFO("section=\"%s\"", ctx.section);
+            context.section = &key_value[1];
 
             /* Process next line */
             continue;
@@ -2824,8 +2785,8 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;
         }
 
-        if (!parse_key_value(key_value, NULL, &ctx.key, &ctx.value)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, ctx.lineno, key_value);
+        if (!parse_key_value(key_value, NULL, &context.key, &context.value)) {
+            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, context.lineno, key_value);
             if (errors_are_fatal)
                 goto err;
             break;
@@ -2839,7 +2800,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(&ctx))
+        if (!section_parser(ctx))
             error_or_continue();
     }
 
@@ -3156,6 +3117,21 @@ config_load(struct config *conf, const char *conf_path,
     add_default_url_bindings(conf);
     add_default_mouse_bindings(conf);
 
+    /*
+     * TODO: replace LOG_AND_NOTIFY_*() with custom loggers that
+     * doesn’t take a context
+     */
+    struct context context = {
+        .conf = conf,
+        .section = "",
+        .key = "",
+        .value = "",
+        .path = conf_path,
+        .lineno = 0,
+        .errors_are_fatal = errors_are_fatal,
+    };
+    struct context *ctx = &context;
+
     struct config_file conf_file = {.path = NULL, .fd = -1};
     if (conf_path != NULL) {
         int fd = open(conf_path, O_RDONLY);
@@ -3230,26 +3206,30 @@ out:
 bool
 config_override_apply(struct config *conf, config_override_t *overrides, bool errors_are_fatal)
 {
-    struct context ctx = {
+    struct context context = {
         .conf = conf,
         .path = "override",
         .lineno = 0,
         .errors_are_fatal = errors_are_fatal,
     };
+    struct context *ctx = &context;
 
     tll_foreach(*overrides, it) {
-        ctx.lineno++;
+        context.lineno++;
 
-        if (!parse_key_value(it->item, &ctx.section, &ctx.key, &ctx.value)) {
+        if (!parse_key_value(
+                it->item, &context.section, &context.key, &context.value))
+        {
             LOG_AND_NOTIFY_ERR("syntax error: %s", it->item);
             if (errors_are_fatal)
                 return false;
             continue;
         }
 
-        enum section section = str_to_section(ctx.section);
+        enum section section = str_to_section(context.section);
         if (section == SECTION_COUNT) {
-            LOG_AND_NOTIFY_ERR("override: invalid section name: %s", ctx.section);
+            LOG_AND_NOTIFY_ERR(
+                "override: invalid section name: %s", context.section);
             if (errors_are_fatal)
                 return false;
             continue;
@@ -3257,7 +3237,7 @@ config_override_apply(struct config *conf, config_override_t *overrides, bool er
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(&ctx)) {
+        if (!section_parser(ctx)) {
             if (errors_are_fatal)
                 return false;
             continue;
