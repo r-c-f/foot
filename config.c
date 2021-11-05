@@ -525,6 +525,32 @@ value_to_wchars(struct context *ctx, wchar_t **res)
     return true;
 }
 
+static int NOINLINE
+value_to_enum(struct context *ctx, const char **value_map)
+{
+    size_t str_len = 0;
+    size_t count = 0;
+
+    for (; value_map[count] != NULL; count++) {
+        if (strcasecmp(value_map[count], ctx->value) == 0)
+            return count;
+        str_len += strlen(value_map[count]);
+    }
+
+    const size_t size = str_len + count * 4 + 1;
+    char *valid_values = xmalloc(size);
+    int idx = 0;
+
+    for (size_t i = 0; i < count; i++)
+        idx += snprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
+
+    if (count > 0)
+        valid_values[idx - 2] = '\0';
+
+    LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
+    return -1;
+}
+
 static bool NOINLINE
 value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
@@ -887,34 +913,29 @@ parse_section_main(struct context *ctx)
         };
         tll_push_back(conf->notifications, deprecation);
 
-        if (strcmp(value, "set-urgency") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-            conf->bell.urgent = true;
-        }
-        else if (strcmp(value, "notify") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-            conf->bell.notify = true;
-        }
-        else if (strcmp(value, "none") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-        }
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'set-urgency', 'notify' or 'none'");
+        int bell = value_to_enum(
+            ctx, (const char *[]){"set-urgency", "notify", "none", NULL});
+
+        switch (bell) {
+        case 0: conf->bell.urgent = true; break;
+        case 1: conf->bell.notify = true; break;
+        case 2: memset(&conf->bell, 0, sizeof(conf->bell)); break;
+
+        case -1:
+        default:
             return false;
+
         }
     }
 
     else if (strcmp(key, "initial-window-mode") == 0) {
-        if (strcmp(value, "windowed") == 0)
-            conf->startup_mode = STARTUP_WINDOWED;
-        else if (strcmp(value, "maximized") == 0)
-            conf->startup_mode = STARTUP_MAXIMIZED;
-        else if (strcmp(value, "fullscreen") == 0)
-            conf->startup_mode = STARTUP_FULLSCREEN;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'windows', 'maximized' or 'fullscreen'");
+        int mode = value_to_enum(
+            ctx, (const char *[]){"windowed", "maximized", "fullscreen", NULL});
+
+        if (mode < 0)
             return false;
-        }
+
+        conf->startup_mode = mode;
     }
 
     else if (strcmp(key, "font") == 0 ||
@@ -1015,36 +1036,26 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "selection-target") == 0) {
-        static const char values[][12] = {
-            [SELECTION_TARGET_NONE] = "none",
-            [SELECTION_TARGET_PRIMARY] = "primary",
-            [SELECTION_TARGET_CLIPBOARD] = "clipboard",
-            [SELECTION_TARGET_BOTH] = "both",
-        };
+        int target = value_to_enum(
+            ctx, (const char *[]){"none", "primary", "clipboard", "both", NULL});
 
-        for (size_t i = 0; i < ALEN(values); i++) {
-            if (strcasecmp(value, values[i]) == 0) {
-                conf->selection_target = i;
-                return true;
-            }
-        }
+        if (target < 0)
+            return false;
 
-        LOG_CONTEXTUAL_ERR("not one of 'none', 'primary', 'clipboard' or 'both");
-        return false;
+        conf->selection_target = target;
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
         deprecated_url_option(
             conf, "osc8-underline", "osc8-underline", path, lineno);
 
-        if (strcmp(value, "url-mode") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_URL_MODE;
-        else if (strcmp(value, "always") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'url-mode', or 'always'");
+        int mode = value_to_enum(
+            ctx, (const char *[]){"url-mode", "always", NULL});
+
+        if (mode < 0)
             return false;
-        }
+
+        conf->url.osc8_underline = mode;
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)
@@ -1097,16 +1108,13 @@ parse_section_scrollback(struct context *ctx)
     }
 
     else if (strcmp(key, "indicator-position") == 0) {
-        if (strcmp(value, "none") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_NONE;
-        else if (strcmp(value, "fixed") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_FIXED;
-        else if (strcmp(value, "relative") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_RELATIVE;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'none', 'fixed' or 'relative'");
+        int position = value_to_enum(
+            ctx, (const char *[]){"none", "fixed", "relative", NULL});
+
+        if (position < 0)
             return false;
-        }
+
+        conf->scrollback.indicator.position = position;
     }
 
     else if (strcmp(key, "indicator-format") == 0) {
@@ -1168,14 +1176,13 @@ parse_section_url(struct context *ctx)
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
-        if (strcmp(value, "url-mode") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_URL_MODE;
-        else if (strcmp(value, "always") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'url-mode', or 'always'");
+        int mode = value_to_enum(
+            ctx, (const char *[]){"url-mode", "always", NULL});
+
+        if (mode < 0)
             return false;
-        }
+
+        conf->url.osc8_underline = mode;
     }
 
     else if (strcmp(key, "protocols") == 0) {
@@ -1354,20 +1361,15 @@ parse_section_cursor(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
 
     if (strcmp(key, "style") == 0) {
-        if (strcmp(value, "block") == 0)
-            conf->cursor.style = CURSOR_BLOCK;
-        else if (strcmp(value, "beam") == 0 || strcmp(value, "bar") == 0)
-            conf->cursor.style = CURSOR_BEAM;
-        else if (strcmp(value, "underline") == 0)
-            conf->cursor.style = CURSOR_UNDERLINE;
+        enum cursor_style style = value_to_enum(
+            ctx, (const char *[]){"block", "underline", "beam", NULL});
 
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'block', 'beam' or 'underline'");
+        if (style < 0)
             return false;
-        }
+
+        conf->cursor.style = style;
     }
 
     else if (strcmp(key, "blink") == 0)
@@ -1430,19 +1432,15 @@ parse_section_csd(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
 
     if (strcmp(key, "preferred") == 0) {
-        if (strcmp(value, "server") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_SERVER;
-        else if (strcmp(value, "client") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_CLIENT;
-        else if (strcmp(value, "none") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_NONE;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'server', 'client' or 'none'");
+        int csd = value_to_enum(
+            ctx, (const char *[]){"none", "server", "client", NULL});
+
+        if (csd < 0)
             return false;
-        }
+
+        conf->csd.preferred = csd;
     }
 
     else if (strcmp(key, "font") == 0) {
@@ -2304,25 +2302,21 @@ parse_section_tweak(struct context *ctx)
     unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "scaling-filter") == 0) {
-        static const char filters[][12] = {
+        static const char *filters[] = {
             [FCFT_SCALING_FILTER_NONE] = "none",
             [FCFT_SCALING_FILTER_NEAREST] = "nearest",
             [FCFT_SCALING_FILTER_BILINEAR] = "bilinear",
             [FCFT_SCALING_FILTER_CUBIC] = "cubic",
             [FCFT_SCALING_FILTER_LANCZOS3] = "lanczos3",
+            NULL,
         };
 
-        for (size_t i = 0; i < ALEN(filters); i++) {
-            if (strcmp(value, filters[i]) == 0) {
-                conf->tweak.fcft_filter = i;
-                LOG_WARN("tweak: scaling-filter=%s", filters[i]);
-                return true;
-            }
-        }
+        int filter = value_to_enum(ctx, filters);
+        if (filter < 0)
+            return false;
 
-        LOG_CONTEXTUAL_ERR(
-            "not one of 'none', 'nearest', 'bilinear', 'cubic' or 'lanczos3'");
-        return false;
+        conf->tweak.fcft_filter = filter;
+        LOG_WARN("tweak: scaling-filter=%s", filters[filter]);
     }
 
     else if (strcmp(key, "overflowing-glyphs") == 0) {
@@ -2361,33 +2355,43 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "grapheme-width-method") == 0) {
-        if (strcmp(value, "double-width") == 0)
-            conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_DOUBLE;
-        else if (strcmp(value, "wcswidth") == 0)
-            conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH;
-        else {
-            LOG_CONTEXTUAL_ERR("not one of 'wcswidth' or 'double-width'");
-            return false;
-        }
+        int method = value_to_enum(
+            ctx, (const char *[]){"wcswidth", "double-width", NULL});
 
+        if (method < 0)
+            return false;
+
+        conf->tweak.grapheme_width_method = method;
         LOG_WARN("%s:%d [tweak].grapheme-width-method=%s", path, lineno, value);
     }
 
     else if (strcmp(key, "render-timer") == 0) {
-        if (strcmp(value, "none") == 0) {
+        int mode = value_to_enum(
+            ctx, (const char *[]){"none", "osd", "log", "both", NULL});
+
+        switch (mode) {
+        case 0:
             conf->tweak.render_timer_osd = false;
             conf->tweak.render_timer_log = false;
-        } else if (strcmp(value, "osd") == 0) {
+            break;
+
+        case 1:
             conf->tweak.render_timer_osd = true;
             conf->tweak.render_timer_log = false;
-        } else if (strcmp(value, "log") == 0) {
+            break;
+
+        case 2:
             conf->tweak.render_timer_osd = false;
             conf->tweak.render_timer_log = true;
-        } else if (strcmp(value, "both") == 0) {
+            break;
+
+        case 3:
             conf->tweak.render_timer_osd = true;
             conf->tweak.render_timer_log = true;
-        } else {
-            LOG_CONTEXTUAL_ERR("not one of 'none', 'osd', 'log' or 'both'");
+            break;
+
+        case -1:
+        default:
             return false;
         }
     }
