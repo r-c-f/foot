@@ -133,78 +133,113 @@ struct context {
     bool errors_are_fatal;
 };
 
-static void NOINLINE PRINTF(5)
-log_and_notify(struct context *ctx, enum log_class log_class,
-               const char *file, int lineno, const char *fmt, ...)
+static const enum user_notification_kind log_class_to_notify_kind[LOG_CLASS_COUNT] = {
+    [LOG_CLASS_WARNING] = USER_NOTIFICATION_WARNING,
+    [LOG_CLASS_ERROR] = USER_NOTIFICATION_ERROR,
+};
+
+static void NOINLINE VPRINTF(5)
+log_and_notify_va(struct config *conf, enum log_class log_class,
+                  const char *file, int lineno, const char *fmt, va_list va)
 {
-    enum user_notification_kind kind;
+    xassert(log_class < ALEN(log_class_to_notify_kind));
+    enum user_notification_kind kind = log_class_to_notify_kind[log_class];
 
-    switch (log_class) {
-    case LOG_CLASS_WARNING: kind = USER_NOTIFICATION_WARNING; break;
-    case LOG_CLASS_ERROR:   kind = USER_NOTIFICATION_ERROR; break;
-
-    case LOG_CLASS_INFO:
-    case LOG_CLASS_DEBUG:
-    case LOG_CLASS_NONE:
-    default:
+    if (kind == 0) {
         BUG("unsupported log class: %d", (int)log_class);
         return;
     }
 
-    va_list va1, va2;
-    va_start(va1, fmt);
-    va_copy(va2, va1);
-
-    log_msg_va(log_class, LOG_MODULE, file, lineno, fmt, va1);
-
-    char *text = xvasprintf(fmt, va2);
+    char *formatted_msg = xvasprintf(fmt, va);
+    log_msg(log_class, LOG_MODULE, file, lineno, formatted_msg);
     tll_push_back(
-        ctx->conf->notifications,
-        ((struct user_notification){.kind = kind, .text = text}));
-
-    va_end(va2);
-    va_end(va1);
+        conf->notifications,
+        ((struct user_notification){.kind = kind, .text = formatted_msg}));
 }
 
 static void NOINLINE PRINTF(5)
-log_errno_and_notify(struct context *ctx, enum log_class log_class,
-                     const char *file, int lineno, const char *fmt, ...)
+log_and_notify(struct config *conf, enum log_class log_class,
+               const char *file, int lineno, const char *fmt, ...)
 {
-    int errno_copy = errno;
-
-    va_list va1, va2, va3;
-    va_start(va1, fmt);
-    va_copy(va2, va1);
-    va_copy(va3, va2);
-
-    log_errno_provided_va(
-        log_class, LOG_MODULE, file, lineno, errno_copy, fmt, va1);
-
-    int len = vsnprintf(NULL, 0, fmt, va2);
-    int errno_len = snprintf(NULL, 0, ": %s", strerror(errno_copy));
-
-    char *text = xmalloc(len + errno_len + 1);
-    vsnprintf(text, len + errno_len + 1, fmt, va3);
-    snprintf(&text[len], errno_len + 1, ": %s", strerror(errno_copy));
-
-    tll_push_back(
-        ctx->conf->notifications,
-        ((struct user_notification){
-            .kind = USER_NOTIFICATION_ERROR, .text = text}));
-
-    va_end(va3);
-    va_end(va2);
-    va_end(va1);
+    va_list va;
+    va_start(va, fmt);
+    log_and_notify_va(conf, log_class, file, lineno, fmt, va);
+    va_end(va);
 }
 
+static void NOINLINE PRINTF(5)
+log_contextual(struct context *ctx, enum log_class log_class,
+               const char *file, int lineno, const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char *formatted_msg = xvasprintf(fmt, va);
+    va_end(va);
+
+    log_and_notify(
+        ctx->conf, log_class, file, lineno, "%s:%d: [%s].%s: %s: %s",
+        ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value,
+        formatted_msg);
+    free(formatted_msg);
+}
+
+
+static void NOINLINE VPRINTF(4)
+log_and_notify_errno_va(struct config *conf, const char *file, int lineno,
+                     const char *fmt, va_list va)
+{
+    int errno_copy = errno;
+    char *formatted_msg = xvasprintf(fmt, va);
+    log_and_notify(
+        conf, LOG_CLASS_ERROR, file, lineno,
+        "%s: %s", formatted_msg, strerror(errno_copy));
+    free(formatted_msg);
+}
+
+static void NOINLINE PRINTF(4)
+log_and_notify_errno(struct config *conf, const char *file, int lineno,
+                     const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    log_and_notify_errno_va(conf, file, lineno, fmt, va);
+    va_end(va);
+}
+
+static void NOINLINE PRINTF(4)
+log_contextual_errno(struct context *ctx, const char *file, int lineno,
+                     const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char *formatted_msg = xvasprintf(fmt, va);
+    va_end(va);
+
+    log_and_notify_errno(
+        ctx->conf, file, lineno, "%s:%d: [%s].%s: %s: %s",
+        ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value,
+        formatted_msg);
+
+    free(formatted_msg);
+}
+
+#define LOG_CONTEXTUAL_ERR(...) \
+    log_contextual(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+#define LOG_CONTEXTUAL_WARN(...) \
+    log_contextual(ctx, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
+
+#define LOG_CONTEXTUAL_ERRNO(...) \
+    log_contextual_errno(ctx, __FILE__, __LINE__, __VA_ARGS__)
+
 #define LOG_AND_NOTIFY_ERR(...) \
-    log_and_notify(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify(conf, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_WARN(...) \
-    log_and_notify(ctx, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify(conf, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_ERRNO(...) \
-    log_errno_and_notify(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify_errno(conf, __FILE__, __LINE__, __VA_ARGS__)
 
 static char *
 get_shell(void)
@@ -471,8 +506,7 @@ value_to_wchars(struct context *ctx, wchar_t **res)
 
     size_t chars = mbstowcs(NULL, ctx->value, 0);
     if (chars == (size_t)-1) {
-        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s is not a valid string value",
-                           ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+        LOG_CONTEXTUAL_ERR("not a valid string value");
         return false;
     }
 
@@ -486,16 +520,12 @@ value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
     unsigned long value;
     if (!value_to_ulong(ctx, 16, &value)) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s is not a valid color value",
-            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+        LOG_CONTEXTUAL_ERR("not a valid color value");
         return false;
     }
 
     if (!allow_alpha && (value & 0xff000000) != 0) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s: color value must not have an alpha component",
-            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+        LOG_CONTEXTUAL_ERR("color value must not have an alpha component");
         return false;
     }
 
@@ -516,9 +546,7 @@ value_to_two_colors(struct context *ctx,
     const char *second_as_str = strtok(NULL, " ");
 
     if (first_as_str == NULL || second_as_str == NULL) {
-        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid double color value",
-                           ctx->path, ctx->lineno, ctx->section, ctx->key,
-                           ctx->value);
+        LOG_CONTEXTUAL_ERR("invalid double color value");
         goto out;
     }
 
@@ -550,10 +578,7 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 
         long value = strtol(s, &end, 10);
         if (!(errno == 0 && end == s + len - 2)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid px value "
-                "(must be on the form 12px)",
-                ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+            LOG_CONTEXTUAL_ERR("invalid px value (must be on the form 12px)");
             return false;
         }
         res->pt = 0;
@@ -561,9 +586,7 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
     } else {
         double value;
         if (!value_to_double(ctx, &value)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid decimal value",
-                ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+            LOG_CONTEXTUAL_ERR("invalid decimal value");
             return false;
         }
         res->pt = value;
@@ -594,9 +617,8 @@ value_to_fonts(struct context *ctx)
 
         struct config_font font_data;
         if (!config_font_parse(font, &font_data)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid font specification",
-                ctx->path, ctx->lineno, ctx->section, ctx->key, font);
+            ctx->value = font;
+            LOG_CONTEXTUAL_ERR("invalid font specification");
             goto err;
         }
 
@@ -673,9 +695,7 @@ value_to_spawn_template(struct context *ctx,
     char **argv = NULL;
 
     if (!tokenize_cmdline(ctx->value, &argv)) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s: syntax error in command line",
-            ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value);
+        LOG_CONTEXTUAL_ERR("syntax error in command line");
         return false;
     }
 
@@ -724,9 +744,7 @@ parse_section_main(struct context *ctx)
             const char *home_dir = get_user_home_dir();
 
             if (home_dir == NULL) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%d: [main].include: %s: failed to expand '~'",
-                    path, lineno, value);
+                LOG_CONTEXTUAL_ERRNO("failed to expand '~'");
                 return false;
             }
 
@@ -736,9 +754,7 @@ parse_section_main(struct context *ctx)
             include_path = value;
 
         if (include_path[0] != '/') {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].include: %s: not an absolute path",
-                path, lineno, include_path);
+            LOG_CONTEXTUAL_ERR("not an absolute path");
             free(_include_path);
             return false;
         }
@@ -746,9 +762,7 @@ parse_section_main(struct context *ctx)
         FILE *include = fopen(include_path, "r");
 
         if (include == NULL) {
-            LOG_AND_NOTIFY_ERRNO(
-                "%s:%d: [main].include: %s: failed to open",
-                path, lineno, include_path);
+            LOG_CONTEXTUAL_ERRNO("failed to open");
             free(_include_path);
             return false;
         }
@@ -792,9 +806,7 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "initial-window-size-pixels") == 0) {
         unsigned width, height;
         if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-pixels: %s: invalid size "
-                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid size (must be on the form WIDTHxHEIGHT)");
             return false;
         }
 
@@ -806,9 +818,7 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "initial-window-size-chars") == 0) {
         unsigned width, height;
         if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-chars: %s: invalid size "
-                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid size (must be on the form WIDTHxHEIGHT)");
             return false;
         }
 
@@ -826,10 +836,8 @@ parse_section_main(struct context *ctx)
         bool invalid_mode = !center && mode[0] != '\0';
 
         if ((ret != 2 && ret != 3) || invalid_mode) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].pad: %s: invalid padding "
-                "(must be on the form PAD_XxPAD_Y [center])",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR(
+                "invalid padding (must be on the form PAD_XxPAD_Y [center])");
             return false;
         }
 
@@ -841,9 +849,7 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "resize-delay-ms") == 0) {
         unsigned long ms;
         if (!value_to_ulong(ctx, 10, &ms)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].resize-delay-ms: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
@@ -887,10 +893,7 @@ parse_section_main(struct context *ctx)
             memset(&conf->bell, 0, sizeof(conf->bell));
         }
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s%d: [main].bell: %s: "
-                "not one of 'set-urgency', 'notify' or 'none'",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'set-urgency', 'notify' or 'none'");
             return false;
         }
     }
@@ -903,10 +906,7 @@ parse_section_main(struct context *ctx)
         else if (strcmp(value, "fullscreen") == 0)
             conf->startup_mode = STARTUP_FULLSCREEN;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-mode: %s: not one of "
-                "'windows', 'maximized' or 'fullscreen'",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'windows', 'maximized' or 'fullscreen'");
             return false;
         }
     }
@@ -966,9 +966,7 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "workers") == 0) {
         unsigned long count;
         if (!value_to_ulong(ctx, 10, &count)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].workers: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
         conf->render_worker_count = count;
@@ -1027,10 +1025,7 @@ parse_section_main(struct context *ctx)
             }
         }
 
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [main].selection-target: %s: not one of "
-            "'none', 'primary', 'clipboard' or 'both",
-            path, lineno, value);
+        LOG_CONTEXTUAL_ERR("not one of 'none', 'primary', 'clipboard' or 'both");
         return false;
     }
 
@@ -1043,9 +1038,7 @@ parse_section_main(struct context *ctx)
         else if (strcmp(value, "always") == 0)
             conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [main].osc8-underline: %s: not one of "
-                "'url-mode', or 'always'", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'url-mode', or 'always'");
             return false;
         }
     }
@@ -1054,8 +1047,7 @@ parse_section_main(struct context *ctx)
         conf->box_drawings_uses_font_glyphs = value_to_bool(ctx);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [main].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1067,8 +1059,6 @@ parse_section_bell(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "urgent") == 0)
         conf->bell.urgent = value_to_bool(ctx);
@@ -1081,8 +1071,7 @@ parse_section_bell(struct context *ctx)
     else if (strcmp(key, "command-focused") == 0)
         conf->bell.command_focused = value_to_bool(ctx);
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [bell].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1095,15 +1084,11 @@ parse_section_scrollback(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "lines") == 0) {
         unsigned long lines;
         if (!value_to_ulong(ctx, 10, &lines)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].lines: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
         conf->scrollback.lines = lines;
@@ -1117,10 +1102,7 @@ parse_section_scrollback(struct context *ctx)
         else if (strcmp(value, "relative") == 0)
             conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_RELATIVE;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].indicator-position: %s: not one of "
-                "'none', 'fixed' or 'relative'",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'none', 'fixed' or 'relative'");
             return false;
         }
     }
@@ -1138,9 +1120,7 @@ parse_section_scrollback(struct context *ctx)
 
             size_t len = mbstowcs(NULL, value, 0);
             if (len == (size_t)-1) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%d: [scrollback].indicator-format: %s: "
-                    "invalid free form text", path, lineno, value);
+                LOG_CONTEXTUAL_ERRNO("invalid free form text");
                 return false;
             }
 
@@ -1152,9 +1132,7 @@ parse_section_scrollback(struct context *ctx)
     else if (strcmp(key, "multiplier") == 0) {
         double multiplier;
         if (!value_to_double(ctx, &multiplier)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].multiplier: %s: invalid decimal value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid decimal value");
             return false;
         }
 
@@ -1162,8 +1140,7 @@ parse_section_scrollback(struct context *ctx)
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [scrollback].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1176,8 +1153,6 @@ parse_section_url(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "launch") == 0) {
         if (!value_to_spawn_template(ctx, &conf->url.launch))
@@ -1199,9 +1174,7 @@ parse_section_url(struct context *ctx)
         else if (strcmp(value, "always") == 0)
             conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [url].osc8-underline: %s: not one of "
-                "'url-mode', or 'always'", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'url-mode', or 'always'");
             return false;
         }
     }
@@ -1233,9 +1206,8 @@ parse_section_url(struct context *ctx)
 
             size_t chars = mbstowcs(NULL, prot, 0);
             if (chars == (size_t)-1) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%u: [url].protocols: %s: invalid protocol",
-                    path, lineno, prot);
+                ctx->value = prot;
+                LOG_CONTEXTUAL_ERRNO("invalid protocol");
                 return false;
             }
 
@@ -1273,8 +1245,7 @@ parse_section_url(struct context *ctx)
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [url].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1286,9 +1257,6 @@ parse_section_colors(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     size_t key_len = strlen(key);
     uint8_t last_digit = (unsigned char)key[key_len - 1] - '0';
@@ -1297,14 +1265,12 @@ parse_section_colors(struct context *ctx)
     if (isdigit(key[0])) {
         unsigned long index;
         if (!str_to_ulong(key, 0, &index)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [colors].%s: %s: invalid integer value",
-                               path, lineno, key, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
         if (index >= ALEN(conf->colors.table)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [colors].%s: %s: color index outside range 0-%zu",
-                path, lineno, key, value, ALEN(conf->colors.table));
+            LOG_CONTEXTUAL_ERR("color index outside range 0-%zu",
+                               ALEN(conf->colors.table));
             return false;
         }
         color = &conf->colors.table[index];
@@ -1360,10 +1326,7 @@ parse_section_colors(struct context *ctx)
     else if (strcmp(key, "alpha") == 0) {
         double alpha;
         if (!value_to_double(ctx, &alpha) || alpha < 0. || alpha > 1.) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [colors].alpha: %s: "
-                "invalid decimal value, or not in range 0.0-1.0",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid decimal value, or not in range 0.0-1.0");
             return false;
         }
 
@@ -1372,8 +1335,7 @@ parse_section_colors(struct context *ctx)
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [colors].%s is not valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not valid option");
         return false;
     }
 
@@ -1391,8 +1353,6 @@ parse_section_cursor(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "style") == 0) {
         if (strcmp(value, "block") == 0)
@@ -1403,9 +1363,7 @@ parse_section_cursor(struct context *ctx)
             conf->cursor.style = CURSOR_UNDERLINE;
 
         else {
-            LOG_AND_NOTIFY_ERR("%s:%d: [cursor].style: %s: not one of "
-                               "'block', 'beam' or 'underline'",
-                               path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'block', 'beam' or 'underline'");
             return false;
         }
     }
@@ -1438,8 +1396,7 @@ parse_section_cursor(struct context *ctx)
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [cursor].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1451,8 +1408,6 @@ parse_section_mouse(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "hide-when-typing") == 0)
         conf->mouse.hide_when_typing = value_to_bool(ctx);
@@ -1461,8 +1416,7 @@ parse_section_mouse(struct context *ctx)
         conf->mouse.alternate_scroll_mode = value_to_bool(ctx);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [mouse].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1475,8 +1429,6 @@ parse_section_csd(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "preferred") == 0) {
         if (strcmp(value, "server") == 0)
@@ -1486,9 +1438,7 @@ parse_section_csd(struct context *ctx)
         else if (strcmp(value, "none") == 0)
             conf->csd.preferred = CONF_CSD_PREFER_NONE;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: csd.preferred: %s: not one of "
-                "'server', 'client' or 'none'", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'server', 'client' or 'none'");
             return false;
         }
     }
@@ -1514,9 +1464,7 @@ parse_section_csd(struct context *ctx)
     else if (strcmp(key, "size") == 0) {
         unsigned long pixels;
         if (!value_to_ulong(ctx, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].size: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
@@ -1526,9 +1474,7 @@ parse_section_csd(struct context *ctx)
     else if (strcmp(key, "button-width") == 0) {
         unsigned long pixels;
         if (!value_to_ulong(ctx, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].button-width: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
@@ -1583,9 +1529,7 @@ parse_section_csd(struct context *ctx)
     else if (strcmp(key, "border-width") == 0) {
         unsigned long width;
         if (!value_to_ulong(ctx, 10, &width)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [csd].border-width: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
@@ -1593,8 +1537,7 @@ parse_section_csd(struct context *ctx)
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [csd].%s is not a valid action",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid action: %s", key);
         return false;
     }
 
@@ -1651,8 +1594,7 @@ parse_modifiers(struct context *ctx, const char *text, size_t len,
         else if (strcmp(key, XKB_MOD_NAME_LOGO) == 0)
             modifiers->meta = true;
         else {
-            LOG_AND_NOTIFY_ERR("%s:%d: %s: not a valid modifier name",
-                               ctx->path, ctx->lineno, ctx->key);
+            LOG_CONTEXTUAL_ERR("not a valid modifier name: %s", key);
             goto out;
         }
     }
@@ -1690,27 +1632,10 @@ value_to_key_combos(struct context *ctx, struct key_combo_list *key_combos)
             key++;  /* Skip past the '+' */
         }
 
-#if 0
-        if (modifiers.shift && strlen(key) == 1 && (*key >= 'A' && *key <= 'Z')) {
-            LOG_WARN(
-                "%s:%d: [%s].%s: %s: "
-                "upper case keys not supported with explicit 'Shift' modifier",
-                path, lineno, section, option, combo);
-            user_notification_add(
-                &conf->notifications, USER_NOTIFICATION_DEPRECATED,
-                "%s:%d: [%s].%s: \033[1m%s\033[m: "
-                "shifted keys not supported with explicit \033[1mShift\033[m "
-                "modifier",
-                path, lineno, section, option, combo);
-            *key = *key - 'A' + 'a';
-        }
-#endif
         /* Translate key name to symbol */
         xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
         if (sym == XKB_KEY_NoSymbol) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: is not a valid XKB key name",
-                ctx->path, ctx->lineno, ctx->section, ctx->key, key);
+            LOG_CONTEXTUAL_ERR("not a valid XKB key name: %s", key);
             goto err;
         }
 
@@ -1766,8 +1691,8 @@ has_key_binding_collisions(struct context *ctx,
 
             if (shift && alt && ctrl && meta && sym) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
-                LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   ctx->path, ctx->lineno, combo2->text,
+                LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
+                                   combo2->text,
                                    action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -1834,7 +1759,7 @@ pipe_argv_from_value(struct context *ctx, char ***argv)
 
     const char *pipe_cmd_end = strrchr(ctx->value, ']');
     if (pipe_cmd_end == NULL) {
-        LOG_AND_NOTIFY_ERR("%s:%d: unclosed '['", ctx->path, ctx->lineno);
+        LOG_CONTEXTUAL_ERR("unclosed '['");
         return -1;
     }
 
@@ -1842,7 +1767,7 @@ pipe_argv_from_value(struct context *ctx, char ***argv)
     char *cmd = xstrndup(&ctx->value[1], pipe_len);
 
     if (!tokenize_cmdline(cmd, argv)) {
-        LOG_AND_NOTIFY_ERR("%s:%d: syntax error in command line", ctx->path, ctx->lineno);
+        LOG_CONTEXTUAL_ERR("syntax error in command line");
         free(cmd);
         return -1;
     }
@@ -1965,8 +1890,7 @@ parse_key_binding_section(struct context *ctx,
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [%s].%s is not a valid action",
-                       ctx->path, ctx->lineno, ctx->section, ctx->key);
+    LOG_CONTEXTUAL_ERR("not a valid action: %s", ctx->key);
     free(pipe_argv);
     return false;
 }
@@ -2150,9 +2074,7 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
             if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
             if (modifiers.shift) {
-                LOG_AND_NOTIFY_ERR(
-                    "%s:%d: [%s].%s: Shift cannot be used in mouse bindings",
-                    ctx->path, ctx->lineno, ctx->section, ctx->key);
+                LOG_CONTEXTUAL_ERR("Shift cannot be used in mouse bindings");
                 goto err;
             }
             key++;  /* Skip past the '+' */
@@ -2170,13 +2092,9 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
                 unsigned long value = strtoul(_count, &end, 10);
                 if (_count[0] == '\0' || *end != '\0' || errno != 0) {
                     if (errno != 0)
-                        LOG_AND_NOTIFY_ERRNO(
-                            "%s:%d: [%s].%s: %s: invalid click count",
-                            ctx->path, ctx->lineno, ctx->section, ctx->key, _count);
+                        LOG_CONTEXTUAL_ERRNO("invalid click count: %s", _count);
                     else
-                        LOG_AND_NOTIFY_ERR(
-                            "%s:%d: [%s].%s: %s: invalid click count",
-                            ctx->path, ctx->lineno, ctx->section, ctx->key, _count);
+                        LOG_CONTEXTUAL_ERR("invalid click count: %s", _count);
                     goto err;
                 }
                 count = value;
@@ -2206,8 +2124,7 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
         }
 
         if (button == 0) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid mouse button name",
-                               ctx->path, ctx->lineno, ctx->section, ctx->key, key);
+            LOG_CONTEXTUAL_ERR("invalid mouse button name: %s", key);
             goto err;
         }
 
@@ -2265,8 +2182,8 @@ has_mouse_binding_collisions(struct context *ctx,
 
             if (shift && alt && ctrl && meta && button && count) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
-                LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   ctx->path, ctx->lineno, combo2->text,
+                LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
+                                   combo2->text,
                                    binding_action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -2286,8 +2203,6 @@ parse_section_mouse_bindings(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     char **pipe_argv;
 
@@ -2378,8 +2293,7 @@ parse_section_mouse_bindings(struct context *ctx)
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [mouse-bindings].%s is not a valid option",
-                       path, lineno, key);
+    LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
     free(pipe_argv);
     return false;
 }
@@ -2410,10 +2324,8 @@ parse_section_tweak(struct context *ctx)
             }
         }
 
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [tweak].scaling-filter: %s: not one of "
-            "'none', 'nearest', 'bilinear', 'cubic' or 'lanczos3'",
-            path, lineno, value);
+        LOG_CONTEXTUAL_ERR(
+            "not one of 'none', 'nearest', 'bilinear', 'cubic' or 'lanczos3'");
         return false;
     }
 
@@ -2434,19 +2346,15 @@ parse_section_tweak(struct context *ctx)
 
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
         if (conf->tweak.grapheme_shaping) {
-            LOG_AND_NOTIFY_WARN(
-                "%s:%d: [tweak].grapheme-shaping: "
-                "enabled, but foot was not compiled with support for it",
-                path, lineno);
+            LOG_CONTEXTUAL_WARN(
+                "foot was not compiled with support for grapheme shaping");
             conf->tweak.grapheme_shaping = false;
         }
 #endif
 
         if (conf->tweak.grapheme_shaping && !conf->can_shape_grapheme) {
             LOG_WARN(
-                "%s:%d [tweak].grapheme-shaping: "
-                "enabled, but fcft was not compiled with support for it",
-                path, lineno);
+                "fcft was not compiled with support for grapheme shaping");
 
             /* Keep it enabled though - this will cause us to do
              * grapheme-clustering at least */
@@ -2462,9 +2370,7 @@ parse_section_tweak(struct context *ctx)
         else if (strcmp(value, "wcswidth") == 0)
             conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH;
         else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].grapheme-width-method: %s: not one of "
-                "'wcswidth' or 'double-width'", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'wcswidth' or 'double-width'");
             return false;
         }
 
@@ -2485,9 +2391,7 @@ parse_section_tweak(struct context *ctx)
             conf->tweak.render_timer_osd = true;
             conf->tweak.render_timer_log = true;
         } else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].render-timer: %s: not one of "
-                "none', 'osd', 'log' or 'both'", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("not one of 'none', 'osd', 'log' or 'both'");
             return false;
         }
     }
@@ -2495,16 +2399,12 @@ parse_section_tweak(struct context *ctx)
     else if (strcmp(key, "delayed-render-lower") == 0) {
         unsigned long ns;
         if (!value_to_ulong(ctx, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-lower: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-lower: %s: "
-                "timeout must not exceed 16ms", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
             return false;
         }
 
@@ -2515,16 +2415,12 @@ parse_section_tweak(struct context *ctx)
     else if (strcmp(key, "delayed-render-upper") == 0) {
         unsigned long ns;
         if (!value_to_ulong(ctx, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-upper: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-upper: %s: "
-                "timeout must not exceed 16ms", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
             return false;
         }
 
@@ -2535,9 +2431,7 @@ parse_section_tweak(struct context *ctx)
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
         unsigned long mb;
         if (!value_to_ulong(ctx, 10, &mb)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].max-shm-pool-size-mb: %s: invalid integer value",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid integer value");
             return false;
         }
 
@@ -2549,9 +2443,7 @@ parse_section_tweak(struct context *ctx)
     else if (strcmp(key, "box-drawing-base-thickness") == 0) {
         double base_thickness;
         if (!value_to_double(ctx, &base_thickness)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].box-drawing-base-thickness: %s: "
-                "invalid decimal value", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("invalid decimal value");
             return false;
         }
 
@@ -2572,8 +2464,7 @@ parse_section_tweak(struct context *ctx)
         conf->tweak.font_monospace_warn = value_to_bool(ctx);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [tweak].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -2583,7 +2474,6 @@ parse_section_tweak(struct context *ctx)
 static bool
 parse_key_value(char *kv, const char **section, const char **key, const char **value)
 {
-
     /*strip leading whitespace*/
     while (*kv && isspace(*kv))
         ++kv;
@@ -2762,7 +2652,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         if (key_value[0] == '[') {
             char *end = strchr(key_value, ']');
             if (end == NULL) {
-                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, context.lineno, key_value);
+                LOG_CONTEXTUAL_ERR("syntax error: no closing ']'");
                 error_or_continue();
             }
 
@@ -2770,7 +2660,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 
             section = str_to_section(&key_value[1]);
             if (section == SECTION_COUNT) {
-                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, context.lineno, &key_value[1]);
+                LOG_CONTEXTUAL_ERR("invalid section name: %s", &key_value[1]);
                 error_or_continue();
             }
 
@@ -2786,7 +2676,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         }
 
         if (!parse_key_value(key_value, NULL, &context.key, &context.value)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, context.lineno, key_value);
+            LOG_CONTEXTUAL_ERR("syntax error: key/value pair has no value");
             if (errors_are_fatal)
                 goto err;
             break;
@@ -3117,21 +3007,6 @@ config_load(struct config *conf, const char *conf_path,
     add_default_url_bindings(conf);
     add_default_mouse_bindings(conf);
 
-    /*
-     * TODO: replace LOG_AND_NOTIFY_*() with custom loggers that
-     * doesn’t take a context
-     */
-    struct context context = {
-        .conf = conf,
-        .section = "",
-        .key = "",
-        .value = "",
-        .path = conf_path,
-        .lineno = 0,
-        .errors_are_fatal = errors_are_fatal,
-    };
-    struct context *ctx = &context;
-
     struct config_file conf_file = {.path = NULL, .fd = -1};
     if (conf_path != NULL) {
         int fd = open(conf_path, O_RDONLY);
@@ -3220,7 +3095,7 @@ config_override_apply(struct config *conf, config_override_t *overrides, bool er
         if (!parse_key_value(
                 it->item, &context.section, &context.key, &context.value))
         {
-            LOG_AND_NOTIFY_ERR("syntax error: %s", it->item);
+            LOG_CONTEXTUAL_ERR("syntax error: key/value pair has no value");
             if (errors_are_fatal)
                 return false;
             continue;
@@ -3228,8 +3103,7 @@ config_override_apply(struct config *conf, config_override_t *overrides, bool er
 
         enum section section = str_to_section(context.section);
         if (section == SECTION_COUNT) {
-            LOG_AND_NOTIFY_ERR(
-                "override: invalid section name: %s", context.section);
+            LOG_CONTEXTUAL_ERR("invalid section name: %s", context.section);
             if (errors_are_fatal)
                 return false;
             continue;
