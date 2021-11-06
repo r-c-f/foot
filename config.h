@@ -74,8 +74,8 @@ struct config {
 
     struct {
         enum conf_size_type type;
-        unsigned width;
-        unsigned height;
+        uint32_t width;
+        uint32_t height;
     } size;
 
     unsigned pad_x;

@@ -538,6 +538,17 @@ value_to_uint32(struct context *ctx, int base, uint32_t *res)
 }
 
 static bool NOINLINE
+value_to_dimensions(struct context *ctx, uint32_t *x, uint32_t *y)
+{
+    if (sscanf(ctx->value, "%ux%u", x, y) != 2) {
+        LOG_CONTEXTUAL_ERR("invalid dimensions (must be on the form AxB)");
+        return false;
+    }
+
+    return true;
+}
+
+static bool NOINLINE
 value_to_double(struct context *ctx, float *res)
 {
     const char *s = ctx->value;
@@ -883,27 +894,17 @@ parse_section_main(struct context *ctx)
         return value_to_str(ctx, &conf->app_id);
 
     else if (strcmp(key, "initial-window-size-pixels") == 0) {
-        unsigned width, height;
-        if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_CONTEXTUAL_ERR("invalid size (must be on the form WIDTHxHEIGHT)");
+        if (!value_to_dimensions(ctx, &conf->size.width, &conf->size.height))
             return false;
-        }
 
         conf->size.type = CONF_SIZE_PX;
-        conf->size.width = width;
-        conf->size.height = height;
     }
 
     else if (strcmp(key, "initial-window-size-chars") == 0) {
-        unsigned width, height;
-        if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_CONTEXTUAL_ERR("invalid size (must be on the form WIDTHxHEIGHT)");
+        if (!value_to_dimensions(ctx, &conf->size.width, &conf->size.height))
             return false;
-        }
 
         conf->size.type = CONF_SIZE_CELLS;
-        conf->size.width = width;
-        conf->size.height = height;
     }
 
     else if (strcmp(key, "pad") == 0) {
