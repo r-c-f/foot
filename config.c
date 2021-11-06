@@ -525,6 +525,14 @@ value_to_double(struct context *ctx, double *res)
 }
 
 static bool NOINLINE
+value_to_str(struct context *ctx, char **res)
+{
+    free(*res);
+    *res = xstrdup(ctx->value);
+    return true;
+}
+
+static bool NOINLINE
 value_to_wchars(struct context *ctx, wchar_t **res)
 {
     *res = NULL;
@@ -825,32 +833,23 @@ parse_section_main(struct context *ctx)
         return ret;
     }
 
-    else if (strcmp(key, "term") == 0) {
-        free(conf->term);
-        conf->term = xstrdup(value);
-    }
+    else if (strcmp(key, "term") == 0)
+        return value_to_str(ctx, &conf->term);
 
-    else if (strcmp(key, "shell") == 0) {
-        free(conf->shell);
-        conf->shell = xstrdup(value);
-    }
+    else if (strcmp(key, "shell") == 0)
+        return value_to_str(ctx, &conf->shell);
 
-    else if (strcmp(key, "login-shell") == 0) {
+    else if (strcmp(key, "login-shell") == 0)
         return value_to_bool(ctx, &conf->login_shell);
-    }
 
-    else if (strcmp(key, "title") == 0) {
-        free(conf->title);
-        conf->title = xstrdup(value);
-    }
+    else if (strcmp(key, "title") == 0)
+        return value_to_str(ctx, &conf->title);
 
     else if (strcmp(key, "locked-title") == 0)
         return value_to_bool(ctx, &conf->locked_title);
 
-    else if (strcmp(key, "app-id") == 0) {
-        free(conf->app_id);
-        conf->app_id = xstrdup(value);
-    }
+    else if (strcmp(key, "app-id") == 0)
+        return value_to_str(ctx, &conf->app_id);
 
     else if (strcmp(key, "initial-window-size-pixels") == 0) {
         unsigned width, height;
