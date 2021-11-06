@@ -2308,9 +2308,6 @@ parse_section_tweak(struct context *ctx)
 {
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
-    const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
 
     if (strcmp(key, "scaling-filter") == 0) {
         static const char *filters[] = {
@@ -2325,25 +2322,14 @@ parse_section_tweak(struct context *ctx)
         _Static_assert(sizeof(conf->tweak.fcft_filter) == sizeof(int),
                        "enum is not 32-bit");
 
-        if (!value_to_enum(ctx, filters, (int *)&conf->tweak.fcft_filter))
-            return false;
-
-        LOG_WARN("tweak: scaling-filter=%s", filters[conf->tweak.fcft_filter]);
+        return value_to_enum(ctx, filters, (int *)&conf->tweak.fcft_filter);
     }
 
-    else if (strcmp(key, "overflowing-glyphs") == 0) {
-        if (!value_to_bool(ctx, &conf->tweak.overflowing_glyphs))
-            return false;
-        if (!conf->tweak.overflowing_glyphs)
-            LOG_WARN("tweak: disabled overflowing glyphs");
-    }
+    else if (strcmp(key, "overflowing-glyphs") == 0)
+        return value_to_bool(ctx, &conf->tweak.overflowing_glyphs);
 
-    else if (strcmp(key, "damage-whole-window") == 0) {
-        if (!value_to_bool(ctx, &conf->tweak.damage_whole_window))
-            return false;
-        if (conf->tweak.damage_whole_window)
-            LOG_WARN("tweak: damage whole window");
-    }
+    else if (strcmp(key, "damage-whole-window") == 0)
+        return value_to_bool(ctx, &conf->tweak.damage_whole_window);
 
     else if (strcmp(key, "grapheme-shaping") == 0) {
         if (!value_to_bool(ctx, &conf->tweak.grapheme_shaping))
@@ -2365,23 +2351,17 @@ parse_section_tweak(struct context *ctx)
              * grapheme-clustering at least */
         }
 
-        if (!conf->tweak.grapheme_shaping)
-            LOG_WARN("tweak: grapheme shaping disabled");
+        return true;
     }
 
     else if (strcmp(key, "grapheme-width-method") == 0) {
         _Static_assert(sizeof(conf->tweak.grapheme_width_method) == sizeof(int),
                        "enum is not 32-bit");
 
-        if (!value_to_enum(
-                ctx,
-                (const char *[]){"wcswidth", "double-width", NULL},
-                (int *)&conf->tweak.grapheme_width_method))
-        {
-            return false;
-        }
-
-        LOG_WARN("%s:%d [tweak].grapheme-width-method=%s", path, lineno, value);
+        return value_to_enum(
+            ctx,
+            (const char *[]){"wcswidth", "double-width", NULL},
+            (int *)&conf->tweak.grapheme_width_method);
     }
 
     else if (strcmp(key, "render-timer") == 0) {
@@ -2431,7 +2411,7 @@ parse_section_tweak(struct context *ctx)
         }
 
         conf->tweak.delayed_render_lower_ns = ns;
-        LOG_WARN("tweak: delayed-render-lower=%u", ns);
+        return true;
     }
 
     else if (strcmp(key, "delayed-render-upper") == 0) {
@@ -2445,7 +2425,7 @@ parse_section_tweak(struct context *ctx)
         }
 
         conf->tweak.delayed_render_upper_ns = ns;
-        LOG_WARN("tweak: delayed-render-upper=%u", ns);
+        return true;
     }
 
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
@@ -2454,26 +2434,14 @@ parse_section_tweak(struct context *ctx)
             return false;
 
         conf->tweak.max_shm_pool_size = min((int32_t)mb * 1024 * 1024, INT32_MAX);
-        LOG_WARN("tweak: max-shm-pool-size=%lld bytes",
-                 (long long)conf->tweak.max_shm_pool_size);
+        return true;
     }
 
-    else if (strcmp(key, "box-drawing-base-thickness") == 0) {
-        if (!value_to_double(ctx, &conf->tweak.box_drawing_base_thickness))
-            return false;
+    else if (strcmp(key, "box-drawing-base-thickness") == 0)
+        return value_to_double(ctx, &conf->tweak.box_drawing_base_thickness);
 
-        LOG_WARN("tweak: box-drawing-base-thickness=%f",
-                 conf->tweak.box_drawing_base_thickness);
-    }
-
-    else if (strcmp(key, "box-drawing-solid-shades") == 0) {
-        if (!value_to_bool(ctx, &conf->tweak.box_drawing_solid_shades))
-            return false;
-
-        if (!conf->tweak.box_drawing_solid_shades)
-            LOG_WARN("tweak: box-drawing-solid-shades=%s",
-                     conf->tweak.box_drawing_solid_shades ? "yes" : "no");
-    }
+    else if (strcmp(key, "box-drawing-solid-shades") == 0)
+        return value_to_bool(ctx, &conf->tweak.box_drawing_solid_shades);
 
     else if (strcmp(key, "font-monospace-warn") == 0)
         return value_to_bool(ctx, &conf->tweak.font_monospace_warn);
@@ -2483,7 +2451,7 @@ parse_section_tweak(struct context *ctx)
         return false;
     }
 
-    return true;
+    UNREACHABLE();
 }
 
 static bool

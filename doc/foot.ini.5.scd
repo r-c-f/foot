@@ -894,9 +894,7 @@ This section is for advanced users and describes configuration options
 that can be used to tweak foot's low-level behavior.
 
 These options are *not* included in the example configuration. You
-should not change these unless you understand what they do and note
-that changing the default values *will* print a warning when launching
-foot.
+should not change these unless you understand what they do.
 
 Note that these options may change, or be removed at any time, without
 prior notice.
