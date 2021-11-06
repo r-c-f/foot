@@ -579,14 +579,13 @@ value_to_str(struct context *ctx, char **res)
 static bool NOINLINE
 value_to_wchars(struct context *ctx, wchar_t **res)
 {
-    *res = NULL;
-
     size_t chars = mbstowcs(NULL, ctx->value, 0);
     if (chars == (size_t)-1) {
         LOG_CONTEXTUAL_ERR("not a valid string value");
         return false;
     }
 
+    free(*res);
     *res = xmalloc((chars + 1) * sizeof(wchar_t));
     mbstowcs(*res, ctx->value, chars + 1);
     return true;
@@ -1044,27 +1043,14 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "workers") == 0)
         return value_to_uint16(ctx, 10, &conf->render_worker_count);
 
-    else if (strcmp(key, "word-delimiters") == 0) {
-        wchar_t *word_delimiters;
-        if (!value_to_wchars(ctx, &word_delimiters))
-            return false;
-
-        free(conf->word_delimiters);
-        conf->word_delimiters = word_delimiters;
-        return true;
-    }
+    else if (strcmp(key, "word-delimiters") == 0)
+        return value_to_wchars(ctx, &conf->word_delimiters);
 
     else if (strcmp(key, "jump-label-letters") == 0) {
         deprecated_url_option(
             conf, "jump-label-letters", "label-letters", path, lineno);
 
-        wchar_t *letters;
-        if (!value_to_wchars(ctx, &letters))
-            return false;
-
-        free(conf->url.label_letters);
-        conf->url.label_letters = letters;
-        return true;
+        return value_to_wchars(ctx, &conf->url.label_letters);
     }
 
     else if (strcmp(key, "notify") == 0)
@@ -1203,14 +1189,8 @@ parse_section_url(struct context *ctx)
             return false;
     }
 
-    else if (strcmp(key, "label-letters") == 0) {
-        wchar_t *letters;
-        if (!value_to_wchars(ctx, &letters))
-            return false;
-
-        free(conf->url.label_letters);
-        conf->url.label_letters = letters;
-    }
+    else if (strcmp(key, "label-letters") == 0)
+        return value_to_wchars(ctx, &conf->url.label_letters);
 
     else if (strcmp(key, "osc8-underline") == 0) {
         _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
@@ -1273,18 +1253,15 @@ parse_section_url(struct context *ctx)
     }
 
     else if (strcmp(key, "uri-characters") == 0) {
-        wchar_t *uri_characters;
-        if (!value_to_wchars(ctx, &uri_characters))
+        if (!value_to_wchars(ctx, &conf->url.uri_characters))
             return false;
 
-        free(conf->url.uri_characters);
-
         qsort(
-            uri_characters,
-            wcslen(uri_characters),
-            sizeof(uri_characters[0]),
+            conf->url.uri_characters,
+            wcslen(conf->url.uri_characters),
+            sizeof(conf->url.uri_characters[0]),
             &wccmp);
-        conf->url.uri_characters = uri_characters;
+        return true;
     }
 
     else {
