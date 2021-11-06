@@ -151,7 +151,7 @@ log_and_notify_va(struct config *conf, enum log_class log_class,
     }
 
     char *formatted_msg = xvasprintf(fmt, va);
-    log_msg(log_class, LOG_MODULE, file, lineno, formatted_msg);
+    log_msg(log_class, LOG_MODULE, file, lineno, "%s", formatted_msg);
     tll_push_back(
         conf->notifications,
         ((struct user_notification){.kind = kind, .text = formatted_msg}));
