@@ -898,6 +898,7 @@ parse_section_main(struct context *ctx)
             return false;
 
         conf->size.type = CONF_SIZE_PX;
+        return true;
     }
 
     else if (strcmp(key, "initial-window-size-chars") == 0) {
@@ -905,6 +906,7 @@ parse_section_main(struct context *ctx)
             return false;
 
         conf->size.type = CONF_SIZE_CELLS;
+        return true;
     }
 
     else if (strcmp(key, "pad") == 0) {
@@ -924,6 +926,7 @@ parse_section_main(struct context *ctx)
         conf->pad_x = x;
         conf->pad_y = y;
         conf->center = center;
+        return true;
     }
 
     else if (strcmp(key, "resize-delay-ms") == 0)
@@ -938,6 +941,7 @@ parse_section_main(struct context *ctx)
                 return false;
             conf->bold_in_bright.palette_based = false;
         }
+        return true;
     }
 
     else if (strcmp(key, "bell") == 0) {
@@ -968,6 +972,8 @@ parse_section_main(struct context *ctx)
             return false;
 
         }
+
+        return true;
     }
 
     else if (strcmp(key, "initial-window-mode") == 0) {
@@ -978,6 +984,7 @@ parse_section_main(struct context *ctx)
             return false;
 
         conf->startup_mode = mode;
+        return true;
     }
 
     else if (strcmp(key, "font") == 0 ||
@@ -997,32 +1004,26 @@ parse_section_main(struct context *ctx)
 
         config_font_list_destroy(&conf->fonts[idx]);
         conf->fonts[idx] = new_list;
+        return true;
     }
 
-    else if (strcmp(key, "line-height") == 0) {
-        if (!value_to_pt_or_px(ctx, &conf->line_height))
-            return false;
-    }
+    else if (strcmp(key, "line-height") == 0)
+        return value_to_pt_or_px(ctx, &conf->line_height);
 
-    else if (strcmp(key, "letter-spacing") == 0) {
-        if (!value_to_pt_or_px(ctx, &conf->letter_spacing))
-            return false;
-    }
+    else if (strcmp(key, "letter-spacing") == 0)
+        value_to_pt_or_px(ctx, &conf->letter_spacing);
 
-    else if (strcmp(key, "horizontal-letter-offset") == 0) {
-        if (!value_to_pt_or_px(ctx, &conf->horizontal_letter_offset))
-            return false;
-    }
+    else if (strcmp(key, "horizontal-letter-offset") == 0)
+        return value_to_pt_or_px(ctx, &conf->horizontal_letter_offset);
 
-    else if (strcmp(key, "vertical-letter-offset") == 0) {
-        if (!value_to_pt_or_px(ctx, &conf->vertical_letter_offset))
-            return false;
-    }
+    else if (strcmp(key, "vertical-letter-offset") == 0)
+        return value_to_pt_or_px(ctx, &conf->vertical_letter_offset);
 
     else if (strcmp(key, "underline-offset") == 0) {
         if (!value_to_pt_or_px(ctx, &conf->underline_offset))
             return false;
         conf->use_custom_underline_offset = true;
+        return true;
     }
 
     else if (strcmp(key, "dpi-aware") == 0) {
@@ -1034,6 +1035,7 @@ parse_section_main(struct context *ctx)
                 return false;
             conf->dpi_aware = value ? DPI_AWARE_YES : DPI_AWARE_NO;
         }
+        return true;
     }
 
     else if (strcmp(key, "workers") == 0)
@@ -1046,6 +1048,7 @@ parse_section_main(struct context *ctx)
 
         free(conf->word_delimiters);
         conf->word_delimiters = word_delimiters;
+        return true;
     }
 
     else if (strcmp(key, "jump-label-letters") == 0) {
@@ -1058,23 +1061,20 @@ parse_section_main(struct context *ctx)
 
         free(conf->url.label_letters);
         conf->url.label_letters = letters;
+        return true;
     }
 
-    else if (strcmp(key, "notify") == 0) {
-        if (!value_to_spawn_template(ctx, &conf->notify))
-            return false;
-    }
+    else if (strcmp(key, "notify") == 0)
+        return value_to_spawn_template(ctx, &conf->notify);
 
-    else if (strcmp(key, "notify-focus-inhibit") == 0) {
+    else if (strcmp(key, "notify-focus-inhibit") == 0)
         return value_to_bool(ctx, &conf->notify_focus_inhibit);
-    }
 
     else if (strcmp(key, "url-launch") == 0) {
         deprecated_url_option(
             conf, "url-launch", "launch", path, lineno);
 
-        if (!value_to_spawn_template(ctx, &conf->url.launch))
-            return false;
+        return value_to_spawn_template(ctx, &conf->url.launch);
     }
 
     else if (strcmp(key, "selection-target") == 0) {
@@ -1085,6 +1085,7 @@ parse_section_main(struct context *ctx)
             return false;
 
         conf->selection_target = target;
+        return true;
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
@@ -1098,6 +1099,7 @@ parse_section_main(struct context *ctx)
             return false;
 
         conf->url.osc8_underline = mode;
+        return true;
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)
@@ -1108,7 +1110,7 @@ parse_section_main(struct context *ctx)
         return false;
     }
 
-    return true;
+    UNREACHABLE();
 }
 
 static bool
