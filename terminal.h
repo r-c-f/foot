@@ -526,7 +526,7 @@ struct terminal {
             int timer_fd;
         } title;
 
-        int scrollback_lines; /* Number of scrollback lines, from conf (TODO: move out from render struct?) */
+        uint32_t scrollback_lines; /* Number of scrollback lines, from conf (TODO: move out from render struct?) */
 
         struct {
             bool enabled;
@@ -535,7 +535,7 @@ struct terminal {
 
         /* Render threads + synchronization primitives */
         struct {
-            size_t count;
+            uint16_t count;
             sem_t start;
             sem_t done;
             mtx_t lock;

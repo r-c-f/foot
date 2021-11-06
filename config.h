@@ -19,7 +19,7 @@ enum conf_size_type {CONF_SIZE_PX, CONF_SIZE_CELLS};
 
 struct config_font {
     char *pattern;
-    double pt_size;
+    float pt_size;
     int px_size;
 };
 DEFINE_LIST(struct config_font);
@@ -115,7 +115,7 @@ struct config {
     } bell;
 
     struct {
-        int lines;
+        uint32_t lines;
 
         struct {
             enum {
@@ -132,7 +132,7 @@ struct config {
 
             wchar_t *text;
         } indicator;
-        double multiplier;
+        float multiplier;
     } scrollback;
 
     struct {
@@ -212,10 +212,10 @@ struct config {
     struct {
         enum { CONF_CSD_PREFER_NONE, CONF_CSD_PREFER_SERVER, CONF_CSD_PREFER_CLIENT } preferred;
 
-        int title_height;
-        int border_width;
-        int border_width_visible;
-        int button_width;
+        uint16_t title_height;
+        uint16_t border_width;
+        uint16_t border_width_visible;
+        uint16_t button_width;
 
         struct {
             bool title_set:1;
@@ -235,7 +235,7 @@ struct config {
         struct config_font_list font;
     } csd;
 
-    size_t render_worker_count;
+    uint16_t render_worker_count;
     char *server_socket_path;
     bool presentation_timings;
     bool hold_at_exit;
@@ -257,8 +257,8 @@ struct config {
         bool render_timer_osd;
         bool render_timer_log;
         bool damage_whole_window;
-        uint64_t delayed_render_lower_ns;
-        uint64_t delayed_render_upper_ns;
+        uint32_t delayed_render_lower_ns;
+        uint32_t delayed_render_upper_ns;
         off_t max_shm_pool_size;
         float box_drawing_base_thickness;
         bool box_drawing_solid_shades;

@@ -480,7 +480,7 @@ value_to_bool(struct context *ctx, bool *res)
 }
 
 
-static bool
+static bool NOINLINE
 str_to_ulong(const char *s, int base, unsigned long *res)
 {
     if (s == NULL)
@@ -494,18 +494,51 @@ str_to_ulong(const char *s, int base, unsigned long *res)
 }
 
 static bool NOINLINE
-value_to_ulong(struct context *ctx, int base, unsigned long *res)
+str_to_uint32(const char *s, int base, uint32_t *res)
 {
-    if (!str_to_ulong(ctx->value, base, res)) {
-        LOG_CONTEXTUAL_ERR("invalid integer value");
+    unsigned long v;
+    bool ret = str_to_ulong(s, base, &v);
+    if (v > UINT32_MAX)
+        return false;
+    *res = v;
+    return ret;
+}
+
+static bool NOINLINE
+str_to_uint16(const char *s, int base, uint16_t *res)
+{
+    unsigned long v;
+    bool ret = str_to_ulong(s, base, &v);
+    if (v > UINT16_MAX)
+        return false;
+    *res = v;
+    return ret;
+}
+
+static bool NOINLINE
+value_to_uint16(struct context *ctx, int base, uint16_t *res)
+{
+    if (!str_to_uint16(ctx->value, base, res)) {
+        LOG_CONTEXTUAL_ERR(
+            "invalid integer value, or outside range 0-%u", UINT16_MAX);
         return false;
     }
-
     return true;
 }
 
 static bool NOINLINE
-value_to_double(struct context *ctx, double *res)
+value_to_uint32(struct context *ctx, int base, uint32_t *res)
+{
+    if (!str_to_uint32(ctx->value, base, res)){
+        LOG_CONTEXTUAL_ERR(
+            "invalid integer value, or outside range 0-%u", UINT32_MAX);
+        return false;
+    }
+    return true;
+}
+
+static bool NOINLINE
+value_to_double(struct context *ctx, float *res)
 {
     const char *s = ctx->value;
 
@@ -515,7 +548,7 @@ value_to_double(struct context *ctx, double *res)
     errno = 0;
     char *end = NULL;
 
-    *res = strtod(s, &end);
+    *res = strtof(s, &end);
     if (!(errno == 0 && *end == '\0')) {
         LOG_CONTEXTUAL_ERR("invalid decimal value");
         return false;
@@ -577,18 +610,16 @@ value_to_enum(struct context *ctx, const char **value_map)
 static bool NOINLINE
 value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
 {
-    unsigned long value;
-    if (!str_to_ulong(ctx->value, 16, &value)) {
+    if (!str_to_uint32(ctx->value, 16, color)) {
         LOG_CONTEXTUAL_ERR("not a valid color value");
         return false;
     }
 
-    if (!allow_alpha && (value & 0xff000000) != 0) {
+    if (!allow_alpha && (*color & 0xff000000) != 0) {
         LOG_CONTEXTUAL_ERR("color value must not have an alpha component");
         return false;
     }
 
-    *color = value;
     return true;
 }
 
@@ -643,7 +674,7 @@ value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
         res->pt = 0;
         res->px = value;
     } else {
-        double value;
+        float value;
         if (!value_to_double(ctx, &value))
             return false;
         res->pt = value;
@@ -894,13 +925,8 @@ parse_section_main(struct context *ctx)
         conf->center = center;
     }
 
-    else if (strcmp(key, "resize-delay-ms") == 0) {
-        unsigned long ms;
-        if (!value_to_ulong(ctx, 10, &ms))
-            return false;
-
-        conf->resize_delay_ms = ms;
-    }
+    else if (strcmp(key, "resize-delay-ms") == 0)
+        return value_to_uint16(ctx, 10, &conf->resize_delay_ms);
 
     else if (strcmp(key, "bold-text-in-bright") == 0) {
         if (strcmp(value, "palette-based") == 0) {
@@ -1009,12 +1035,8 @@ parse_section_main(struct context *ctx)
         }
     }
 
-    else if (strcmp(key, "workers") == 0) {
-        unsigned long count;
-        if (!value_to_ulong(ctx, 10, &count))
-            return false;
-        conf->render_worker_count = count;
-    }
+    else if (strcmp(key, "workers") == 0)
+        return value_to_uint16(ctx, 10, &conf->render_worker_count);
 
     else if (strcmp(key, "word-delimiters") == 0) {
         wchar_t *word_delimiters;
@@ -1118,12 +1140,8 @@ parse_section_scrollback(struct context *ctx)
     const char *key = ctx->key;
     const char *value = ctx->value;
 
-    if (strcmp(key, "lines") == 0) {
-        unsigned long lines;
-        if (!value_to_ulong(ctx, 10, &lines))
-            return false;
-        conf->scrollback.lines = lines;
-    }
+    if (strcmp(key, "lines") == 0)
+        value_to_uint32(ctx, 10, &conf->scrollback.lines);
 
     else if (strcmp(key, "indicator-position") == 0) {
         int position = value_to_enum(
@@ -1157,12 +1175,8 @@ parse_section_scrollback(struct context *ctx)
         }
     }
 
-    else if (strcmp(key, "multiplier") == 0) {
-        double multiplier;
-        if (!value_to_double(ctx, &multiplier))
-            return false;
-        conf->scrollback.multiplier = multiplier;
-    }
+    else if (strcmp(key, "multiplier") == 0)
+        return value_to_double(ctx, &conf->scrollback.multiplier);
 
     else {
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
@@ -1288,13 +1302,12 @@ parse_section_colors(struct context *ctx)
 
     if (isdigit(key[0])) {
         unsigned long index;
-        if (!str_to_ulong(key, 0, &index)) {
-            LOG_CONTEXTUAL_ERR("invalid integer value");
-            return false;
-        }
-        if (index >= ALEN(conf->colors.table)) {
-            LOG_CONTEXTUAL_ERR("color index outside range 0-%zu",
-                               ALEN(conf->colors.table));
+        if (!str_to_ulong(key, 0, &index) ||
+            index >= ALEN(conf->colors.table))
+        {
+            LOG_CONTEXTUAL_ERR(
+                "invalid color palette index: %s (not in range 0-%zu)",
+                key, ALEN(conf->colors.table));
             return false;
         }
         color = &conf->colors.table[index];
@@ -1348,7 +1361,7 @@ parse_section_colors(struct context *ctx)
     }
 
     else if (strcmp(key, "alpha") == 0) {
-        double alpha;
+        float alpha;
         if (!value_to_double(ctx, &alpha))
             return false;
 
@@ -1479,74 +1492,49 @@ parse_section_csd(struct context *ctx)
         conf->csd.color.title = color;
     }
 
-    else if (strcmp(key, "size") == 0) {
-        unsigned long pixels;
-        if (!value_to_ulong(ctx, 10, &pixels))
-            return false;
+    else if (strcmp(key, "size") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.title_height);
 
-        conf->csd.title_height = pixels;
-    }
-
-    else if (strcmp(key, "button-width") == 0) {
-        unsigned long pixels;
-        if (!value_to_ulong(ctx, 10, &pixels))
-            return false;
-
-        conf->csd.button_width = pixels;
-    }
+    else if (strcmp(key, "button-width") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.button_width);
 
     else if (strcmp(key, "button-color") == 0) {
-        uint32_t color;
-        if (!value_to_color(ctx, &color, true))
+        if (!value_to_color(ctx, &conf->csd.color.buttons, true))
             return false;
 
         conf->csd.color.buttons_set = true;
-        conf->csd.color.buttons = color;
     }
 
     else if (strcmp(key, "button-minimize-color") == 0) {
-        uint32_t color;
-        if (!value_to_color(ctx, &color, true))
+        if (!value_to_color(ctx, &conf->csd.color.minimize, true))
             return false;
 
         conf->csd.color.minimize_set = true;
-        conf->csd.color.minimize = color;
     }
 
     else if (strcmp(key, "button-maximize-color") == 0) {
-        uint32_t color;
-        if (!value_to_color(ctx, &color, true))
+        if (!value_to_color(ctx, &conf->csd.color.maximize, true))
             return false;
 
         conf->csd.color.maximize_set = true;
-        conf->csd.color.maximize = color;
     }
 
     else if (strcmp(key, "button-close-color") == 0) {
-        uint32_t color;
-        if (!value_to_color(ctx, &color, true))
+        if (!value_to_color(ctx, &conf->csd.color.close, true))
             return false;
 
         conf->csd.color.close_set = true;
-        conf->csd.color.close = color;
     }
 
     else if (strcmp(key, "border-color") == 0) {
-        uint32_t color;
-        if (!value_to_color(ctx, &color, true))
+        if (!value_to_color(ctx, &conf->csd.color.border, true))
             return false;
 
         conf->csd.color.border_set = true;
-        conf->csd.color.border = color;
     }
 
-    else if (strcmp(key, "border-width") == 0) {
-        unsigned long width;
-        if (!value_to_ulong(ctx, 10, &width))
-            return false;
-
-        conf->csd.border_width_visible = width;
-    }
+    else if (strcmp(key, "border-width") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.border_width_visible);
 
     else {
         LOG_CONTEXTUAL_ERR("not a valid action: %s", key);
@@ -2418,8 +2406,8 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
-        unsigned long ns;
-        if (!value_to_ulong(ctx, 10, &ns))
+        uint32_t ns;
+        if (!value_to_uint32(ctx, 10, &ns))
             return false;
 
         if (ns > 16666666) {
@@ -2428,12 +2416,12 @@ parse_section_tweak(struct context *ctx)
         }
 
         conf->tweak.delayed_render_lower_ns = ns;
-        LOG_WARN("tweak: delayed-render-lower=%lu", ns);
+        LOG_WARN("tweak: delayed-render-lower=%u", ns);
     }
 
     else if (strcmp(key, "delayed-render-upper") == 0) {
-        unsigned long ns;
-        if (!value_to_ulong(ctx, 10, &ns))
+        uint32_t ns;
+        if (!value_to_uint32(ctx, 10, &ns))
             return false;
 
         if (ns > 16666666) {
@@ -2442,25 +2430,23 @@ parse_section_tweak(struct context *ctx)
         }
 
         conf->tweak.delayed_render_upper_ns = ns;
-        LOG_WARN("tweak: delayed-render-upper=%lu", ns);
+        LOG_WARN("tweak: delayed-render-upper=%u", ns);
     }
 
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
-        unsigned long mb;
-        if (!value_to_ulong(ctx, 10, &mb))
+        uint32_t mb;
+        if (!value_to_uint32(ctx, 10, &mb))
             return false;
 
-        conf->tweak.max_shm_pool_size = min(mb * 1024 * 1024, INT32_MAX);
+        conf->tweak.max_shm_pool_size = min((int32_t)mb * 1024 * 1024, INT32_MAX);
         LOG_WARN("tweak: max-shm-pool-size=%lld bytes",
                  (long long)conf->tweak.max_shm_pool_size);
     }
 
     else if (strcmp(key, "box-drawing-base-thickness") == 0) {
-        double base_thickness;
-        if (!value_to_double(ctx, &base_thickness))
+        if (!value_to_double(ctx, &conf->tweak.box_drawing_base_thickness))
             return false;
 
-        conf->tweak.box_drawing_base_thickness = base_thickness;
         LOG_WARN("tweak: box-drawing-base-thickness=%f",
                  conf->tweak.box_drawing_base_thickness);
     }

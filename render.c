@@ -3538,7 +3538,7 @@ maybe_resize(struct terminal *term, int width, int height, bool force)
     term->height = height;
     term->scale = scale;
 
-    const int scrollback_lines = term->render.scrollback_lines;
+    const uint32_t scrollback_lines = term->render.scrollback_lines;
 
     /* Screen rows/cols before resize */
     const int old_cols = term->cols;
