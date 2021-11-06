@@ -592,15 +592,17 @@ value_to_wchars(struct context *ctx, wchar_t **res)
     return true;
 }
 
-static int NOINLINE
-value_to_enum(struct context *ctx, const char **value_map)
+static bool NOINLINE
+value_to_enum(struct context *ctx, const char **value_map, int *res)
 {
     size_t str_len = 0;
     size_t count = 0;
 
     for (; value_map[count] != NULL; count++) {
-        if (strcasecmp(value_map[count], ctx->value) == 0)
-            return count;
+        if (strcasecmp(value_map[count], ctx->value) == 0) {
+            *res = count;
+            return true;
+        }
         str_len += strlen(value_map[count]);
     }
 
@@ -615,7 +617,8 @@ value_to_enum(struct context *ctx, const char **value_map)
         valid_values[idx - 2] = '\0';
 
     LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
-    return -1;
+    *res = -1;
+    return false;
 }
 
 static bool NOINLINE
@@ -959,32 +962,32 @@ parse_section_main(struct context *ctx)
         };
         tll_push_back(conf->notifications, deprecation);
 
-        int bell = value_to_enum(
-            ctx, (const char *[]){"set-urgency", "notify", "none", NULL});
-
-        switch (bell) {
-        case 0: conf->bell.urgent = true; break;
-        case 1: conf->bell.notify = true; break;
-        case 2: memset(&conf->bell, 0, sizeof(conf->bell)); break;
-
-        case -1:
-        default:
+        int bell;
+        if (!value_to_enum(
+                ctx,
+                (const char *[]){"set-urgency", "notify", "none", NULL},
+                &bell))
+        {
             return false;
-
         }
 
-        return true;
+        switch (bell) {
+        case 0: conf->bell.urgent = true; return true;
+        case 1: conf->bell.notify = true; return true;
+        case 2: memset(&conf->bell, 0, sizeof(conf->bell)); return true;
+        }
+
+        UNREACHABLE();
     }
 
     else if (strcmp(key, "initial-window-mode") == 0) {
-        int mode = value_to_enum(
-            ctx, (const char *[]){"windowed", "maximized", "fullscreen", NULL});
+        _Static_assert(sizeof(conf->startup_mode) == sizeof(int),
+            "enum is not 32-bit");
 
-        if (mode < 0)
-            return false;
-
-        conf->startup_mode = mode;
-        return true;
+        return value_to_enum(
+                ctx,
+                (const char *[]){"windowed", "maximized", "fullscreen", NULL},
+                (int *)&conf->startup_mode);
     }
 
     else if (strcmp(key, "font") == 0 ||
@@ -1078,28 +1081,26 @@ parse_section_main(struct context *ctx)
     }
 
     else if (strcmp(key, "selection-target") == 0) {
-        int target = value_to_enum(
-            ctx, (const char *[]){"none", "primary", "clipboard", "both", NULL});
+        _Static_assert(sizeof(conf->selection_target) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (target < 0)
-            return false;
-
-        conf->selection_target = target;
-        return true;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "primary", "clipboard", "both", NULL},
+            (int *)&conf->selection_target);
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
         deprecated_url_option(
             conf, "osc8-underline", "osc8-underline", path, lineno);
 
-        int mode = value_to_enum(
-            ctx, (const char *[]){"url-mode", "always", NULL});
+        _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (mode < 0)
-            return false;
-
-        conf->url.osc8_underline = mode;
-        return true;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"url-mode", "always", NULL},
+            (int *)&conf->url.osc8_underline);
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)
@@ -1147,13 +1148,14 @@ parse_section_scrollback(struct context *ctx)
         value_to_uint32(ctx, 10, &conf->scrollback.lines);
 
     else if (strcmp(key, "indicator-position") == 0) {
-        int position = value_to_enum(
-            ctx, (const char *[]){"none", "fixed", "relative", NULL});
+        _Static_assert(
+            sizeof(conf->scrollback.indicator.position) == sizeof(int),
+            "enum is not 32-bit");
 
-        if (position < 0)
-            return false;
-
-        conf->scrollback.indicator.position = position;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "fixed", "relative", NULL},
+            (int *)&conf->scrollback.indicator.position);
     }
 
     else if (strcmp(key, "indicator-format") == 0) {
@@ -1211,13 +1213,13 @@ parse_section_url(struct context *ctx)
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
-        int mode = value_to_enum(
-            ctx, (const char *[]){"url-mode", "always", NULL});
+        _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (mode < 0)
-            return false;
-
-        conf->url.osc8_underline = mode;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"url-mode", "always", NULL},
+            (int *)&conf->url.osc8_underline);
     }
 
     else if (strcmp(key, "protocols") == 0) {
@@ -1397,13 +1399,13 @@ parse_section_cursor(struct context *ctx)
     const char *key = ctx->key;
 
     if (strcmp(key, "style") == 0) {
-        enum cursor_style style = value_to_enum(
-            ctx, (const char *[]){"block", "underline", "beam", NULL});
+        _Static_assert(sizeof(conf->cursor.style) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (style < 0)
-            return false;
-
-        conf->cursor.style = style;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"block", "underline", "beam", NULL},
+            (int *)&conf->cursor.style);
     }
 
     else if (strcmp(key, "blink") == 0)
@@ -1468,13 +1470,13 @@ parse_section_csd(struct context *ctx)
     const char *key = ctx->key;
 
     if (strcmp(key, "preferred") == 0) {
-        int csd = value_to_enum(
-            ctx, (const char *[]){"none", "server", "client", NULL});
+        _Static_assert(sizeof(conf->csd.preferred) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (csd < 0)
-            return false;
-
-        conf->csd.preferred = csd;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "server", "client", NULL},
+            (int *)&conf->csd.preferred);
     }
 
     else if (strcmp(key, "font") == 0) {
@@ -2320,12 +2322,13 @@ parse_section_tweak(struct context *ctx)
             NULL,
         };
 
-        int filter = value_to_enum(ctx, filters);
-        if (filter < 0)
+        _Static_assert(sizeof(conf->tweak.fcft_filter) == sizeof(int),
+                       "enum is not 32-bit");
+
+        if (!value_to_enum(ctx, filters, (int *)&conf->tweak.fcft_filter))
             return false;
 
-        conf->tweak.fcft_filter = filter;
-        LOG_WARN("tweak: scaling-filter=%s", filters[filter]);
+        LOG_WARN("tweak: scaling-filter=%s", filters[conf->tweak.fcft_filter]);
     }
 
     else if (strcmp(key, "overflowing-glyphs") == 0) {
@@ -2367,45 +2370,54 @@ parse_section_tweak(struct context *ctx)
     }
 
     else if (strcmp(key, "grapheme-width-method") == 0) {
-        int method = value_to_enum(
-            ctx, (const char *[]){"wcswidth", "double-width", NULL});
+        _Static_assert(sizeof(conf->tweak.grapheme_width_method) == sizeof(int),
+                       "enum is not 32-bit");
 
-        if (method < 0)
+        if (!value_to_enum(
+                ctx,
+                (const char *[]){"wcswidth", "double-width", NULL},
+                (int *)&conf->tweak.grapheme_width_method))
+        {
             return false;
+        }
 
-        conf->tweak.grapheme_width_method = method;
         LOG_WARN("%s:%d [tweak].grapheme-width-method=%s", path, lineno, value);
     }
 
     else if (strcmp(key, "render-timer") == 0) {
-        int mode = value_to_enum(
-            ctx, (const char *[]){"none", "osd", "log", "both", NULL});
+        int mode;
+
+        if (!value_to_enum(
+                ctx,
+                (const char *[]){"none", "osd", "log", "both", NULL},
+                &mode))
+        {
+            return false;
+        }
 
         switch (mode) {
         case 0:
             conf->tweak.render_timer_osd = false;
             conf->tweak.render_timer_log = false;
-            break;
+            return true;
 
         case 1:
             conf->tweak.render_timer_osd = true;
             conf->tweak.render_timer_log = false;
-            break;
+            return true;
 
         case 2:
             conf->tweak.render_timer_osd = false;
             conf->tweak.render_timer_log = true;
-            break;
+            return true;
 
         case 3:
             conf->tweak.render_timer_osd = true;
             conf->tweak.render_timer_log = true;
-            break;
-
-        case -1:
-        default:
-            return false;
+            return true;
         }
+
+        UNREACHABLE();
     }
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
