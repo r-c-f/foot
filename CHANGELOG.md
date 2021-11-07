@@ -63,6 +63,10 @@
 
 ### Deprecated
 ### Removed
+
+* The bundled PKGBUILD.
+
+
 ### Fixed
 
 * ‘Sticky’ modifiers in input handling; when determining modifier

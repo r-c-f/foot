@@ -91,13 +91,8 @@ Install from AUR:
 * [foot-git](https://aur.archlinux.org/packages/foot-git/) +
   [foot-terminfo-git](https://aur.archlinux.org/packages/foot-terminfo-git/)
 
-Or use [makepkg](https://wiki.archlinux.org/title/Makepkg) to
-build the bundled [PKGBUILD](PKGBUILD) (run `makepkg` in the source
-root directory).
-
-The AUR packages, and the bundled PKGBUILD alike, will attempt to do a
-PGO build. This can be tweaked, or disabled, by modifying the `PGO`
-variable in the `PKGBUILD`.
+The AUR packages, will attempt to do a PGO build. This can be tweaked,
+or disabled, by modifying the `PGO` variable in the `PKGBUILD`.
 
 
 ## Other
@@ -106,10 +101,11 @@ Foot uses _meson_. If you are unfamiliar with it, the official
 [tutorial](https://mesonbuild.com/Tutorial.html) might be a good
 starting point.
 
-I also recommend taking a look at the bundled Arch
-[PKGBUILD](PKGBUILD) file, to see how it builds foot. Especially so if
-you intend to install a release build of foot, in which case you might
-be interested in the compiler flags used there.
+I also recommend taking a look at the Arch AUR package’s
+[PKGBUILD](https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h=foot)
+file, to see how it builds foot. Especially so if you intend to
+install a release build of foot, in which case you might be interested
+in the compiler flags used there.
 
 A note on terminfo; the terminfo database exposes terminal
 capabilities to the applications running inside the terminal. As such,
