@@ -1238,6 +1238,10 @@ wayl_init(const struct config *conf, struct fdm *fdm)
                 "(wl_data_device_manager not implemented by server)");
         goto out;
     }
+    if (tll_length(wayl->seats) == 0) {
+        LOG_ERR("no seats available (wl_seat interface too old?)");
+        goto out;
+    }
     if (wayl->primary_selection_device_manager == NULL)
         LOG_WARN("no primary selection available");
 

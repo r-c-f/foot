@@ -56,6 +56,9 @@
   `double-width` to `wcswidth`.
 * INSTALL.md: `--override tweak.grapheme-shaping=no` added to PGO
   command line.
+* Foot now terminates if there are no available seats - for example,
+  due to the compositor not implementing a recent enough version of
+  the `wl_seat` interface (https://codeberg.org/dnkl/foot/issues/779).
 
 
 ### Deprecated
