@@ -611,6 +611,8 @@ in upper case. For example, *Control+Shift+V* will never trigger, but
 
 Note that *Alt* is usually called *Mod1*.
 
+*xkbcli interactive-wayland* can be useful for finding keysym names.
+
 A key combination can only be mapped to *one* action. Lets say you
 want to bind *Control+Shift+R* to *fullscreen*. Since this is the
 default shortcut for *search-start*, you first need to unmap the
