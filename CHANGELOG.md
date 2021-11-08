@@ -63,6 +63,8 @@
   “yes|true|on|1|no|false|off|0”, Previously, anything that did not
   match “yes|true|on”, or a number greater than 0, was treated as
   “false”.
+* `[scrollback].multiplier` is no longer applied when the alternate
+  screen is in use (https://codeberg.org/dnkl/foot/issues/787).
 
 
 ### Deprecated
