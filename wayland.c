@@ -1448,9 +1448,11 @@ wayl_win_init(struct terminal *term, const char *token)
 
     wl_surface_commit(win->surface);
 
+#if defined(HAVE_XDG_ACTIVATION)
     /* Complete XDG startup notification */
     if (token)
         xdg_activation_v1_activate(wayl->xdg_activation, token, win->surface);
+#endif
 
     if (conf->tweak.render_timer_osd) {
         if (!wayl_win_subsurface_new(win, &win->render_timer)) {
