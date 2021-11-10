@@ -417,8 +417,12 @@ main(int argc, char *const *argv)
 
     srand(time(NULL));
 
-    setlocale(LC_CTYPE, "");
-    LOG_INFO("locale: %s", setlocale(LC_CTYPE, NULL));
+    const char *locale = setlocale(LC_CTYPE, "");
+    if (locale == NULL) {
+        LOG_ERR("setlocale() failed");
+        return ret;
+    }
+    LOG_INFO("locale: %s", locale);
     if (!locale_is_utf8()) {
         LOG_ERR("locale is not UTF-8");
         return ret;
