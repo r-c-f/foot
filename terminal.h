@@ -308,6 +308,7 @@ struct terminal {
     bool focus_events;
     bool alt_scrolling;
     bool modify_escape_key;
+    bool modify_other_keys_2;  /* True when modifyOtherKeys=2 (i.e. “CSI >4;2m”) */
     enum cursor_origin origin;
     enum cursor_keys cursor_keys_mode;
     enum keypad_keys keypad_keys_mode;

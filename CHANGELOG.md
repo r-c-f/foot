@@ -46,6 +46,7 @@
 * Color schemes are now installed to `${datadir}/foot/themes`.
 * `[csd].border-width` and `[csd].border-color`, allowing you to
   configure the width and color of the CSD border.
+* Support for `XTMODKEYS` with `Pp=4` and `Pv=2` (_modifyOtherKeys=2_).
 
 
 ### Changed

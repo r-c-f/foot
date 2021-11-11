@@ -1509,17 +1509,19 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
                 case 1: /* modifyCursorKeys */
                 case 2: /* modifyFunctionKeys */
-                case 4: /* modifyOtherKeys */
                     /* Ignored, we always report modifiers */
-                    if (value != 2 && value != -1 &&
-                        !(resource == 4 && value == 1))
-                    {
-                        LOG_WARN("unimplemented: %s = %d",
-                                 resource == 1 ? "modifyCursorKeys" :
-                                 resource == 2 ? "modifyFunctionKeys" :
-                                 resource == 4 ? "modifyOtherKeys" : "<invalid>",
-                                 value);
+                    if (value != 2 && value != -1) {
+                        LOG_WARN(
+                            "unimplemented: %s = %d",
+                            resource == 1 ? "modifyCursorKeys" :
+                            resource == 2 ? "modifyFunctionKeys" : "<invalid>",
+                            value);
                     }
+                    break;
+
+                case 4: /* modifyOtherKeys */
+                    term->modify_other_keys_2 = value == 2;
+                    LOG_DBG("modifyOtherKeys=%d", value);
                     break;
 
                 default:
