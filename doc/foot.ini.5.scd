@@ -499,6 +499,36 @@ can configure the background transparency with the _alpha_ option.
 	_bfebbf_, _f0dfaf_, _8cd0d3_, _fcace3_, _b3ffff_ and _ffffff_ (a
 	variant of the _zenburn_ theme).
 
+*dim0*, *dim1* *..* *dim7*
+	Custom colors to use with dimmed colors. Dimmed colors do not have
+	an entry in the color palette. Applications emit them by combining
+	a color value, and a "dim" attribute.
+	
+	By default, foot implements this by reducing the luminance of the
+	current color. This is a generic approach that applies to both
+	colors from the 256-color palette, as well as 24-bit RGB colors.
+	
+	You can change this behavior by setting the *dimN* options. When
+	set, foot will match the current color against the color palette,
+	and if it matches one of the *regularN* colors, the corresponding
+	*dimN* color will be used.
+	
+	If instead the current color matches one of the *brightN* colors,
+	the corresponding *regularn* color will be used.
+	
+	If the current color does not match any known colors, it is dimmed
+	by reducing the luminance (i.e. the same behavior as if the *dimN*
+	options are unconfigured). 24-bit RGB colors will typically fall
+	into this category.
+	
+	Note that applications can change the *regularN* and *brighN*
+	colors at runtime. However, they have no way of changing the
+	*dimN* colors. If an application has changed the *regularN*
+	colors, foot will still use the corresponding *dimN* color, as
+	configured in foot.ini.
+	
+	Default: _not set_.
+
 *0* *..* *255*
 	Arbitrary colors in the 256-color palette. Default: for *0* *..*
 	*15*, see regular and bright defaults above; see
