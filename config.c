@@ -121,69 +121,116 @@ static const char *const binding_action_map[] = {
 static_assert(ALEN(binding_action_map) == BIND_ACTION_COUNT,
               "binding action map size mismatch");
 
-static void NOINLINE PRINTF(5)
-log_and_notify(struct config *conf, enum log_class log_class,
-               const char *file, int lineno, const char *fmt, ...)
+struct context {
+    struct config *conf;
+    const char *section;
+    const char *key;
+    const char *value;
+
+    const char *path;
+    unsigned lineno;
+
+    bool errors_are_fatal;
+};
+
+static const enum user_notification_kind log_class_to_notify_kind[LOG_CLASS_COUNT] = {
+    [LOG_CLASS_WARNING] = USER_NOTIFICATION_WARNING,
+    [LOG_CLASS_ERROR] = USER_NOTIFICATION_ERROR,
+};
+
+static void NOINLINE VPRINTF(5)
+log_and_notify_va(struct config *conf, enum log_class log_class,
+                  const char *file, int lineno, const char *fmt, va_list va)
 {
-    enum user_notification_kind kind;
+    xassert(log_class < ALEN(log_class_to_notify_kind));
+    enum user_notification_kind kind = log_class_to_notify_kind[log_class];
 
-    switch (log_class) {
-    case LOG_CLASS_WARNING: kind = USER_NOTIFICATION_WARNING; break;
-    case LOG_CLASS_ERROR:   kind = USER_NOTIFICATION_ERROR; break;
-
-    case LOG_CLASS_INFO:
-    case LOG_CLASS_DEBUG:
-    case LOG_CLASS_NONE:
-    default:
+    if (kind == 0) {
         BUG("unsupported log class: %d", (int)log_class);
         return;
     }
 
-    va_list va1, va2;
-    va_start(va1, fmt);
-    va_copy(va2, va1);
-
-    log_msg_va(log_class, LOG_MODULE, file, lineno, fmt, va1);
-
-    char *text = xvasprintf(fmt, va2);
+    char *formatted_msg = xvasprintf(fmt, va);
+    log_msg(log_class, LOG_MODULE, file, lineno, "%s", formatted_msg);
     tll_push_back(
         conf->notifications,
-        ((struct user_notification){.kind = kind, .text = text}));
-
-    va_end(va2);
-    va_end(va1);
+        ((struct user_notification){.kind = kind, .text = formatted_msg}));
 }
 
 static void NOINLINE PRINTF(5)
-log_errno_and_notify(struct config *conf, enum log_class log_class,
-                     const char *file, int lineno, const char *fmt, ...)
+log_and_notify(struct config *conf, enum log_class log_class,
+               const char *file, int lineno, const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    log_and_notify_va(conf, log_class, file, lineno, fmt, va);
+    va_end(va);
+}
+
+static void NOINLINE PRINTF(5)
+log_contextual(struct context *ctx, enum log_class log_class,
+               const char *file, int lineno, const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char *formatted_msg = xvasprintf(fmt, va);
+    va_end(va);
+
+    log_and_notify(
+        ctx->conf, log_class, file, lineno, "%s:%d: [%s].%s: %s: %s",
+        ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value,
+        formatted_msg);
+    free(formatted_msg);
+}
+
+
+static void NOINLINE VPRINTF(4)
+log_and_notify_errno_va(struct config *conf, const char *file, int lineno,
+                     const char *fmt, va_list va)
 {
     int errno_copy = errno;
-
-    va_list va1, va2, va3;
-    va_start(va1, fmt);
-    va_copy(va2, va1);
-    va_copy(va3, va2);
-
-    log_errno_provided_va(
-        log_class, LOG_MODULE, file, lineno, errno_copy, fmt, va1);
-
-    int len = vsnprintf(NULL, 0, fmt, va2);
-    int errno_len = snprintf(NULL, 0, ": %s", strerror(errno_copy));
-
-    char *text = xmalloc(len + errno_len + 1);
-    vsnprintf(text, len + errno_len + 1, fmt, va3);
-    snprintf(&text[len], errno_len + 1, ": %s", strerror(errno_copy));
-
-    tll_push_back(
-        conf->notifications,
-        ((struct user_notification){
-            .kind = USER_NOTIFICATION_ERROR, .text = text}));
-
-    va_end(va3);
-    va_end(va2);
-    va_end(va1);
+    char *formatted_msg = xvasprintf(fmt, va);
+    log_and_notify(
+        conf, LOG_CLASS_ERROR, file, lineno,
+        "%s: %s", formatted_msg, strerror(errno_copy));
+    free(formatted_msg);
 }
+
+static void NOINLINE PRINTF(4)
+log_and_notify_errno(struct config *conf, const char *file, int lineno,
+                     const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    log_and_notify_errno_va(conf, file, lineno, fmt, va);
+    va_end(va);
+}
+
+static void NOINLINE PRINTF(4)
+log_contextual_errno(struct context *ctx, const char *file, int lineno,
+                     const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char *formatted_msg = xvasprintf(fmt, va);
+    va_end(va);
+
+    log_and_notify_errno(
+        ctx->conf, file, lineno, "%s:%d: [%s].%s: %s: %s",
+        ctx->path, ctx->lineno, ctx->section, ctx->key, ctx->value,
+        formatted_msg);
+
+    free(formatted_msg);
+}
+
+#define LOG_CONTEXTUAL_ERR(...) \
+    log_contextual(ctx, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+#define LOG_CONTEXTUAL_WARN(...) \
+    log_contextual(ctx, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
+
+#define LOG_CONTEXTUAL_ERRNO(...) \
+    log_contextual_errno(ctx, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_ERR(...) \
     log_and_notify(conf, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
@@ -192,7 +239,7 @@ log_errno_and_notify(struct config *conf, enum log_class log_class,
     log_and_notify(conf, LOG_CLASS_WARNING, __FILE__, __LINE__, __VA_ARGS__)
 
 #define LOG_AND_NOTIFY_ERRNO(...) \
-    log_errno_and_notify(conf, LOG_CLASS_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_and_notify_errno(conf, __FILE__, __LINE__, __VA_ARGS__)
 
 static char *
 get_shell(void)
@@ -409,13 +456,29 @@ str_has_prefix(const char *str, const char *prefix)
 }
 
 static bool NOINLINE
-str_to_bool(const char *s)
+value_to_bool(struct context *ctx, bool *res)
 {
-    return strcasecmp(s, "on") == 0 ||
-        strcasecmp(s, "true") == 0 ||
-        strcasecmp(s, "yes") == 0 ||
-        strtoul(s, NULL, 0) > 0;
+    static const char *const yes[] = {"on", "true", "yes", "1"};
+    static const char *const  no[] = {"off", "false", "no", "0"};
+
+    for (size_t i = 0; i < ALEN(yes); i++) {
+        if (strcasecmp(ctx->value, yes[i]) == 0) {
+            *res = true;
+            return true;
+        }
+    }
+
+    for (size_t i = 0; i < ALEN(no); i++) {
+        if (strcasecmp(ctx->value, no[i]) == 0) {
+            *res = false;
+            return true;
+        }
+    }
+
+    LOG_CONTEXTUAL_ERR("invalid boolean value");
+    return false;
 }
+
 
 static bool NOINLINE
 str_to_ulong(const char *s, int base, unsigned long *res)
@@ -431,87 +494,186 @@ str_to_ulong(const char *s, int base, unsigned long *res)
 }
 
 static bool NOINLINE
-str_to_double(const char *s, double *res)
+str_to_uint32(const char *s, int base, uint32_t *res)
 {
+    unsigned long v;
+    bool ret = str_to_ulong(s, base, &v);
+    if (v > UINT32_MAX)
+        return false;
+    *res = v;
+    return ret;
+}
+
+static bool NOINLINE
+str_to_uint16(const char *s, int base, uint16_t *res)
+{
+    unsigned long v;
+    bool ret = str_to_ulong(s, base, &v);
+    if (v > UINT16_MAX)
+        return false;
+    *res = v;
+    return ret;
+}
+
+static bool NOINLINE
+value_to_uint16(struct context *ctx, int base, uint16_t *res)
+{
+    if (!str_to_uint16(ctx->value, base, res)) {
+        LOG_CONTEXTUAL_ERR(
+            "invalid integer value, or outside range 0-%u", UINT16_MAX);
+        return false;
+    }
+    return true;
+}
+
+static bool NOINLINE
+value_to_uint32(struct context *ctx, int base, uint32_t *res)
+{
+    if (!str_to_uint32(ctx->value, base, res)){
+        LOG_CONTEXTUAL_ERR(
+            "invalid integer value, or outside range 0-%u", UINT32_MAX);
+        return false;
+    }
+    return true;
+}
+
+static bool NOINLINE
+value_to_dimensions(struct context *ctx, uint32_t *x, uint32_t *y)
+{
+    if (sscanf(ctx->value, "%ux%u", x, y) != 2) {
+        LOG_CONTEXTUAL_ERR("invalid dimensions (must be on the form AxB)");
+        return false;
+    }
+
+    return true;
+}
+
+static bool NOINLINE
+value_to_double(struct context *ctx, float *res)
+{
+    const char *s = ctx->value;
+
     if (s == NULL)
         return false;
 
     errno = 0;
     char *end = NULL;
 
-    *res = strtod(s, &end);
-    return errno == 0 && *end == '\0';
+    *res = strtof(s, &end);
+    if (!(errno == 0 && *end == '\0')) {
+        LOG_CONTEXTUAL_ERR("invalid decimal value");
+        return false;
+    }
+
+    return true;
 }
 
 static bool NOINLINE
-str_to_wchars(const char *s, wchar_t **res, struct config *conf,
-              const char  *path, int lineno,
-              const char *section, const char *key)
+value_to_str(struct context *ctx, char **res)
 {
-    *res = NULL;
+    free(*res);
+    *res = xstrdup(ctx->value);
+    return true;
+}
 
-    size_t chars = mbstowcs(NULL, s, 0);
+static bool NOINLINE
+value_to_wchars(struct context *ctx, wchar_t **res)
+{
+    size_t chars = mbstowcs(NULL, ctx->value, 0);
     if (chars == (size_t)-1) {
-        LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s is not a valid string value",
-                           path, lineno, section, key, s);
+        LOG_CONTEXTUAL_ERR("not a valid string value");
         return false;
     }
 
+    free(*res);
     *res = xmalloc((chars + 1) * sizeof(wchar_t));
-    mbstowcs(*res, s, chars + 1);
+    mbstowcs(*res, ctx->value, chars + 1);
     return true;
 }
 
 static bool NOINLINE
-str_to_color(const char *s, uint32_t *color, bool allow_alpha,
-             struct config *conf, const char *path, int lineno,
-             const char *section, const char *key)
+value_to_enum(struct context *ctx, const char **value_map, int *res)
 {
-    unsigned long value;
-    if (!str_to_ulong(s, 16, &value)) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s is not a valid color value",
-            path, lineno, section, key, s);
+    size_t str_len = 0;
+    size_t count = 0;
+
+    for (; value_map[count] != NULL; count++) {
+        if (strcasecmp(value_map[count], ctx->value) == 0) {
+            *res = count;
+            return true;
+        }
+        str_len += strlen(value_map[count]);
+    }
+
+    const size_t size = str_len + count * 4 + 1;
+    char *valid_values = xmalloc(size);
+    int idx = 0;
+
+    for (size_t i = 0; i < count; i++)
+        idx += snprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
+
+    if (count > 0)
+        valid_values[idx - 2] = '\0';
+
+    LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
+    *res = -1;
+    return false;
+}
+
+static bool NOINLINE
+value_to_color(struct context *ctx, uint32_t *color, bool allow_alpha)
+{
+    if (!str_to_uint32(ctx->value, 16, color)) {
+        LOG_CONTEXTUAL_ERR("not a valid color value");
         return false;
     }
 
-    if (!allow_alpha && (value & 0xff000000) != 0) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s: color value must not have an alpha component",
-            path, lineno, section, key, s);
+    if (!allow_alpha && (*color & 0xff000000) != 0) {
+        LOG_CONTEXTUAL_ERR("color value must not have an alpha component");
         return false;
     }
 
-    *color = value;
     return true;
 }
 
 static bool NOINLINE
-str_to_two_colors(const char *s, uint32_t *first, uint32_t *second,
-                  bool allow_alpha, struct config *conf, const char *path,
-                  int lineno, const char *section, const char *key)
+value_to_two_colors(struct context *ctx,
+                    uint32_t *first, uint32_t *second, bool allow_alpha)
 {
+    bool ret = false;
+    const char *original_value = ctx->value;
+
     /* TODO: do this without strdup() */
-    char *value_copy = xstrdup(s);
+    char *value_copy = xstrdup(ctx->value);
     const char *first_as_str = strtok(value_copy, " ");
     const char *second_as_str = strtok(NULL, " ");
 
-    if (first_as_str == NULL || second_as_str == NULL ||
-        !str_to_color(first_as_str, first, allow_alpha, conf, path, lineno, section, key) ||
-        !str_to_color(second_as_str, second, allow_alpha, conf, path, lineno, section, key))
-    {
-        free(value_copy);
-        return false;
+    if (first_as_str == NULL || second_as_str == NULL) {
+        LOG_CONTEXTUAL_ERR("invalid double color value");
+        goto out;
     }
 
+    ctx->value = first_as_str;
+    if (!value_to_color(ctx, first, allow_alpha))
+        goto out;
+
+    ctx->value = second_as_str;
+    if (!value_to_color(ctx, second, allow_alpha))
+        goto out;
+
+    ret = true;
+
+out:
     free(value_copy);
-    return true;
+    ctx->value = original_value;
+    return ret;
 }
 
 static bool NOINLINE
-str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
-                const char *path, int lineno, const char *section, const char *key)
+value_to_pt_or_px(struct context *ctx, struct pt_or_px *res)
 {
+    const char *s = ctx->value;
+
     size_t len = s != NULL ? strlen(s) : 0;
     if (len >= 2 && s[len - 2] == 'p' && s[len - 1] == 'x') {
         errno = 0;
@@ -519,22 +681,15 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
 
         long value = strtol(s, &end, 10);
         if (!(errno == 0 && end == s + len - 2)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid px value "
-                "(must be on the form 12px)",
-                path, lineno, section, key, s);
+            LOG_CONTEXTUAL_ERR("invalid px value (must be on the form 12px)");
             return false;
         }
         res->pt = 0;
         res->px = value;
     } else {
-        double value;
-        if (!str_to_double(s, &value)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid decimal value",
-                path, lineno, section, key, s);
+        float value;
+        if (!value_to_double(ctx, &value))
             return false;
-        }
         res->pt = value;
         res->px = 0;
     }
@@ -543,14 +698,13 @@ str_to_pt_or_px(const char *s, struct pt_or_px *res, struct config *conf,
 }
 
 static struct config_font_list NOINLINE
-str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
-             const char *section, const char *key)
+value_to_fonts(struct context *ctx)
 {
     size_t count = 0;
     size_t size = 0;
     struct config_font *fonts = NULL;
 
-    char *copy = xstrdup(s);
+    char *copy = xstrdup(ctx->value);
     for (const char *font = strtok(copy, ",");
          font != NULL;
          font = strtok(NULL, ","))
@@ -564,9 +718,8 @@ str_to_fonts(const char *s, struct config *conf, const char *path, int lineno,
 
         struct config_font font_data;
         if (!config_font_parse(font, &font_data)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: invalid font specification",
-                path, lineno, section, key, font);
+            ctx->value = font;
+            LOG_CONTEXTUAL_ERR("invalid font specification");
             goto err;
         }
 
@@ -635,19 +788,15 @@ spawn_template_clone(struct config_spawn_template *dst,
 }
 
 static bool NOINLINE
-str_to_spawn_template(struct config *conf,
-                      const char *s, struct config_spawn_template *template,
-                      const char *path, int lineno, const char *section,
-                      const char *key)
+value_to_spawn_template(struct context *ctx,
+                        struct config_spawn_template *template)
 {
     spawn_template_free(template);
 
     char **argv = NULL;
 
-    if (!tokenize_cmdline(s, &argv)) {
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [%s].%s: %s: syntax error in command line",
-            path, lineno, section, key, s);
+    if (!tokenize_cmdline(ctx->value, &argv)) {
+        LOG_CONTEXTUAL_ERR("syntax error in command line");
         return false;
     }
 
@@ -679,9 +828,15 @@ static bool parse_config_file(
     FILE *f, struct config *conf, const char *path, bool errors_are_fatal);
 
 static bool
-parse_section_main(const char *key, const char *value, struct config *conf,
-                   const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_main(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+    const char *path = ctx->path;
+    unsigned lineno = ctx->lineno;
+    bool errors_are_fatal = ctx->errors_are_fatal;
+
     if (strcmp(key, "include") == 0) {
         char *_include_path = NULL;
         const char *include_path = NULL;
@@ -690,9 +845,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             const char *home_dir = get_user_home_dir();
 
             if (home_dir == NULL) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%d: [main].include: %s: failed to expand '~'",
-                    path, lineno, value);
+                LOG_CONTEXTUAL_ERRNO("failed to expand '~'");
                 return false;
             }
 
@@ -702,9 +855,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             include_path = value;
 
         if (include_path[0] != '/') {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].include: %s: not an absolute path",
-                path, lineno, include_path);
+            LOG_CONTEXTUAL_ERR("not an absolute path");
             free(_include_path);
             return false;
         }
@@ -712,9 +863,7 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         FILE *include = fopen(include_path, "r");
 
         if (include == NULL) {
-            LOG_AND_NOTIFY_ERRNO(
-                "%s:%d: [main].include: %s: failed to open",
-                path, lineno, include_path);
+            LOG_CONTEXTUAL_ERRNO("failed to open");
             free(_include_path);
             return false;
         }
@@ -728,59 +877,38 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         return ret;
     }
 
-    else if (strcmp(key, "term") == 0) {
-        free(conf->term);
-        conf->term = xstrdup(value);
-    }
+    else if (strcmp(key, "term") == 0)
+        return value_to_str(ctx, &conf->term);
 
-    else if (strcmp(key, "shell") == 0) {
-        free(conf->shell);
-        conf->shell = xstrdup(value);
-    }
+    else if (strcmp(key, "shell") == 0)
+        return value_to_str(ctx, &conf->shell);
 
-    else if (strcmp(key, "login-shell") == 0) {
-        conf->login_shell = str_to_bool(value);
-    }
+    else if (strcmp(key, "login-shell") == 0)
+        return value_to_bool(ctx, &conf->login_shell);
 
-    else if (strcmp(key, "title") == 0) {
-        free(conf->title);
-        conf->title = xstrdup(value);
-    }
+    else if (strcmp(key, "title") == 0)
+        return value_to_str(ctx, &conf->title);
 
     else if (strcmp(key, "locked-title") == 0)
-        conf->locked_title = str_to_bool(value);
+        return value_to_bool(ctx, &conf->locked_title);
 
-    else if (strcmp(key, "app-id") == 0) {
-        free(conf->app_id);
-        conf->app_id = xstrdup(value);
-    }
+    else if (strcmp(key, "app-id") == 0)
+        return value_to_str(ctx, &conf->app_id);
 
     else if (strcmp(key, "initial-window-size-pixels") == 0) {
-        unsigned width, height;
-        if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-pixels: %s: invalid size "
-                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
+        if (!value_to_dimensions(ctx, &conf->size.width, &conf->size.height))
             return false;
-        }
 
         conf->size.type = CONF_SIZE_PX;
-        conf->size.width = width;
-        conf->size.height = height;
+        return true;
     }
 
     else if (strcmp(key, "initial-window-size-chars") == 0) {
-        unsigned width, height;
-        if (sscanf(value, "%ux%u", &width, &height) != 2 || width == 0 || height == 0) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-size-chars: %s: invalid size "
-                "(must be on the form WIDTHxHEIGHT)", path, lineno, value);
+        if (!value_to_dimensions(ctx, &conf->size.width, &conf->size.height))
             return false;
-        }
 
         conf->size.type = CONF_SIZE_CELLS;
-        conf->size.width = width;
-        conf->size.height = height;
+        return true;
     }
 
     else if (strcmp(key, "pad") == 0) {
@@ -792,38 +920,30 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         bool invalid_mode = !center && mode[0] != '\0';
 
         if ((ret != 2 && ret != 3) || invalid_mode) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].pad: %s: invalid padding "
-                "(must be on the form PAD_XxPAD_Y [center])",
-                path, lineno, value);
+            LOG_CONTEXTUAL_ERR(
+                "invalid padding (must be on the form PAD_XxPAD_Y [center])");
             return false;
         }
 
         conf->pad_x = x;
         conf->pad_y = y;
         conf->center = center;
+        return true;
     }
 
-    else if (strcmp(key, "resize-delay-ms") == 0) {
-        unsigned long ms;
-        if (!str_to_ulong(value, 10, &ms)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].resize-delay-ms: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
-
-        conf->resize_delay_ms = ms;
-    }
+    else if (strcmp(key, "resize-delay-ms") == 0)
+        return value_to_uint16(ctx, 10, &conf->resize_delay_ms);
 
     else if (strcmp(key, "bold-text-in-bright") == 0) {
         if (strcmp(value, "palette-based") == 0) {
             conf->bold_in_bright.enabled = true;
             conf->bold_in_bright.palette_based = true;
         } else {
-            conf->bold_in_bright.enabled = str_to_bool(value);
+            if (!value_to_bool(ctx, &conf->bold_in_bright.enabled))
+                return false;
             conf->bold_in_bright.palette_based = false;
         }
+        return true;
     }
 
     else if (strcmp(key, "bell") == 0) {
@@ -841,40 +961,32 @@ parse_section_main(const char *key, const char *value, struct config *conf,
         };
         tll_push_back(conf->notifications, deprecation);
 
-        if (strcmp(value, "set-urgency") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-            conf->bell.urgent = true;
-        }
-        else if (strcmp(value, "notify") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-            conf->bell.notify = true;
-        }
-        else if (strcmp(value, "none") == 0) {
-            memset(&conf->bell, 0, sizeof(conf->bell));
-        }
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s%d: [main].bell: %s: "
-                "not one of 'set-urgency', 'notify' or 'none'",
-                path, lineno, value);
+        int bell;
+        if (!value_to_enum(
+                ctx,
+                (const char *[]){"set-urgency", "notify", "none", NULL},
+                &bell))
+        {
             return false;
         }
+
+        switch (bell) {
+        case 0: conf->bell.urgent = true; return true;
+        case 1: conf->bell.notify = true; return true;
+        case 2: memset(&conf->bell, 0, sizeof(conf->bell)); return true;
+        }
+
+        UNREACHABLE();
     }
 
     else if (strcmp(key, "initial-window-mode") == 0) {
-        if (strcmp(value, "windowed") == 0)
-            conf->startup_mode = STARTUP_WINDOWED;
-        else if (strcmp(value, "maximized") == 0)
-            conf->startup_mode = STARTUP_MAXIMIZED;
-        else if (strcmp(value, "fullscreen") == 0)
-            conf->startup_mode = STARTUP_FULLSCREEN;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].initial-window-mode: %s: not one of "
-                "'windows', 'maximized' or 'fullscreen'",
-                path, lineno, value);
-            return false;
-        }
+        _Static_assert(sizeof(conf->startup_mode) == sizeof(int),
+            "enum is not 32-bit");
+
+        return value_to_enum(
+                ctx,
+                (const char *[]){"windowed", "maximized", "fullscreen", NULL},
+                (int *)&conf->startup_mode);
     }
 
     else if (strcmp(key, "font") == 0 ||
@@ -888,183 +1000,123 @@ parse_section_main(const char *key, const char *value, struct config *conf,
             strcmp(key, "font-bold") == 0 ? 1 :
             strcmp(key, "font-italic") == 0 ? 2 : 3;
 
-        struct config_font_list new_list = str_to_fonts(
-            value, conf, path, lineno, "main", key);
-
+        struct config_font_list new_list = value_to_fonts(ctx);
         if (new_list.arr == NULL)
             return false;
 
         config_font_list_destroy(&conf->fonts[idx]);
         conf->fonts[idx] = new_list;
+        return true;
     }
 
-    else if (strcmp(key, "line-height") == 0) {
-        if (!str_to_pt_or_px(value, &conf->line_height,
-                             conf, path, lineno, "main", "line-height"))
-            return false;
-    }
+    else if (strcmp(key, "line-height") == 0)
+        return value_to_pt_or_px(ctx, &conf->line_height);
 
-    else if (strcmp(key, "letter-spacing") == 0) {
-        if (!str_to_pt_or_px(value, &conf->letter_spacing,
-                             conf, path, lineno, "main", "letter-spacing"))
-            return false;
-    }
+    else if (strcmp(key, "letter-spacing") == 0)
+        value_to_pt_or_px(ctx, &conf->letter_spacing);
 
-    else if (strcmp(key, "horizontal-letter-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->horizontal_letter_offset,
-                conf, path, lineno, "main", "horizontal-letter-offset"))
-            return false;
-    }
+    else if (strcmp(key, "horizontal-letter-offset") == 0)
+        return value_to_pt_or_px(ctx, &conf->horizontal_letter_offset);
 
-    else if (strcmp(key, "vertical-letter-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->vertical_letter_offset,
-                conf, path, lineno, "main", "vertical-letter-offset"))
-            return false;
-    }
+    else if (strcmp(key, "vertical-letter-offset") == 0)
+        return value_to_pt_or_px(ctx, &conf->vertical_letter_offset);
 
     else if (strcmp(key, "underline-offset") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->underline_offset,
-                conf, path, lineno, "main", "underline-offset"))
+        if (!value_to_pt_or_px(ctx, &conf->underline_offset))
             return false;
         conf->use_custom_underline_offset = true;
+        return true;
     }
 
     else if (strcmp(key, "dpi-aware") == 0) {
         if (strcmp(value, "auto") == 0)
             conf->dpi_aware = DPI_AWARE_AUTO;
-        else
-            conf->dpi_aware = str_to_bool(value) ? DPI_AWARE_YES : DPI_AWARE_NO;
+        else {
+            bool value;
+            if (!value_to_bool(ctx, &value))
+                return false;
+            conf->dpi_aware = value ? DPI_AWARE_YES : DPI_AWARE_NO;
+        }
+        return true;
     }
 
-    else if (strcmp(key, "workers") == 0) {
-        unsigned long count;
-        if (!str_to_ulong(value, 10, &count)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [main].workers: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
-        conf->render_worker_count = count;
-    }
+    else if (strcmp(key, "workers") == 0)
+        return value_to_uint16(ctx, 10, &conf->render_worker_count);
 
-    else if (strcmp(key, "word-delimiters") == 0) {
-        wchar_t *word_delimiters;
-        if (!str_to_wchars(value, &word_delimiters, conf, path, lineno,
-                           "main", "word-delimiters"))
-        {
-            return false;
-        }
-        free(conf->word_delimiters);
-        conf->word_delimiters = word_delimiters;
-    }
+    else if (strcmp(key, "word-delimiters") == 0)
+        return value_to_wchars(ctx, &conf->word_delimiters);
 
     else if (strcmp(key, "jump-label-letters") == 0) {
         deprecated_url_option(
             conf, "jump-label-letters", "label-letters", path, lineno);
 
-        wchar_t *letters;
-        if (!str_to_wchars(value, &letters, conf, path, lineno,
-                           "main", "label-letters"))
-        {
-            return false;
-        }
-        free(conf->url.label_letters);
-        conf->url.label_letters = letters;
+        return value_to_wchars(ctx, &conf->url.label_letters);
     }
 
-    else if (strcmp(key, "notify") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->notify, path, lineno,
-                                   "main", "notify"))
-        {
-            return false;
-        }
-    }
+    else if (strcmp(key, "notify") == 0)
+        return value_to_spawn_template(ctx, &conf->notify);
 
-    else if (strcmp(key, "notify-focus-inhibit") == 0) {
-        conf->notify_focus_inhibit = str_to_bool(value);
-    }
+    else if (strcmp(key, "notify-focus-inhibit") == 0)
+        return value_to_bool(ctx, &conf->notify_focus_inhibit);
 
     else if (strcmp(key, "url-launch") == 0) {
         deprecated_url_option(
             conf, "url-launch", "launch", path, lineno);
 
-        if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
-                                   "main", "url-launch"))
-        {
-            return false;
-        }
+        return value_to_spawn_template(ctx, &conf->url.launch);
     }
 
     else if (strcmp(key, "selection-target") == 0) {
-        static const char values[][12] = {
-            [SELECTION_TARGET_NONE] = "none",
-            [SELECTION_TARGET_PRIMARY] = "primary",
-            [SELECTION_TARGET_CLIPBOARD] = "clipboard",
-            [SELECTION_TARGET_BOTH] = "both",
-        };
+        _Static_assert(sizeof(conf->selection_target) == sizeof(int),
+                       "enum is not 32-bit");
 
-        for (size_t i = 0; i < ALEN(values); i++) {
-            if (strcasecmp(value, values[i]) == 0) {
-                conf->selection_target = i;
-                return true;
-            }
-        }
-
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [main].selection-target: %s: not one of "
-            "'none', 'primary', 'clipboard' or 'both",
-            path, lineno, value);
-        return false;
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "primary", "clipboard", "both", NULL},
+            (int *)&conf->selection_target);
     }
 
     else if (strcmp(key, "osc8-underline") == 0) {
         deprecated_url_option(
             conf, "osc8-underline", "osc8-underline", path, lineno);
 
-        if (strcmp(value, "url-mode") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_URL_MODE;
-        else if (strcmp(value, "always") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [main].osc8-underline: %s: not one of "
-                "'url-mode', or 'always'", path, lineno, value);
-            return false;
-        }
+        _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
+                       "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"url-mode", "always", NULL},
+            (int *)&conf->url.osc8_underline);
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)
-        conf->box_drawings_uses_font_glyphs = str_to_bool(value);
+        return value_to_bool(ctx, &conf->box_drawings_uses_font_glyphs);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [main].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
-    return true;
+    UNREACHABLE();
 }
 
 static bool
-parse_section_bell(const char *key, const char *value, struct config *conf,
-                   const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_bell(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
     if (strcmp(key, "urgent") == 0)
-        conf->bell.urgent = str_to_bool(value);
+        return value_to_bool(ctx, &conf->bell.urgent);
     else if (strcmp(key, "notify") == 0)
-        conf->bell.notify = str_to_bool(value);
+        return value_to_bool(ctx, &conf->bell.notify);
     else if (strcmp(key, "command") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->bell.command, path, lineno, "bell", key))
+        if (!value_to_spawn_template(ctx, &conf->bell.command))
             return false;
-    }
-    else if (strcmp(key, "command-focused") == 0)
-        conf->bell.command_focused = str_to_bool(value);
+    } else if (strcmp(key, "command-focused") == 0)
+        return value_to_bool(ctx, &conf->bell.command_focused);
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [bell].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1072,34 +1124,24 @@ parse_section_bell(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_scrollback(const char *key, const char *value, struct config *conf,
-                         const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_scrollback(struct context *ctx)
 {
-    if (strcmp(key, "lines") == 0) {
-        unsigned long lines;
-        if (!str_to_ulong(value, 10, &lines)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].lines: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
-        conf->scrollback.lines = lines;
-    }
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+
+    if (strcmp(key, "lines") == 0)
+        value_to_uint32(ctx, 10, &conf->scrollback.lines);
 
     else if (strcmp(key, "indicator-position") == 0) {
-        if (strcmp(value, "none") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_NONE;
-        else if (strcmp(value, "fixed") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_FIXED;
-        else if (strcmp(value, "relative") == 0)
-            conf->scrollback.indicator.position = SCROLLBACK_INDICATOR_POSITION_RELATIVE;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].indicator-position: %s: not one of "
-                "'none', 'fixed' or 'relative'",
-                path, lineno, value);
-            return false;
-        }
+        _Static_assert(
+            sizeof(conf->scrollback.indicator.position) == sizeof(int),
+            "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "fixed", "relative", NULL},
+            (int *)&conf->scrollback.indicator.position);
     }
 
     else if (strcmp(key, "indicator-format") == 0) {
@@ -1115,9 +1157,7 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
 
             size_t len = mbstowcs(NULL, value, 0);
             if (len == (size_t)-1) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%d: [scrollback].indicator-format: %s: "
-                    "invalid free form text", path, lineno, value);
+                LOG_CONTEXTUAL_ERRNO("invalid free form text");
                 return false;
             }
 
@@ -1126,21 +1166,11 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
         }
     }
 
-    else if (strcmp(key, "multiplier") == 0) {
-        double multiplier;
-        if (!str_to_double(value, &multiplier)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [scrollback].multiplier: %s: invalid decimal value",
-                path, lineno, value);
-            return false;
-        }
-
-        conf->scrollback.multiplier = multiplier;
-    }
+    else if (strcmp(key, "multiplier") == 0)
+        return value_to_double(ctx, &conf->scrollback.multiplier);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [scrollback].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1148,37 +1178,28 @@ parse_section_scrollback(const char *key, const char *value, struct config *conf
 }
 
 static bool
-parse_section_url(const char *key, const char *value, struct config *conf,
-                  const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_url(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+
     if (strcmp(key, "launch") == 0) {
-        if (!str_to_spawn_template(conf, value, &conf->url.launch, path, lineno,
-                                   "url", "launch"))
-        {
+        if (!value_to_spawn_template(ctx, &conf->url.launch))
             return false;
-        }
     }
 
-    else if (strcmp(key, "label-letters") == 0) {
-        wchar_t *letters;
-        if (!str_to_wchars(value, &letters, conf, path, lineno, "url", "letters"))
-            return false;
-
-        free(conf->url.label_letters);
-        conf->url.label_letters = letters;
-    }
+    else if (strcmp(key, "label-letters") == 0)
+        return value_to_wchars(ctx, &conf->url.label_letters);
 
     else if (strcmp(key, "osc8-underline") == 0) {
-        if (strcmp(value, "url-mode") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_URL_MODE;
-        else if (strcmp(value, "always") == 0)
-            conf->url.osc8_underline = OSC8_UNDERLINE_ALWAYS;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [url].osc8-underline: %s: not one of "
-                "'url-mode', or 'always'", path, lineno, value);
-            return false;
-        }
+        _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
+                       "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"url-mode", "always", NULL},
+            (int *)&conf->url.osc8_underline);
     }
 
     else if (strcmp(key, "protocols") == 0) {
@@ -1208,9 +1229,8 @@ parse_section_url(const char *key, const char *value, struct config *conf,
 
             size_t chars = mbstowcs(NULL, prot, 0);
             if (chars == (size_t)-1) {
-                LOG_AND_NOTIFY_ERRNO(
-                    "%s:%u: [url].protocols: %s: invalid protocol",
-                    path, lineno, prot);
+                ctx->value = prot;
+                LOG_CONTEXTUAL_ERRNO("invalid protocol");
                 return false;
             }
 
@@ -1233,26 +1253,19 @@ parse_section_url(const char *key, const char *value, struct config *conf,
     }
 
     else if (strcmp(key, "uri-characters") == 0) {
-        wchar_t *uri_characters;
-        if (!str_to_wchars(value, &uri_characters, conf, path, lineno,
-                           "url", "uri-characters"))
-        {
+        if (!value_to_wchars(ctx, &conf->url.uri_characters))
             return false;
-        }
-
-        free(conf->url.uri_characters);
 
         qsort(
-            uri_characters,
-            wcslen(uri_characters),
-            sizeof(uri_characters[0]),
+            conf->url.uri_characters,
+            wcslen(conf->url.uri_characters),
+            sizeof(conf->url.uri_characters[0]),
             &wccmp);
-        conf->url.uri_characters = uri_characters;
+        return true;
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [url].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1260,24 +1273,23 @@ parse_section_url(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_colors(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_colors(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
     size_t key_len = strlen(key);
     uint8_t last_digit = (unsigned char)key[key_len - 1] - '0';
     uint32_t *color = NULL;
 
     if (isdigit(key[0])) {
         unsigned long index;
-        if (!str_to_ulong(key, 0, &index)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [colors].%s: %s: invalid integer value",
-                               path, lineno, key, value);
-            return false;
-        }
-        if (index >= ALEN(conf->colors.table)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [colors].%s: %s: color index outside range 0-%zu",
-                path, lineno, key, value, ALEN(conf->colors.table));
+        if (!str_to_ulong(key, 0, &index) ||
+            index >= ALEN(conf->colors.table))
+        {
+            LOG_CONTEXTUAL_ERR(
+                "invalid color palette index: %s (not in range 0-%zu)",
+                key, ALEN(conf->colors.table));
             return false;
         }
         color = &conf->colors.table[index];
@@ -1295,9 +1307,11 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     else if (strcmp(key, "selection-background") == 0) color = &conf->colors.selection_bg;
 
     else if (strcmp(key, "jump-labels") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->colors.jump_label.fg, &conf->colors.jump_label.bg,
-                false, conf, path, lineno, "colors", "jump-labels"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->colors.jump_label.fg,
+                &conf->colors.jump_label.bg,
+                false))
         {
             return false;
         }
@@ -1307,9 +1321,11 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     }
 
     else if (strcmp(key, "scrollback-indicator") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->colors.scrollback_indicator.fg, &conf->colors.scrollback_indicator.bg,
-                false, conf, path, lineno, "colors", "scrollback-indicator"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->colors.scrollback_indicator.fg,
+                &conf->colors.scrollback_indicator.bg,
+                false))
         {
             return false;
         }
@@ -1319,23 +1335,20 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     }
 
     else if (strcmp(key, "urls") == 0) {
-        if (!str_to_color(value, &conf->colors.url, false,
-                          conf, path, lineno, "colors", "urls"))
-        {
+        if (!value_to_color(ctx, &conf->colors.url, false))
             return false;
-        }
 
         conf->colors.use_custom.url = true;
         return true;
     }
 
     else if (strcmp(key, "alpha") == 0) {
-        double alpha;
-        if (!str_to_double(value, &alpha) || alpha < 0. || alpha > 1.) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [colors].alpha: %s: "
-                "invalid decimal value, or not in range 0.0-1.0",
-                path, lineno, value);
+        float alpha;
+        if (!value_to_double(ctx, &alpha))
+            return false;
+
+        if (alpha < 0. || alpha > 1.) {
+            LOG_CONTEXTUAL_ERR("not in range 0.0-1.0");
             return false;
         }
 
@@ -1344,13 +1357,12 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [colors].%s is not valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not valid option");
         return false;
     }
 
     uint32_t color_value;
-    if (!str_to_color(value, &color_value, false, conf, path, lineno, "colors", key))
+    if (!value_to_color(ctx, &color_value, false))
         return false;
 
     *color = color_value;
@@ -1358,32 +1370,30 @@ parse_section_colors(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_cursor(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_cursor(struct context *ctx)
 {
-    if (strcmp(key, "style") == 0) {
-        if (strcmp(value, "block") == 0)
-            conf->cursor.style = CURSOR_BLOCK;
-        else if (strcmp(value, "beam") == 0 || strcmp(value, "bar") == 0)
-            conf->cursor.style = CURSOR_BEAM;
-        else if (strcmp(value, "underline") == 0)
-            conf->cursor.style = CURSOR_UNDERLINE;
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
 
-        else {
-            LOG_AND_NOTIFY_ERR("%s:%d: [cursor].style: %s: not one of "
-                               "'block', 'beam' or 'underline'",
-                               path, lineno, value);
-            return false;
-        }
+    if (strcmp(key, "style") == 0) {
+        _Static_assert(sizeof(conf->cursor.style) == sizeof(int),
+                       "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"block", "underline", "beam", NULL},
+            (int *)&conf->cursor.style);
     }
 
     else if (strcmp(key, "blink") == 0)
-        conf->cursor.blink = str_to_bool(value);
+        return value_to_bool(ctx, &conf->cursor.blink);
 
     else if (strcmp(key, "color") == 0) {
-        if (!str_to_two_colors(
-                value, &conf->cursor.color.text, &conf->cursor.color.cursor,
-                false, conf, path, lineno, "cursor", "color"))
+        if (!value_to_two_colors(
+                ctx,
+                &conf->cursor.color.text,
+                &conf->cursor.color.cursor,
+                false))
         {
             return false;
         }
@@ -1393,22 +1403,17 @@ parse_section_cursor(const char *key, const char *value, struct config *conf,
     }
 
     else if (strcmp(key, "beam-thickness") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->cursor.beam_thickness,
-                conf, path, lineno, "cursor", "beam-thickness"))
+        if (!value_to_pt_or_px(ctx, &conf->cursor.beam_thickness))
             return false;
     }
 
     else if (strcmp(key, "underline-thickness") == 0) {
-        if (!str_to_pt_or_px(
-                value, &conf->cursor.underline_thickness,
-                conf, path, lineno, "cursor", "underline-thickness"))
+        if (!value_to_pt_or_px(ctx, &conf->cursor.underline_thickness))
             return false;
     }
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [cursor].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1416,18 +1421,19 @@ parse_section_cursor(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_mouse(const char *key, const char *value, struct config *conf,
-                    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_mouse(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
     if (strcmp(key, "hide-when-typing") == 0)
-        conf->mouse.hide_when_typing = str_to_bool(value);
+        return value_to_bool(ctx, &conf->mouse.hide_when_typing);
 
     else if (strcmp(key, "alternate-scroll-mode") == 0)
-        conf->mouse.alternate_scroll_mode = str_to_bool(value);
+        return value_to_bool(ctx, &conf->mouse.alternate_scroll_mode);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%d: [mouse].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
@@ -1435,28 +1441,23 @@ parse_section_mouse(const char *key, const char *value, struct config *conf,
 }
 
 static bool
-parse_section_csd(const char *key, const char *value, struct config *conf,
-                     const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_csd(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
     if (strcmp(key, "preferred") == 0) {
-        if (strcmp(value, "server") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_SERVER;
-        else if (strcmp(value, "client") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_CLIENT;
-        else if (strcmp(value, "none") == 0)
-            conf->csd.preferred = CONF_CSD_PREFER_NONE;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: csd.preferred: %s: not one of "
-                "'server', 'client' or 'none'", path, lineno, value);
-            return false;
-        }
+        _Static_assert(sizeof(conf->csd.preferred) == sizeof(int),
+                       "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"none", "server", "client", NULL},
+            (int *)&conf->csd.preferred);
     }
 
     else if (strcmp(key, "font") == 0) {
-        struct config_font_list new_list = str_to_fonts(
-            value, conf, path, lineno, "csd", "font");
-
+        struct config_font_list new_list = value_to_fonts(ctx);
         if (new_list.arr == NULL)
             return false;
 
@@ -1466,97 +1467,59 @@ parse_section_csd(const char *key, const char *value, struct config *conf,
 
     else if (strcmp(key, "color") == 0) {
         uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "color"))
+        if (!value_to_color(ctx, &color, true))
             return false;
 
         conf->csd.color.title_set = true;
         conf->csd.color.title = color;
     }
 
-    else if (strcmp(key, "size") == 0) {
-        unsigned long pixels;
-        if (!str_to_ulong(value, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].size: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
+    else if (strcmp(key, "size") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.title_height);
 
-        conf->csd.title_height = pixels;
-    }
-
-    else if (strcmp(key, "button-width") == 0) {
-        unsigned long pixels;
-        if (!str_to_ulong(value, 10, &pixels)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [csd].button-width: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
-
-        conf->csd.button_width = pixels;
-    }
+    else if (strcmp(key, "button-width") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.button_width);
 
     else if (strcmp(key, "button-color") == 0) {
-        uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-color"))
+        if (!value_to_color(ctx, &conf->csd.color.buttons, true))
             return false;
 
         conf->csd.color.buttons_set = true;
-        conf->csd.color.buttons = color;
     }
 
     else if (strcmp(key, "button-minimize-color") == 0) {
-        uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-minimize-color"))
+        if (!value_to_color(ctx, &conf->csd.color.minimize, true))
             return false;
 
         conf->csd.color.minimize_set = true;
-        conf->csd.color.minimize = color;
     }
 
     else if (strcmp(key, "button-maximize-color") == 0) {
-        uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-maximize-color"))
+        if (!value_to_color(ctx, &conf->csd.color.maximize, true))
             return false;
 
         conf->csd.color.maximize_set = true;
-        conf->csd.color.maximize = color;
     }
 
     else if (strcmp(key, "button-close-color") == 0) {
-        uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "button-close-color"))
+        if (!value_to_color(ctx, &conf->csd.color.close, true))
             return false;
 
         conf->csd.color.close_set = true;
-        conf->csd.color.close = color;
     }
 
     else if (strcmp(key, "border-color") == 0) {
-        uint32_t color;
-        if (!str_to_color(value, &color, true, conf, path, lineno, "csd", "border-color"))
+        if (!value_to_color(ctx, &conf->csd.color.border, true))
             return false;
 
         conf->csd.color.border_set = true;
-        conf->csd.color.border = color;
     }
 
-    else if (strcmp(key, "border-width") == 0) {
-        unsigned long width;
-        if (!str_to_ulong(value, 10, &width)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%u: [csd].border-width: %s: invalid integer value",
-                path, lineno, value);
-            return false;
-        }
-
-        conf->csd.border_width_visible = width;
-    }
+    else if (strcmp(key, "border-width") == 0)
+        return value_to_uint16(ctx, 10, &conf->csd.border_width_visible);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [csd].%s is not a valid action",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid action: %s", key);
         return false;
     }
 
@@ -1592,8 +1555,8 @@ free_key_combo_list(struct key_combo_list *key_combos)
 }
 
 static bool
-parse_modifiers(struct config *conf, const char *text, size_t len,
-                struct config_key_modifiers *modifiers, const char *path, unsigned lineno)
+parse_modifiers(struct context *ctx, const char *text, size_t len,
+                struct config_key_modifiers *modifiers)
 {
     bool ret = false;
 
@@ -1613,8 +1576,7 @@ parse_modifiers(struct config *conf, const char *text, size_t len,
         else if (strcmp(key, XKB_MOD_NAME_LOGO) == 0)
             modifiers->meta = true;
         else {
-            LOG_AND_NOTIFY_ERR("%s:%d: %s: not a valid modifier name",
-                               path, lineno, key);
+            LOG_CONTEXTUAL_ERR("not a valid modifier name: %s", key);
             goto out;
         }
     }
@@ -1627,17 +1589,14 @@ out:
 }
 
 static bool
-parse_key_combos(struct config *conf, const char *combos,
-                 struct key_combo_list *key_combos,
-                 const char *section, const char *option,
-                 const char *path, unsigned lineno)
+value_to_key_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
     xassert(key_combos != NULL);
     xassert(key_combos->count == 0 && key_combos->combos == NULL);
 
     size_t size = 0;  /* Size of ‘combos’ array in the key-combo list */
 
-    char *copy = xstrdup(combos);
+    char *copy = xstrdup(ctx->value);
 
     for (char *tok_ctx = NULL, *combo = strtok_r(copy, " ", &tok_ctx);
          combo != NULL;
@@ -1650,32 +1609,15 @@ parse_key_combos(struct config *conf, const char *combos,
             /* No modifiers */
             key = combo;
         } else {
-            if (!parse_modifiers(conf, combo, key - combo, &modifiers, path, lineno))
+            if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
             key++;  /* Skip past the '+' */
         }
 
-#if 0
-        if (modifiers.shift && strlen(key) == 1 && (*key >= 'A' && *key <= 'Z')) {
-            LOG_WARN(
-                "%s:%d: [%s].%s: %s: "
-                "upper case keys not supported with explicit 'Shift' modifier",
-                path, lineno, section, option, combo);
-            user_notification_add(
-                &conf->notifications, USER_NOTIFICATION_DEPRECATED,
-                "%s:%d: [%s].%s: \033[1m%s\033[m: "
-                "shifted keys not supported with explicit \033[1mShift\033[m "
-                "modifier",
-                path, lineno, section, option, combo);
-            *key = *key - 'A' + 'a';
-        }
-#endif
         /* Translate key name to symbol */
         xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
         if (sym == XKB_KEY_NoSymbol) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [%s].%s: %s: is not a valid XKB key name",
-                path, lineno, section, option, key);
+            LOG_CONTEXTUAL_ERR("not a valid XKB key name: %s", key);
             goto err;
         }
 
@@ -1703,11 +1645,10 @@ err:
 }
 
 static bool
-has_key_binding_collisions(struct config *conf,
+has_key_binding_collisions(struct context *ctx,
                            int action, const char *const action_map[],
                            const struct config_key_binding_list *bindings,
-                           const struct key_combo_list *key_combos,
-                           const char *path, unsigned lineno)
+                           const struct key_combo_list *key_combos)
 {
     for (size_t j = 0; j < bindings->count; j++) {
         const struct config_key_binding *combo1 = &bindings->arr[j];
@@ -1732,8 +1673,8 @@ has_key_binding_collisions(struct config *conf,
 
             if (shift && alt && ctrl && meta && sym) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
-                LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   path, lineno, combo2->text,
+                LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
+                                   combo2->text,
                                    action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -1791,34 +1732,32 @@ argv_compare(char *const *argv1, char *const *argv2)
  *  - argv: allocatd array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
  */
 static ssize_t
-pipe_argv_from_string(const char *value, char ***argv,
-                      struct config *conf,
-                      const char *path, unsigned lineno)
+pipe_argv_from_value(struct context *ctx, char ***argv)
 {
     *argv = NULL;
 
-    if (value[0] != '[')
+    if (ctx->value[0] != '[')
         return 0;
 
-    const char *pipe_cmd_end = strrchr(value, ']');
+    const char *pipe_cmd_end = strrchr(ctx->value, ']');
     if (pipe_cmd_end == NULL) {
-        LOG_AND_NOTIFY_ERR("%s:%d: unclosed '['", path, lineno);
+        LOG_CONTEXTUAL_ERR("unclosed '['");
         return -1;
     }
 
-    size_t pipe_len = pipe_cmd_end - value - 1;
-    char *cmd = xstrndup(&value[1], pipe_len);
+    size_t pipe_len = pipe_cmd_end - ctx->value - 1;
+    char *cmd = xstrndup(&ctx->value[1], pipe_len);
 
     if (!tokenize_cmdline(cmd, argv)) {
-        LOG_AND_NOTIFY_ERR("%s:%d: syntax error in command line", path, lineno);
+        LOG_CONTEXTUAL_ERR("syntax error in command line");
         free(cmd);
         return -1;
     }
 
-    ssize_t remove_len = pipe_cmd_end + 1 - value;
-    value = pipe_cmd_end + 1;
-    while (isspace(*value)) {
-        value++;
+    ssize_t remove_len = pipe_cmd_end + 1 - ctx->value;
+    ctx->value = pipe_cmd_end + 1;
+    while (isspace(*ctx->value)) {
+        ctx->value++;
         remove_len++;
     }
 
@@ -1864,42 +1803,37 @@ remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
 }
 
 static bool NOINLINE
-parse_key_binding_section(
-    const char *section, const char *key, const char *value,
-    int action_count, const char *const action_map[static action_count],
-    struct config_key_binding_list *bindings,
-    struct config *conf, const char *path, unsigned lineno)
+parse_key_binding_section(struct context *ctx,
+                          int action_count,
+                          const char *const action_map[static action_count],
+                          struct config_key_binding_list *bindings)
 {
     char **pipe_argv;
 
-    ssize_t pipe_remove_len = pipe_argv_from_string(
-        value, &pipe_argv, conf, path, lineno);
-
+    ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
 
-    value += pipe_remove_len;
+    ctx->value += pipe_remove_len;
 
     for (int action = 0; action < action_count; action++) {
         if (action_map[action] == NULL)
             continue;
 
-        if (strcmp(key, action_map[action]) != 0)
+        if (strcmp(ctx->key, action_map[action]) != 0)
             continue;
 
         /* Unset binding */
-        if (strcasecmp(value, "none") == 0) {
+        if (strcasecmp(ctx->value, "none") == 0) {
             remove_action_from_key_bindings_list(bindings, action, pipe_argv);
             free(pipe_argv);
             return true;
         }
 
         struct key_combo_list key_combos = {0};
-        if (!parse_key_combos(
-                conf, value, &key_combos, section, key, path, lineno) ||
+        if (!value_to_key_combos(ctx, &key_combos) ||
             has_key_binding_collisions(
-                conf, action, action_map, bindings, &key_combos,
-                path, lineno))
+                ctx, action, action_map, bindings, &key_combos))
         {
             free(pipe_argv);
             free_key_combo_list(&key_combos);
@@ -1938,8 +1872,7 @@ parse_key_binding_section(
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [%s].%s is not a valid action",
-                       path, lineno, section, key);
+    LOG_CONTEXTUAL_ERR("not a valid action: %s", ctx->key);
     free(pipe_argv);
     return false;
 }
@@ -1962,13 +1895,20 @@ UNITTEST
     struct config conf = {0};
     struct config_key_binding_list bindings = {0};
 
+    struct context ctx = {
+        .conf = &conf,
+        .section = "",
+        .key = "foo",
+        .value = "Escape",
+        .path = "",
+    };
+
     /*
      * ADD foo=Escape
      *
      * This verifies we can bind a single key combo to an action.
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "Escape", ALEN(map), map, &bindings, &conf, "", 0));
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 1);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[0].sym == XKB_KEY_Escape);
@@ -1978,9 +1918,9 @@ UNITTEST
      *
      * This verifies we can bind multiple key combos to an action.
      */
-    xassert(parse_key_binding_section(
-                "", "bar", "Control+g Control+Shift+x", ALEN(map), map,
-                &bindings, &conf, "", 0));
+    ctx.key = "bar";
+    ctx.value = "Control+g Control+Shift+x";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 3);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[1].action == TEST_ACTION_BAR);
@@ -1996,9 +1936,9 @@ UNITTEST
      * This verifies we can update a single-combo action with multiple
      * key combos.
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "Mod1+v Shift+q", ALEN(map), map,
-                &bindings, &conf, "", 0));
+    ctx.key = "foo";
+    ctx.value = "Mod1+v Shift+q";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 4);
     xassert(bindings.arr[0].action == TEST_ACTION_BAR);
     xassert(bindings.arr[1].action == TEST_ACTION_BAR);
@@ -2012,8 +1952,9 @@ UNITTEST
     /*
      * REMOVE bar
      */
-    xassert(parse_key_binding_section(
-                "", "bar", "none", ALEN(map), map, &bindings, &conf, "", 0));
+    ctx.key = "bar";
+    ctx.value = "none";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 2);
     xassert(bindings.arr[0].action == TEST_ACTION_FOO);
     xassert(bindings.arr[1].action == TEST_ACTION_FOO);
@@ -2021,27 +1962,25 @@ UNITTEST
     /*
      * REMOVE foo
      */
-    xassert(parse_key_binding_section(
-                "", "foo", "none", ALEN(map), map, &bindings, &conf, "", 0));
+    ctx.key = "foo";
+    ctx.value = "none";
+    xassert(parse_key_binding_section(&ctx, ALEN(map), map, &bindings));
     xassert(bindings.count == 0);
 
     free(bindings.arr);
 }
 
 static bool
-parse_section_key_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_key_bindings(struct context *ctx)
 {
     return parse_key_binding_section(
-        "key-bindings", key, value, BIND_ACTION_KEY_COUNT, binding_action_map,
-        &conf->bindings.key, conf, path, lineno);
+        ctx,
+        BIND_ACTION_KEY_COUNT, binding_action_map,
+        &ctx->conf->bindings.key);
 }
 
 static bool
-parse_section_search_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_search_bindings(struct context *ctx)
 {
     static const char *const search_binding_action_map[] = {
         [BIND_ACTION_SEARCH_NONE] = NULL,
@@ -2069,14 +2008,13 @@ parse_section_search_bindings(
                   "search binding action map size mismatch");
 
     return parse_key_binding_section(
-        "search-bindings", key, value, BIND_ACTION_SEARCH_COUNT,
-        search_binding_action_map, &conf->bindings.search, conf, path, lineno);
+        ctx,
+        BIND_ACTION_SEARCH_COUNT, search_binding_action_map,
+        &ctx->conf->bindings.search);
 }
 
 static bool
-parse_section_url_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_url_bindings(struct context *ctx)
 {
     static const char *const url_binding_action_map[] = {
         [BIND_ACTION_URL_NONE] = NULL,
@@ -2088,22 +2026,20 @@ parse_section_url_bindings(
                   "URL binding action map size mismatch");
 
     return parse_key_binding_section(
-        "url-bindings", key, value, BIND_ACTION_URL_COUNT,
-        url_binding_action_map, &conf->bindings.url, conf, path, lineno);
+        ctx,
+        BIND_ACTION_URL_COUNT, url_binding_action_map,
+        &ctx->conf->bindings.url);
 }
 
 static bool
-parse_mouse_combos(struct config *conf, const char *combos,
-                   struct key_combo_list *key_combos,
-                   const char *path, unsigned lineno,
-                   const char *section, const char *conf_key)
+value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
     xassert(key_combos != NULL);
     xassert(key_combos->count == 0 && key_combos->combos == NULL);
 
     size_t size = 0;  /* Size of the ‘combos’ array in key_combos */
 
-    char *copy = xstrdup(combos);
+    char *copy = xstrdup(ctx->value);
 
     for (char *tok_ctx = NULL, *combo = strtok_r(copy, " ", &tok_ctx);
          combo != NULL;
@@ -2117,12 +2053,10 @@ parse_mouse_combos(struct config *conf, const char *combos,
             key = combo;
         } else {
             *key = '\0';
-            if (!parse_modifiers(conf, combo, key - combo, &modifiers, path, lineno))
+            if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
             if (modifiers.shift) {
-                LOG_AND_NOTIFY_ERR(
-                    "%s:%d: [%s].%s: Shift cannot be used in mouse bindings",
-                    path, lineno, section, conf_key);
+                LOG_CONTEXTUAL_ERR("Shift cannot be used in mouse bindings");
                 goto err;
             }
             key++;  /* Skip past the '+' */
@@ -2140,13 +2074,9 @@ parse_mouse_combos(struct config *conf, const char *combos,
                 unsigned long value = strtoul(_count, &end, 10);
                 if (_count[0] == '\0' || *end != '\0' || errno != 0) {
                     if (errno != 0)
-                        LOG_AND_NOTIFY_ERRNO(
-                            "%s:%d: [%s].%s: %s: invalid click count"
-                            , path, lineno, section, conf_key, _count);
+                        LOG_CONTEXTUAL_ERRNO("invalid click count: %s", _count);
                     else
-                        LOG_AND_NOTIFY_ERR(
-                            "%s:%d: [%s].%s: %s: invalid click count",
-                            path, lineno, section, conf_key, _count);
+                        LOG_CONTEXTUAL_ERR("invalid click count: %s", _count);
                     goto err;
                 }
                 count = value;
@@ -2176,8 +2106,7 @@ parse_mouse_combos(struct config *conf, const char *combos,
         }
 
         if (button == 0) {
-            LOG_AND_NOTIFY_ERR("%s:%d: [%s].%s: %s: invalid mouse button name",
-                               path, lineno, section, conf_key, key);
+            LOG_CONTEXTUAL_ERR("invalid mouse button name: %s", key);
             goto err;
         }
 
@@ -2210,9 +2139,11 @@ err:
 }
 
 static bool
-has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *key_combos,
-                             const char *path, unsigned lineno)
+has_mouse_binding_collisions(struct context *ctx,
+                             const struct key_combo_list *key_combos)
 {
+    struct config *conf = ctx->conf;
+
     for (size_t j = 0; j < conf->bindings.mouse.count; j++) {
         const struct config_mouse_binding *combo1 = &conf->bindings.mouse.arr[j];
         if (combo1->action == BIND_ACTION_NONE)
@@ -2233,8 +2164,8 @@ has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *k
 
             if (shift && alt && ctrl && meta && button && count) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
-                LOG_AND_NOTIFY_ERR("%s:%d: %s already mapped to '%s%s%s%s'",
-                                   path, lineno, combo2->text,
+                LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
+                                   combo2->text,
                                    binding_action_map[combo1->action],
                                    has_pipe ? " [" : "",
                                    has_pipe ? combo1->pipe.argv.args[0] : "",
@@ -2249,15 +2180,15 @@ has_mouse_binding_collisions(struct config *conf, const struct key_combo_list *k
 
 
 static bool
-parse_section_mouse_bindings(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_mouse_bindings(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+    const char *value = ctx->value;
+
     char **pipe_argv;
 
-    ssize_t pipe_remove_len = pipe_argv_from_string(
-        value, &pipe_argv, conf, path, lineno);
-
+    ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
 
@@ -2290,9 +2221,8 @@ parse_section_mouse_bindings(
         }
 
         struct key_combo_list key_combos = {0};
-        if (!parse_mouse_combos(
-                conf, value, &key_combos, path, lineno, "mouse-bindings", key) ||
-            has_mouse_binding_collisions(conf, &key_combos, path, lineno))
+        if (!value_to_mouse_combos(ctx, &key_combos) ||
+            has_mouse_binding_collisions(ctx, &key_combos))
         {
             free(pipe_argv);
             free_key_combo_list(&key_combos);
@@ -2345,208 +2275,165 @@ parse_section_mouse_bindings(
         return true;
     }
 
-    LOG_AND_NOTIFY_ERR("%s:%u: [mouse-bindings].%s is not a valid option",
-                       path, lineno, key);
+    LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
     free(pipe_argv);
     return false;
 }
 
 static bool
-parse_section_tweak(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal)
+parse_section_tweak(struct context *ctx)
 {
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
     if (strcmp(key, "scaling-filter") == 0) {
-        static const char filters[][12] = {
+        static const char *filters[] = {
             [FCFT_SCALING_FILTER_NONE] = "none",
             [FCFT_SCALING_FILTER_NEAREST] = "nearest",
             [FCFT_SCALING_FILTER_BILINEAR] = "bilinear",
             [FCFT_SCALING_FILTER_CUBIC] = "cubic",
             [FCFT_SCALING_FILTER_LANCZOS3] = "lanczos3",
+            NULL,
         };
 
-        for (size_t i = 0; i < ALEN(filters); i++) {
-            if (strcmp(value, filters[i]) == 0) {
-                conf->tweak.fcft_filter = i;
-                LOG_WARN("tweak: scaling-filter=%s", filters[i]);
-                return true;
-            }
-        }
+        _Static_assert(sizeof(conf->tweak.fcft_filter) == sizeof(int),
+                       "enum is not 32-bit");
 
-        LOG_AND_NOTIFY_ERR(
-            "%s:%d: [tweak].scaling-filter: %s: not one of "
-            "'none', 'nearest', 'bilinear', 'cubic' or 'lanczos3'",
-            path, lineno, value);
-        return false;
+        return value_to_enum(ctx, filters, (int *)&conf->tweak.fcft_filter);
     }
 
-    else if (strcmp(key, "overflowing-glyphs") == 0) {
-        conf->tweak.overflowing_glyphs = str_to_bool(value);
-        if (!conf->tweak.overflowing_glyphs)
-            LOG_WARN("tweak: disabled overflowing glyphs");
-    }
+    else if (strcmp(key, "overflowing-glyphs") == 0)
+        return value_to_bool(ctx, &conf->tweak.overflowing_glyphs);
 
-    else if (strcmp(key, "damage-whole-window") == 0) {
-        conf->tweak.damage_whole_window = str_to_bool(value);
-        if (conf->tweak.damage_whole_window)
-            LOG_WARN("tweak: damage whole window");
-    }
+    else if (strcmp(key, "damage-whole-window") == 0)
+        return value_to_bool(ctx, &conf->tweak.damage_whole_window);
 
     else if (strcmp(key, "grapheme-shaping") == 0) {
-        conf->tweak.grapheme_shaping = str_to_bool(value);
+        if (!value_to_bool(ctx, &conf->tweak.grapheme_shaping))
+            return false;
 
 #if !defined(FOOT_GRAPHEME_CLUSTERING)
         if (conf->tweak.grapheme_shaping) {
-            LOG_AND_NOTIFY_WARN(
-                "%s:%d: [tweak].grapheme-shaping: "
-                "enabled, but foot was not compiled with support for it",
-                path, lineno);
+            LOG_CONTEXTUAL_WARN(
+                "foot was not compiled with support for grapheme shaping");
             conf->tweak.grapheme_shaping = false;
         }
 #endif
 
         if (conf->tweak.grapheme_shaping && !conf->can_shape_grapheme) {
             LOG_WARN(
-                "%s:%d [tweak].grapheme-shaping: "
-                "enabled, but fcft was not compiled with support for it",
-                path, lineno);
+                "fcft was not compiled with support for grapheme shaping");
 
             /* Keep it enabled though - this will cause us to do
              * grapheme-clustering at least */
         }
 
-        if (!conf->tweak.grapheme_shaping)
-            LOG_WARN("tweak: grapheme shaping disabled");
+        return true;
     }
 
     else if (strcmp(key, "grapheme-width-method") == 0) {
-        if (strcmp(value, "double-width") == 0)
-            conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_DOUBLE;
-        else if (strcmp(value, "wcswidth") == 0)
-            conf->tweak.grapheme_width_method = GRAPHEME_WIDTH_WCSWIDTH;
-        else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].grapheme-width-method: %s: not one of "
-                "'wcswidth' or 'double-width'", path, lineno, value);
-            return false;
-        }
+        _Static_assert(sizeof(conf->tweak.grapheme_width_method) == sizeof(int),
+                       "enum is not 32-bit");
 
-        LOG_WARN("%s:%d [tweak].grapheme-width-method=%s", path, lineno, value);
+        return value_to_enum(
+            ctx,
+            (const char *[]){"wcswidth", "double-width", NULL},
+            (int *)&conf->tweak.grapheme_width_method);
     }
 
     else if (strcmp(key, "render-timer") == 0) {
-        if (strcmp(value, "none") == 0) {
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = false;
-        } else if (strcmp(value, "osd") == 0) {
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = false;
-        } else if (strcmp(value, "log") == 0) {
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = true;
-        } else if (strcmp(value, "both") == 0) {
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = true;
-        } else {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].render-timer: %s: not one of "
-                "none', 'osd', 'log' or 'both'", path, lineno, value);
+        int mode;
+
+        if (!value_to_enum(
+                ctx,
+                (const char *[]){"none", "osd", "log", "both", NULL},
+                &mode))
+        {
             return false;
         }
+
+        switch (mode) {
+        case 0:
+            conf->tweak.render_timer_osd = false;
+            conf->tweak.render_timer_log = false;
+            return true;
+
+        case 1:
+            conf->tweak.render_timer_osd = true;
+            conf->tweak.render_timer_log = false;
+            return true;
+
+        case 2:
+            conf->tweak.render_timer_osd = false;
+            conf->tweak.render_timer_log = true;
+            return true;
+
+        case 3:
+            conf->tweak.render_timer_osd = true;
+            conf->tweak.render_timer_log = true;
+            return true;
+        }
+
+        UNREACHABLE();
     }
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
-        unsigned long ns;
-        if (!str_to_ulong(value, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-lower: %s: invalid integer value",
-                path, lineno, value);
+        uint32_t ns;
+        if (!value_to_uint32(ctx, 10, &ns))
             return false;
-        }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-lower: %s: "
-                "timeout must not exceed 16ms", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
             return false;
         }
 
         conf->tweak.delayed_render_lower_ns = ns;
-        LOG_WARN("tweak: delayed-render-lower=%lu", ns);
+        return true;
     }
 
     else if (strcmp(key, "delayed-render-upper") == 0) {
-        unsigned long ns;
-        if (!str_to_ulong(value, 10, &ns)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-upper: %s: invalid integer value",
-                path, lineno, value);
+        uint32_t ns;
+        if (!value_to_uint32(ctx, 10, &ns))
             return false;
-        }
 
         if (ns > 16666666) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].delayed-render-upper: %s: "
-                "timeout must not exceed 16ms", path, lineno, value);
+            LOG_CONTEXTUAL_ERR("timeout must not exceed 16ms");
             return false;
         }
 
         conf->tweak.delayed_render_upper_ns = ns;
-        LOG_WARN("tweak: delayed-render-upper=%lu", ns);
+        return true;
     }
 
     else if (strcmp(key, "max-shm-pool-size-mb") == 0) {
-        unsigned long mb;
-        if (!str_to_ulong(value, 10, &mb)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].max-shm-pool-size-mb: %s: invalid integer value",
-                path, lineno, value);
+        uint32_t mb;
+        if (!value_to_uint32(ctx, 10, &mb))
             return false;
-        }
 
-        conf->tweak.max_shm_pool_size = min(mb * 1024 * 1024, INT32_MAX);
-        LOG_WARN("tweak: max-shm-pool-size=%lld bytes",
-                 (long long)conf->tweak.max_shm_pool_size);
+        conf->tweak.max_shm_pool_size = min((int32_t)mb * 1024 * 1024, INT32_MAX);
+        return true;
     }
 
-    else if (strcmp(key, "box-drawing-base-thickness") == 0) {
-        double base_thickness;
-        if (!str_to_double(value, &base_thickness)) {
-            LOG_AND_NOTIFY_ERR(
-                "%s:%d: [tweak].box-drawing-base-thickness: %s: "
-                "invalid decimal value", path, lineno, value);
-            return false;
-        }
+    else if (strcmp(key, "box-drawing-base-thickness") == 0)
+        return value_to_double(ctx, &conf->tweak.box_drawing_base_thickness);
 
-        conf->tweak.box_drawing_base_thickness = base_thickness;
-        LOG_WARN("tweak: box-drawing-base-thickness=%f",
-                 conf->tweak.box_drawing_base_thickness);
-    }
-
-    else if (strcmp(key, "box-drawing-solid-shades") == 0) {
-        conf->tweak.box_drawing_solid_shades = str_to_bool(value);
-
-        if (!conf->tweak.box_drawing_solid_shades)
-            LOG_WARN("tweak: box-drawing-solid-shades=%s",
-                     conf->tweak.box_drawing_solid_shades ? "yes" : "no");
-    }
+    else if (strcmp(key, "box-drawing-solid-shades") == 0)
+        return value_to_bool(ctx, &conf->tweak.box_drawing_solid_shades);
 
     else if (strcmp(key, "font-monospace-warn") == 0)
-        conf->tweak.font_monospace_warn = str_to_bool(value);
+        return value_to_bool(ctx, &conf->tweak.font_monospace_warn);
 
     else {
-        LOG_AND_NOTIFY_ERR("%s:%u: [tweak].%s is not a valid option",
-                           path, lineno, key);
+        LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
 
-    return true;
+    UNREACHABLE();
 }
 
 static bool
-parse_key_value(char *kv, char **section, char **key, char **value)
+parse_key_value(char *kv, const char **section, const char **key, const char **value)
 {
-
     /*strip leading whitespace*/
     while (*kv && isspace(*kv))
         ++kv;
@@ -2579,7 +2466,7 @@ parse_key_value(char *kv, char **section, char **key, char **value)
     {
         xassert(!isspace(**key));
 
-        char *end = *key + strlen(*key) - 1;
+        char *end = (char *)*key + strlen(*key) - 1;
         while (isspace(*end))
             end--;
         *(end + 1) = '\0';
@@ -2591,7 +2478,7 @@ parse_key_value(char *kv, char **section, char **key, char **value)
             ++*value;
 
         if (*value[0] != '\0') {
-            char *end = *value + strlen(*value) - 1;
+            char *end = (char *)*value + strlen(*value) - 1;
             while (isspace(*end))
                 end--;
             *(end + 1) = '\0';
@@ -2618,9 +2505,7 @@ enum section {
 };
 
 /* Function pointer, called for each key/value line */
-typedef bool (*parser_fun_t)(
-    const char *key, const char *value, struct config *conf,
-    const char *path, unsigned lineno, bool errors_are_fatal);
+typedef bool (*parser_fun_t)(struct context *ctx);
 
 static const struct {
     parser_fun_t fun;
@@ -2658,8 +2543,6 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 {
     enum section section = SECTION_MAIN;
 
-    unsigned lineno = 0;
-
     char *_line = NULL;
     size_t count = 0;
 
@@ -2671,9 +2554,18 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;                           \
     }
 
+    struct context context = {
+        .conf = conf,
+        .section = "main",
+        .path = path,
+        .lineno = 0,
+        .errors_are_fatal = errors_are_fatal,
+    };
+    struct context *ctx = &context;  /* For LOG_AND_*() */
+
     while (true) {
         errno = 0;
-        lineno++;
+        context.lineno++;
 
         ssize_t ret = getline(&_line, &count, f);
 
@@ -2720,7 +2612,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         if (key_value[0] == '[') {
             char *end = strchr(key_value, ']');
             if (end == NULL) {
-                LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, lineno, key_value);
+                LOG_CONTEXTUAL_ERR("syntax error: no closing ']'");
                 error_or_continue();
             }
 
@@ -2728,9 +2620,11 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
 
             section = str_to_section(&key_value[1]);
             if (section == SECTION_COUNT) {
-                LOG_AND_NOTIFY_ERR("%s:%d: invalid section name: %s", path, lineno, &key_value[1]);
+                LOG_CONTEXTUAL_ERR("invalid section name: %s", &key_value[1]);
                 error_or_continue();
             }
+
+            context.section = &key_value[1];
 
             /* Process next line */
             continue;
@@ -2741,9 +2635,8 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;
         }
 
-        char *key, *value;
-        if (!parse_key_value(key_value, NULL, &key, &value)) {
-            LOG_AND_NOTIFY_ERR("%s:%d: syntax error: %s", path, lineno, key_value);
+        if (!parse_key_value(key_value, NULL, &context.key, &context.value)) {
+            LOG_CONTEXTUAL_ERR("syntax error: key/value pair has no value");
             if (errors_are_fatal)
                 goto err;
             break;
@@ -2757,7 +2650,7 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(key, value, conf, path, lineno, errors_are_fatal))
+        if (!section_parser(ctx))
             error_or_continue();
     }
 
@@ -3148,20 +3041,29 @@ out:
 bool
 config_override_apply(struct config *conf, config_override_t *overrides, bool errors_are_fatal)
 {
-    int i = -1;
+    struct context context = {
+        .conf = conf,
+        .path = "override",
+        .lineno = 0,
+        .errors_are_fatal = errors_are_fatal,
+    };
+    struct context *ctx = &context;
+
     tll_foreach(*overrides, it) {
-        ++i;
-        char *section_str, *key, *value;
-        if (!parse_key_value(it->item, &section_str, &key, &value)) {
-            LOG_AND_NOTIFY_ERR("syntax error: %s", it->item);
+        context.lineno++;
+
+        if (!parse_key_value(
+                it->item, &context.section, &context.key, &context.value))
+        {
+            LOG_CONTEXTUAL_ERR("syntax error: key/value pair has no value");
             if (errors_are_fatal)
                 return false;
             continue;
         }
 
-        enum section section = str_to_section(section_str);
+        enum section section = str_to_section(context.section);
         if (section == SECTION_COUNT) {
-            LOG_AND_NOTIFY_ERR("override: invalid section name: %s", section_str);
+            LOG_CONTEXTUAL_ERR("invalid section name: %s", context.section);
             if (errors_are_fatal)
                 return false;
             continue;
@@ -3169,7 +3071,7 @@ config_override_apply(struct config *conf, config_override_t *overrides, bool er
         parser_fun_t section_parser = section_info[section].fun;
         xassert(section_parser != NULL);
 
-        if (!section_parser(key, value, conf, "override", i, errors_are_fatal)) {
+        if (!section_parser(ctx)) {
             if (errors_are_fatal)
                 return false;
             continue;

@@ -59,6 +59,10 @@
 * Foot now terminates if there are no available seats - for example,
   due to the compositor not implementing a recent enough version of
   the `wl_seat` interface (https://codeberg.org/dnkl/foot/issues/779).
+* Boolean options in `foot.ini` are now limited to
+  “yes|true|on|1|no|false|off|0”, Previously, anything that did not
+  match “yes|true|on”, or a number greater than 0, was treated as
+  “false”.
 
 
 ### Deprecated

@@ -580,7 +580,7 @@ fdm_title_update_timeout(struct fdm *fdm, int fd, int events, void *data)
 static bool
 initialize_render_workers(struct terminal *term)
 {
-    LOG_INFO("using %zu rendering threads", term->render.workers.count);
+    LOG_INFO("using %hu rendering threads", term->render.workers.count);
 
     if (sem_init(&term->render.workers.start, 0, 0) < 0 ||
         sem_init(&term->render.workers.done, 0, 0) < 0)
