@@ -901,7 +901,20 @@ keymap_lookup(struct terminal *term, xkb_keysym_t sym, enum modifier mods)
     LOG_DBG("keypad mode: %d", keypad_keys_mode);
 
     for (size_t j = 0; j < count; j++) {
-        if (info[j].modifiers != MOD_ANY && info[j].modifiers != mods)
+        enum modifier modifiers = info[j].modifiers;
+
+        if (modifiers & MOD_MODIFY_OTHER_KEYS_STATE1) {
+            if (term->modify_other_keys_2)
+                continue;
+            modifiers &= ~MOD_MODIFY_OTHER_KEYS_STATE1;
+        }
+        if (modifiers & MOD_MODIFY_OTHER_KEYS_STATE2) {
+            if (!term->modify_other_keys_2)
+                continue;
+            modifiers &= ~MOD_MODIFY_OTHER_KEYS_STATE2;
+        }
+
+        if (modifiers != MOD_ANY && modifiers != mods)
             continue;
 
         if (info[j].cursor_keys_mode != CURSOR_KEYS_DONTCARE &&
@@ -927,7 +940,24 @@ UNITTEST
     };
 
     const struct key_data *info = keymap_lookup(&term, XKB_KEY_ISO_Left_Tab, MOD_SHIFT | MOD_CTRL);
+    xassert(info != NULL);
     xassert(strcmp(info->seq, "\033[27;6;9~") == 0);
+}
+
+UNITTEST
+{
+    struct terminal term = {
+        .modify_other_keys_2 = false,
+    };
+
+    const struct key_data *info = keymap_lookup(&term, XKB_KEY_Return, MOD_ALT);
+    xassert(info != NULL);
+    xassert(strcmp(info->seq, "\033\r") == 0);
+
+    term.modify_other_keys_2 = true;
+    info = keymap_lookup(&term, XKB_KEY_Return, MOD_ALT);
+    xassert(info != NULL);
+    xassert(strcmp(info->seq, "\033[27;3;13~") == 0);
 }
 
 static void
@@ -1139,10 +1169,14 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
 #define is_control_key(x) ((x) >= 0x40 && (x) <= 0x7f)
 #define IS_CTRL(x) ((x) < 0x20 || ((x) >= 0x7f && (x) <= 0x9f))
 
-    if ((keymap_mods & MOD_CTRL) &&
-        !is_control_key(sym) &&
-        (count == 1 && !IS_CTRL(utf8[0])) &&
-        sym < 256)
+    LOG_DBG("term->modify_other_keys=%d, count=%d, is_ctrl=%d (utf8=0x%02x), sym=%d",
+            term->modify_other_keys_2, count, IS_CTRL(utf8[0]), utf8[0], sym);
+
+    bool ctrl_is_in_effect = (keymap_mods & MOD_CTRL) != 0;
+    bool ctrl_seq = is_control_key(sym) || (count == 1 && IS_CTRL(utf8[0]));
+
+    if (keymap_mods != MOD_NONE && (term->modify_other_keys_2 ||
+                                    (ctrl_is_in_effect && !ctrl_seq)))
     {
         static const int mod_param_map[32] = {
             [MOD_SHIFT] = 2,
