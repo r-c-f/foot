@@ -418,11 +418,14 @@ applications can change these at runtime.
 	by applications. Default: _no_.
 
 *color*
-	Two RRGGBB values specifying the foreground (text) and background
-	(cursor) colors for the cursor. Default: inversed foreground and
-	background colors. Note that this value only applies to the block
-	cursor. The other cursor styles are always rendered with the
-	foreground color.
+	Two RRGGBB values (i.e. plain old 6-digit hex values, without
+	prefix) specifying the foreground (text) and background (cursor)
+	colors for the cursor.
+	
+	Default: inversed foreground and background colors.
+	
+	Note that this value only applies to the block cursor. The other
+	cursor styles are always rendered with the foreground color.
 
 *beam-thickness*
 	Thickness (width) of the beam styled cursor. The value is in
@@ -470,21 +473,21 @@ applications can change these at runtime.
 
 # SECTION: colors
 
-This section controls the 16 ANSI colors, the default foreground
-and background colors, and the extended 256 color palette. Note that 
+This section controls the 16 ANSI colors, the default foreground and
+background colors, and the extended 256 color palette. Note that
 applications can change these at runtime.
 
-The colors are in RRGGBB format. That is, they do *not* have an alpha
-component. You can configure the background transparency with the
-_alpha_ option.
+The colors are in RRGGBB format (i.e. plain old 6-digit hex values,
+without prefix). That is, they do *not* have an alpha component. You
+can configure the background transparency with the _alpha_ option.
 
 *foreground*
-	Default RRGGBB foreground color. This is the color used when no
-	ANSI color is being used. Default: _dcdccc_.
+	Default foreground color. This is the color used when no ANSI
+	color is being used. Default: _dcdccc_.
 
 *background*
-	Default RRGGBB background color. This is the color used when no
-	ANSI color is being used. Default: _111111_.
+	Default background color. This is the color used when no ANSI
+	color is being used. Default: _111111_.
 
 *regular0*, *regular1* *..* *regular7*
 	The eight basic ANSI colors. Default: _222222_, _cc9393_,
@@ -512,12 +515,12 @@ _alpha_ option.
 	used. Default: _inverse foreground/background_.
 
 *jump-labels*
-	To RRGGBB values specifying the foreground (text) and background
+	To color values specifying the foreground (text) and background
 	colors to use when rendering jump labels in URL mode. Default:
 	_regular0 regular3_.
 
 *scrollback-indicator*
-	Two RRGGBB values specifying the foreground (text) and background
+	Two color values specifying the foreground (text) and background
 	(indicator itself) colors for the scrollback indicator.
 	
 	Default: first regular color (black) for foreground,
@@ -536,8 +539,16 @@ to use _SSDs_ (Server Side Decorations) when the compositor supports
 it.
 
 Note that unlike the colors defined in the _colors_ section, the color
-values here are in AARRGGBB format. I.e. they contain an alpha
-component.
+values here are in AARRGGBB (i.e. plain old 8-digit hex values)
+format. I.e. they contain an alpha component - 00 means completely
+transparent, and ff fully opaque.
+
+Examples:
+
+- ffffffff: white, fully opaque
+- ff000000: black, fully opaque
+- 7fffffff: white, semi-transparent
+- ff00ff00: green, fully opaque
 
 *preferred*
 	Which type of window decorations to prefer: *client* (CSD),
@@ -555,8 +566,7 @@ component.
 	titlebar. Default: _26_.
 
 *color*
-	Titlebar AARRGGBB color. Default: use the default _foreground_
-	color.
+	Titlebar color. Default: use the default _foreground_ color.
 
 *font*
 	Font to use for the title bar. This is a list of fonts, similar to
@@ -570,10 +580,9 @@ component.
 	bar. Default: _0_.
 
 *border-color*
-	Color of border, on the format AARRGGBB. By default, the title bar
-	color is used. If the title bar color has not been set, the
-	default foreground color (from the color scheme) is used. Default:
-	_titlebar color_.
+	Color of border. By default, the title bar color is used. If the
+	title bar color has not been set, the default foreground color
+	(from the color scheme) is used. Default: _titlebar color_.
 
 *button-width*
 	Width, in pixels (subject to output scaling), of the
@@ -584,16 +593,16 @@ component.
 	use the default _background_ color.
 
 *button-minimize-color*
-	Minimize button's background color, on the format
-	AARRGGBB. Default: use the default _regular4_ color (blue).
+	Minimize button's background color. Default: use the default
+	_regular4_ color (blue).
 
 *button-maximize-color*
-	Maximize button's background color, on the format
-	AARRGGBB. Default: use the default _regular2_ color (green).
+	Maximize button's background color. Default: use the default
+	_regular2_ color (green).
 
 *button-close-color*
-	Close button's background color, on the format AARRGGBB. Default:
-	use the default _regular1_ color (red).
+	Close button's background color. Default: use the default
+	_regular1_ color (red).
 
 
 # SECTION: key-bindings
