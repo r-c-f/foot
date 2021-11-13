@@ -2151,6 +2151,14 @@ mouse_scroll(struct seat *seat, int amount, enum wl_pointer_axis axis)
     }
 }
 
+static float
+mouse_scroll_multiplier(const struct terminal *term)
+{
+    return term->grid == &term->normal
+        ? term->conf->scrollback.multiplier
+        : 1.0;
+}
+
 static void
 wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
                 uint32_t time, uint32_t axis, wl_fixed_t value)
@@ -2169,9 +2177,8 @@ wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
      * Without this, very slow scrolling will never actually scroll
      * anything.
      */
-    seat->mouse.aggregated[axis]
-        += seat->wayl->conf->scrollback.multiplier * wl_fixed_to_double(value);
-
+    seat->mouse.aggregated[axis] +=
+        mouse_scroll_multiplier(seat->mouse_focus) * wl_fixed_to_double(value);
     if (fabs(seat->mouse.aggregated[axis]) < seat->mouse_focus->cell_height)
         return;
 
@@ -2192,7 +2199,7 @@ wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer,
     if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL) {
         /* Treat mouse wheel left/right as regular buttons */
     } else
-        amount *= seat->wayl->conf->scrollback.multiplier;
+        amount *= mouse_scroll_multiplier(seat->mouse_focus);
 
     mouse_scroll(seat, amount, axis);
 }
