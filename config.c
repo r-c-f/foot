@@ -1151,19 +1151,8 @@ parse_section_scrollback(struct context *ctx)
         } else if (strcmp(value, "line") == 0) {
             conf->scrollback.indicator.format
                 = SCROLLBACK_INDICATOR_FORMAT_LINENO;
-        } else {
-            free(conf->scrollback.indicator.text);
-            conf->scrollback.indicator.text = NULL;
-
-            size_t len = mbstowcs(NULL, value, 0);
-            if (len == (size_t)-1) {
-                LOG_CONTEXTUAL_ERRNO("invalid free form text");
-                return false;
-            }
-
-            conf->scrollback.indicator.text = xcalloc(len + 1, sizeof(wchar_t));
-            mbstowcs(conf->scrollback.indicator.text, value, len + 1);
-        }
+        } else
+            return value_to_wchars(ctx, &conf->scrollback.indicator.text);
     }
 
     else if (strcmp(key, "multiplier") == 0)
