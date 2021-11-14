@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.10.0](#1-10-0)
 * [1.9.2](#1-9-2)
 * [1.9.1](#1-9-1)
 * [1.9.0](#1-9-0)
@@ -32,7 +32,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.10.0
+
 ### Added
 
 * `notify-focus-inhibit` boolean option, which can be used to control
@@ -70,7 +71,6 @@
   screen is in use (https://codeberg.org/dnkl/foot/issues/787).
 
 
-### Deprecated
 ### Removed
 
 * The bundled PKGBUILD.
@@ -93,8 +93,15 @@
   unless the new title is different from the old title.
 
 
-### Security
 ### Contributors
+
+* armin
+* Craig Barnes
+* Daniel Martí
+* feeptr
+* Mitja Horvat
+* Ronan Pigott
+* Stanislav Ochotnický
 
 
 ## 1.9.2
