@@ -99,7 +99,7 @@
 ### Changed
 
 * PGO helper scripts no longer set `LC_CTYPE=en_US.UTF-8`. But, note
-  that “full” PGO builds still **require** an UTF-8 locale; you need
+  that “full” PGO builds still **require** a UTF-8 locale; you need
   to set one manually in your build script
   (https://codeberg.org/dnkl/foot/issues/728).
 
