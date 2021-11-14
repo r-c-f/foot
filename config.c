@@ -152,9 +152,7 @@ log_and_notify_va(struct config *conf, enum log_class log_class,
 
     char *formatted_msg = xvasprintf(fmt, va);
     log_msg(log_class, LOG_MODULE, file, lineno, "%s", formatted_msg);
-    tll_push_back(
-        conf->notifications,
-        ((struct user_notification){.kind = kind, .text = formatted_msg}));
+    user_notification_add(&conf->notifications, kind, formatted_msg);
 }
 
 static void NOINLINE PRINTF(5)
@@ -3118,11 +3116,8 @@ config_clone(const struct config *old)
     conf->notifications.length = 0;
     conf->notifications.head = conf->notifications.tail = 0;
     tll_foreach(old->notifications, it) {
-        struct user_notification notif = {
-            .kind = it->item.kind,
-            .text = xstrdup(it->item.text),
-        };
-        tll_push_back(conf->notifications, notif);
+        char *text = xstrdup(it->item.text);
+        user_notification_add(&conf->notifications, it->item.kind, text);
     }
 
     return conf;
@@ -3249,13 +3244,13 @@ check_if_font_is_monospaced(const char *pattern,
                      "setting [tweak].font-monospace-warn=no",
                      pattern);
 
-            user_notification_add(
-                notifications,
-                USER_NOTIFICATION_WARNING,
+            static const char fmt[] =
                 "%s: font does not appear to be monospace; "
                 "check your config, or disable this warning by "
-                "setting \033[1m[tweak].font-monospace-warn=no\033[22m",
-                pattern);
+                "setting \033[1m[tweak].font-monospace-warn=no\033[22m";
+
+            user_notification_add_fmt(notifications, USER_NOTIFICATION_WARNING,
+                fmt, pattern);
 
             is_monospaced = false;
             break;
