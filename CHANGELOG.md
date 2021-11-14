@@ -34,7 +34,13 @@
 
 
 ## Unreleased
+
 ### Added
+
+* `-Dthemes=false|true` meson command line option. When disabled,
+  example theme files are **not** installed.
+
+
 ### Changed
 ### Deprecated
 ### Removed
