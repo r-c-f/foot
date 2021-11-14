@@ -804,26 +804,6 @@ value_to_spawn_template(struct context *ctx,
     return true;
 }
 
-static void
-deprecated_url_option(struct config *conf,
-                      const char *old_name, const char *new_name,
-                      const char *path, unsigned lineno)
-{
-    LOG_WARN(
-        "deprecated: %s:%d: [main].%s: use '%s' in section '[url]' instead",
-        path, lineno, old_name, new_name);
-
-    const char fmt[] =
-        "%s:%d: \033[1m%s\033[22m, use \033[1m%s\033[22m in the \033[1m[url]\033[22m section instead";
-    char *text = xasprintf(fmt, path, lineno, old_name, new_name);
-
-    struct user_notification deprecation = {
-        .kind = USER_NOTIFICATION_DEPRECATED,
-        .text = text,
-    };
-    tll_push_back(conf->notifications, deprecation);
-}
-
 static bool parse_config_file(
     FILE *f, struct config *conf, const char *path, bool errors_are_fatal);
 
@@ -833,8 +813,6 @@ parse_section_main(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
-    const char *path = ctx->path;
-    unsigned lineno = ctx->lineno;
     bool errors_are_fatal = ctx->errors_are_fatal;
 
     if (strcmp(key, "include") == 0) {
@@ -946,39 +924,6 @@ parse_section_main(struct context *ctx)
         return true;
     }
 
-    else if (strcmp(key, "bell") == 0) {
-        LOG_WARN(
-            "deprecated: %s:%d: [main].bell: "
-            "set actions in section '[bell]' instead", path, lineno);
-
-        const char fmt[] =
-            "%s:%d: \033[1mbell\033[22m, use \033[1murgent\033[22m in "
-            "the \033[1m[bell]\033[22m section instead";
-
-        struct user_notification deprecation = {
-            .kind = USER_NOTIFICATION_DEPRECATED,
-            .text = xasprintf(fmt, path, lineno),
-        };
-        tll_push_back(conf->notifications, deprecation);
-
-        int bell;
-        if (!value_to_enum(
-                ctx,
-                (const char *[]){"set-urgency", "notify", "none", NULL},
-                &bell))
-        {
-            return false;
-        }
-
-        switch (bell) {
-        case 0: conf->bell.urgent = true; return true;
-        case 1: conf->bell.notify = true; return true;
-        case 2: memset(&conf->bell, 0, sizeof(conf->bell)); return true;
-        }
-
-        UNREACHABLE();
-    }
-
     else if (strcmp(key, "initial-window-mode") == 0) {
         _Static_assert(sizeof(conf->startup_mode) == sizeof(int),
             "enum is not 32-bit");
@@ -1046,25 +991,11 @@ parse_section_main(struct context *ctx)
     else if (strcmp(key, "word-delimiters") == 0)
         return value_to_wchars(ctx, &conf->word_delimiters);
 
-    else if (strcmp(key, "jump-label-letters") == 0) {
-        deprecated_url_option(
-            conf, "jump-label-letters", "label-letters", path, lineno);
-
-        return value_to_wchars(ctx, &conf->url.label_letters);
-    }
-
     else if (strcmp(key, "notify") == 0)
         return value_to_spawn_template(ctx, &conf->notify);
 
     else if (strcmp(key, "notify-focus-inhibit") == 0)
         return value_to_bool(ctx, &conf->notify_focus_inhibit);
-
-    else if (strcmp(key, "url-launch") == 0) {
-        deprecated_url_option(
-            conf, "url-launch", "launch", path, lineno);
-
-        return value_to_spawn_template(ctx, &conf->url.launch);
-    }
 
     else if (strcmp(key, "selection-target") == 0) {
         _Static_assert(sizeof(conf->selection_target) == sizeof(int),
@@ -1074,19 +1005,6 @@ parse_section_main(struct context *ctx)
             ctx,
             (const char *[]){"none", "primary", "clipboard", "both", NULL},
             (int *)&conf->selection_target);
-    }
-
-    else if (strcmp(key, "osc8-underline") == 0) {
-        deprecated_url_option(
-            conf, "osc8-underline", "osc8-underline", path, lineno);
-
-        _Static_assert(sizeof(conf->url.osc8_underline) == sizeof(int),
-                       "enum is not 32-bit");
-
-        return value_to_enum(
-            ctx,
-            (const char *[]){"url-mode", "always", NULL},
-            (int *)&conf->url.osc8_underline);
     }
 
     else if (strcmp(key, "box-drawings-uses-font-glyphs") == 0)

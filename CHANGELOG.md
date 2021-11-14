@@ -74,6 +74,9 @@
 ### Removed
 
 * The bundled PKGBUILD.
+* Deprecated `bell` option (replaced with `[bell]` section in 1.8.0).
+* Deprecated `url-launch`, `jump-label-letters` and `osc8-underline`
+  options (moved to a dedicated `[url]` section in 1.8.0)
 
 
 ### Fixed
