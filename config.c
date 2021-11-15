@@ -956,7 +956,7 @@ parse_section_main(struct context *ctx)
         return value_to_pt_or_px(ctx, &conf->line_height);
 
     else if (strcmp(key, "letter-spacing") == 0)
-        value_to_pt_or_px(ctx, &conf->letter_spacing);
+        return value_to_pt_or_px(ctx, &conf->letter_spacing);
 
     else if (strcmp(key, "horizontal-letter-offset") == 0)
         return value_to_pt_or_px(ctx, &conf->horizontal_letter_offset);
