@@ -39,6 +39,7 @@
 
 * `-Dthemes=false|true` meson command line option. When disabled,
   example theme files are **not** installed.
+* XDG desktop file for footclient.
 
 
 ### Changed

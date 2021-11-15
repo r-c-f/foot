@@ -231,7 +231,7 @@ executable(
   install: true)
 
 install_data(
-  'foot.desktop', 'foot-server.desktop',
+  'foot.desktop', 'foot-server.desktop', 'footclient.desktop',
   install_dir: join_paths(get_option('datadir'), 'applications'))
 
 scdoc = dependency('scdoc', native: true, required: get_option('docs'))
