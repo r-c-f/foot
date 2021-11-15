@@ -46,6 +46,11 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Regression: `letter-spacing` resulting in a “not a valid option”
+  error (https://codeberg.org/dnkl/foot/issues/795).
+
+
 ### Security
 ### Contributors
 
