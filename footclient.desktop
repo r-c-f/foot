@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Exec=foot --server
+Exec=footclient
 Icon=foot
 Terminal=false
 Categories=System;TerminalEmulator;
 Keywords=shell;prompt;command;commandline;
 
-Name=Foot Server
+Name=Foot Client
 GenericName=Terminal
-Comment=A wayland native terminal emulator (server)
+Comment=A wayland native terminal emulator (client)
