@@ -127,6 +127,15 @@ struct sixel {
     bool opaque;
 };
 
+enum kitty_kbd_flags {
+    KITTY_KBD_DISAMBIGUATE = 0x01,
+    KITTY_KBD_REPORT_EVENT = 0x02,
+    KITTY_BKD_REPORT_ALTERNATE = 0x04,
+    KITTY_KBD_REPORT_ALL = 0x08,
+    KITTY_KBD_REPORT_ASSOCIATED = 0x10,
+    KITTY_KBD_MASK = 0x1f,
+};
+
 struct grid {
     int num_rows;
     int num_cols;
@@ -149,6 +158,12 @@ struct grid {
 
     tll(struct damage) scroll_damage;
     tll(struct sixel) sixel_images;
+
+    struct {
+        enum kitty_kbd_flags flags[8];
+        uint8_t idx;
+    } kitty_kbd;
+
 };
 
 struct vt_subparams {
