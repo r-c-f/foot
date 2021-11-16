@@ -1721,6 +1721,9 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 UNHANDLED();
                 break;
             }
+
+            LOG_DBG("kitty kbd: flags after update: 0x%03x",
+                    grid->kitty_kbd.flags[idx]);
             break;
         }
 
