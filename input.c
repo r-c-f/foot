@@ -984,6 +984,109 @@ get_current_modifiers(const struct seat *seat,
 }
 
 static void
+legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
+                    enum modifier mods, size_t count,
+                    const uint8_t utf8[static count], uint32_t state)
+{
+    const struct key_data *keymap;
+    if (sym == XKB_KEY_Escape && mods == MOD_NONE && term->modify_escape_key) {
+        static const struct key_data esc = {.seq = "\033[27;1;27~"};
+        keymap = &esc;
+    } else
+        keymap = keymap_lookup(term, sym, mods);
+
+    if (keymap != NULL) {
+        term_to_slave(term, keymap->seq, strlen(keymap->seq));
+        return;
+    }
+
+    if (count == 0)
+        return;
+
+#define is_control_key(x) ((x) >= 0x40 && (x) <= 0x7f)
+#define IS_CTRL(x) ((x) < 0x20 || ((x) >= 0x7f && (x) <= 0x9f))
+
+    LOG_DBG("term->modify_other_keys=%d, count=%d, is_ctrl=%d (utf8=0x%02x), sym=%d",
+            term->modify_other_keys_2, count, IS_CTRL(utf8[0]), utf8[0], sym);
+
+    bool ctrl_is_in_effect = (mods & MOD_CTRL) != 0;
+    bool ctrl_seq = is_control_key(sym) || (count == 1 && IS_CTRL(utf8[0]));
+
+    if (mods != MOD_NONE && (term->modify_other_keys_2 ||
+                             (ctrl_is_in_effect && !ctrl_seq)))
+    {
+        static const int mod_param_map[32] = {
+            [MOD_SHIFT] = 2,
+            [MOD_ALT] = 3,
+            [MOD_SHIFT | MOD_ALT] = 4,
+            [MOD_CTRL] = 5,
+            [MOD_SHIFT | MOD_CTRL] = 6,
+            [MOD_ALT | MOD_CTRL] = 7,
+            [MOD_SHIFT | MOD_ALT | MOD_CTRL] = 8,
+            [MOD_META] = 9,
+            [MOD_META | MOD_SHIFT] = 10,
+            [MOD_META | MOD_ALT] = 11,
+            [MOD_META | MOD_SHIFT | MOD_ALT] = 12,
+            [MOD_META | MOD_CTRL] = 13,
+            [MOD_META | MOD_SHIFT | MOD_CTRL] = 14,
+            [MOD_META | MOD_ALT | MOD_CTRL] = 15,
+            [MOD_META | MOD_SHIFT | MOD_ALT | MOD_CTRL] = 16,
+        };
+
+        xassert(mods < sizeof(mod_param_map) / sizeof(mod_param_map[0]));
+        int modify_param = mod_param_map[mods];
+        xassert(modify_param != 0);
+
+        char reply[1024];
+        size_t n = xsnprintf(reply, sizeof(reply), "\x1b[27;%d;%d~", modify_param, sym);
+        term_to_slave(term, reply, n);
+    }
+
+    else if (mods & MOD_ALT) {
+        /*
+         * When the alt modifier is pressed, we do one out of three things:
+         *
+         *  1. we prefix the output bytes with ESC
+         *  2. we set the 8:th bit in the output byte
+         *  3. we ignore the alt modifier
+         *
+         * #1 is configured with \E[?1036, and is on by default
+         *
+         * If #1 has been disabled, we use #2, *if* it's a single
+         * byte we're emitting. Since this is an UTF-8 terminal,
+         * we then UTF8-encode the 8-bit character. #2 is
+         * configured with \E[?1034, and is on by default.
+         *
+         * Lastly, if both #1 and #2 have been disabled, the alt
+         * modifier is ignored.
+         */
+        if (term->meta.esc_prefix) {
+            term_to_slave(term, "\x1b", 1);
+            term_to_slave(term, utf8, count);
+        }
+
+        else if (term->meta.eight_bit && count == 1) {
+            const wchar_t wc = 0x80 | utf8[0];
+
+            char wc_as_utf8[8];
+            mbstate_t ps = {0};
+            size_t chars = wcrtomb(wc_as_utf8, wc, &ps);
+
+            if (chars != (size_t)-1)
+                term_to_slave(term, wc_as_utf8, chars);
+            else
+                term_to_slave(term, wc_as_utf8, count);
+        }
+
+        else {
+            /* Alt ignored */
+            term_to_slave(term, utf8, count);
+        }
+    } else
+        term_to_slave(term, utf8, count);
+}
+
+static void
 key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
                   uint32_t key, uint32_t state)
 {
@@ -994,7 +1097,6 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     {
         return;
     }
-
 
     if (state == XKB_KEY_UP) {
         stop_repeater(seat, key);
@@ -1120,24 +1222,6 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     keymap_mods |= seat->kbd.ctrl ? MOD_CTRL : MOD_NONE;
     keymap_mods |= seat->kbd.meta ? MOD_META : MOD_NONE;
 
-    const struct key_data *keymap;
-    if (sym == XKB_KEY_Escape && keymap_mods == MOD_NONE && term->modify_escape_key) {
-        static const struct key_data esc = {.seq = "\033[27;1;27~"};
-        keymap = &esc;
-    } else
-        keymap = keymap_lookup(term, sym, keymap_mods);
-
-    if (keymap != NULL) {
-        term_to_slave(term, keymap->seq, strlen(keymap->seq));
-
-        term_reset_view(term);
-        selection_cancel(term);
-        goto maybe_repeat;
-    }
-
-    if (compose_status == XKB_COMPOSE_CANCELLED)
-        goto maybe_repeat;
-
     /*
      * Compose, and maybe emit "normal" character
      */
@@ -1145,12 +1229,12 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     xassert(seat->kbd.xkb_compose_state != NULL ||
            compose_status != XKB_COMPOSE_COMPOSED);
 
+    if (compose_status == XKB_COMPOSE_CANCELLED)
+        goto maybe_repeat;
+
     int count = compose_status == XKB_COMPOSE_COMPOSED
         ? xkb_compose_state_get_utf8(seat->kbd.xkb_compose_state, NULL, 0)
         : xkb_state_key_get_utf8(seat->kbd.xkb_state, key, NULL, 0);
-
-    if (count <= 0)
-        goto maybe_repeat;
 
     /* Buffer for translated key. Use a static buffer in most cases,
      * and use a malloc:ed buffer when necessary */
@@ -1166,89 +1250,7 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     if (seat->kbd.xkb_compose_state != NULL)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
 
-#define is_control_key(x) ((x) >= 0x40 && (x) <= 0x7f)
-#define IS_CTRL(x) ((x) < 0x20 || ((x) >= 0x7f && (x) <= 0x9f))
-
-    LOG_DBG("term->modify_other_keys=%d, count=%d, is_ctrl=%d (utf8=0x%02x), sym=%d",
-            term->modify_other_keys_2, count, IS_CTRL(utf8[0]), utf8[0], sym);
-
-    bool ctrl_is_in_effect = (keymap_mods & MOD_CTRL) != 0;
-    bool ctrl_seq = is_control_key(sym) || (count == 1 && IS_CTRL(utf8[0]));
-
-    if (keymap_mods != MOD_NONE && (term->modify_other_keys_2 ||
-                                    (ctrl_is_in_effect && !ctrl_seq)))
-    {
-        static const int mod_param_map[32] = {
-            [MOD_SHIFT] = 2,
-            [MOD_ALT] = 3,
-            [MOD_SHIFT | MOD_ALT] = 4,
-            [MOD_CTRL] = 5,
-            [MOD_SHIFT | MOD_CTRL] = 6,
-            [MOD_ALT | MOD_CTRL] = 7,
-            [MOD_SHIFT | MOD_ALT | MOD_CTRL] = 8,
-            [MOD_META] = 9,
-            [MOD_META | MOD_SHIFT] = 10,
-            [MOD_META | MOD_ALT] = 11,
-            [MOD_META | MOD_SHIFT | MOD_ALT] = 12,
-            [MOD_META | MOD_CTRL] = 13,
-            [MOD_META | MOD_SHIFT | MOD_CTRL] = 14,
-            [MOD_META | MOD_ALT | MOD_CTRL] = 15,
-            [MOD_META | MOD_SHIFT | MOD_ALT | MOD_CTRL] = 16,
-        };
-
-        xassert(keymap_mods < sizeof(mod_param_map) / sizeof(mod_param_map[0]));
-        int modify_param = mod_param_map[keymap_mods];
-        xassert(modify_param != 0);
-
-        char reply[1024];
-        size_t n = xsnprintf(reply, sizeof(reply), "\x1b[27;%d;%d~", modify_param, sym);
-        term_to_slave(term, reply, n);
-    }
-
-    else {
-        if (mods & (1 << seat->kbd.mod_alt)) {
-            /*
-             * When the alt modifier is pressed, we do one out of three things:
-             *
-             *  1. we prefix the output bytes with ESC
-             *  2. we set the 8:th bit in the output byte
-             *  3. we ignore the alt modifier
-             *
-             * #1 is configured with \E[?1036, and is on by default
-             *
-             * If #1 has been disabled, we use #2, *if* it's a single
-             * byte we're emitting. Since this is an UTF-8 terminal,
-             * we then UTF8-encode the 8-bit character. #2 is
-             * configured with \E[?1034, and is on by default.
-             *
-             * Lastly, if both #1 and #2 have been disabled, the alt
-             * modifier is ignored.
-             */
-            if (term->meta.esc_prefix) {
-                term_to_slave(term, "\x1b", 1);
-                term_to_slave(term, utf8, count);
-            }
-
-            else if (term->meta.eight_bit && count == 1) {
-                const wchar_t wc = 0x80 | utf8[0];
-
-                char utf8[8];
-                mbstate_t ps = {0};
-                size_t chars = wcrtomb(utf8, wc, &ps);
-
-                if (chars != (size_t)-1)
-                    term_to_slave(term, utf8, chars);
-                else
-                    term_to_slave(term, utf8, count);
-            }
-
-            else {
-                /* Alt ignored */
-                term_to_slave(term, utf8, count);
-            }
-        } else
-            term_to_slave(term, utf8, count);
-    }
+    legacy_kbd_protocol(seat, term, sym, keymap_mods, count, utf8, state);
 
     if (utf8 != buf)
         free(utf8);
