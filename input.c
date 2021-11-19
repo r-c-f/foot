@@ -1924,6 +1924,16 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                         close(fd);
                 }
             }
+
+            if (button == BTN_RIGHT && tll_length(seat->mouse.buttons) == 1) {
+                struct csd_data info;
+                info = get_csd_data(term, CSD_SURF_TITLE);
+                xdg_toplevel_show_window_menu(
+                    win->xdg_toplevel,
+                    seat->wl_seat,
+                    seat->pointer.serial,
+                    seat->mouse.x + info.x, seat->mouse.y + info.y);
+            }
         }
 
         else if (state == WL_POINTER_BUTTON_STATE_RELEASED) {

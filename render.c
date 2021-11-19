@@ -1521,14 +1521,7 @@ render_worker_thread(void *_ctx)
     return -1;
 }
 
-struct csd_data {
-    int x;
-    int y;
-    int width;
-    int height;
-};
-
-static struct csd_data
+struct csd_data
 get_csd_data(const struct terminal *term, enum csd_surface surf_idx)
 {
     xassert(term->window->csd_mode == CSD_YES);
