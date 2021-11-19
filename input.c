@@ -1372,7 +1372,7 @@ is_bottom_right(const struct terminal *term, int x, int y)
          (term->active_surface == TERM_SURF_BORDER_BOTTOM && x > term->width + 1 * csd_border_size * term->scale - 10 * term->scale)));
 }
 
-static const char *
+const char *
 xcursor_for_csd_border(struct terminal *term, int x, int y)
 {
     if (is_top_left(term, x, y))                              return XCURSOR_TOP_LEFT_CORNER;
