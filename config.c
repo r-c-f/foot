@@ -1012,8 +1012,6 @@ parse_section_main(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
@@ -2340,8 +2338,6 @@ parse_section_tweak(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
