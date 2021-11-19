@@ -1405,11 +1405,18 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     struct wl_window *win = wl_surface_get_user_data(surface);
     struct terminal *term = win->term;
 
+    int x = wl_fixed_to_int(surface_x) * term->scale;
+    int y = wl_fixed_to_int(surface_y) * term->scale;
+
     seat->pointer.serial = serial;
     seat->pointer.hidden = false;
+    seat->mouse.x = x;
+    seat->mouse.y = y;
 
-    LOG_DBG("pointer-enter: pointer=%p, serial=%u, surface = %p, new-moused = %p",
-            (void *)wl_pointer, serial, (void *)surface, (void *)term);
+    LOG_DBG("pointer-enter: pointer=%p, serial=%u, surface = %p, new-moused = %p, "
+            "x=%d, y=%d",
+            (void *)wl_pointer, serial, (void *)surface, (void *)term,
+            x, y);
 
     xassert(tll_length(seat->mouse.buttons) == 0);
 
@@ -1417,9 +1424,6 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     wayl_reload_xcursor_theme(seat, term->scale);
 
     seat->mouse_focus = term;
-
-    int x = wl_fixed_to_int(surface_x) * term->scale;
-    int y = wl_fixed_to_int(surface_y) * term->scale;
 
     switch ((term->active_surface = term_surface_kind(term, surface))) {
     case TERM_SURF_GRID: {
