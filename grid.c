@@ -878,59 +878,48 @@ void
 grid_row_uri_range_erase(struct row *row, int start, int end)
 {
     xassert(row->extra != NULL);
+    xassert(start <= end);
 
     /* Split up, or remove, URI ranges affected by the erase */
     tll_foreach(row->extra->uri_ranges, it) {
-        if (it->item.start > end) {
-            /* This range, and all subsequent ranges, start *after*
-             * the erase range */
-            break;
-        }
+        struct row_uri_range *old = &it->item;
 
-        if (it->item.start < start && it->item.end >= start) {
-            /*
-             * URI crosses the erase *start* point.
-             *
-             * Create a new range for the URI part *before* the erased
-             * cells.
-             *
-             * Also modify this URI range’s start point so that we can
-             * remove it below.
-             */
-            struct row_uri_range range_before = {
-                .start = it->item.start,
-                .end = start - 1,
-                .id = it->item.id,
-                .uri = it->item.uri != NULL ? xstrdup(it->item.uri) : NULL,
-            };
-            tll_insert_before(row->extra->uri_ranges, it, range_before);
-            it->item.start = start;
-        }
+        if (old->end < start)
+            continue;
 
-        if (it->item.start <= end && it->item.end > end) {
-            /*
-             * URI crosses the erase *end* point.
-             *
-             * Create a new range for the URI part *after* the erased
-             * cells.
-             *
-             * Also modify the URI range’s end point so that we can
-             * remove it below.
-             */
-            struct row_uri_range range_after = {
-                .start = end + 1,
-                .end = it->item.end,
-                .id = it->item.id,
-                .uri = it->item.uri != NULL ? xstrdup(it->item.uri) : NULL,
-            };
-            tll_insert_before(row->extra->uri_ranges, it, range_after);
-            it->item.end = end;
-        }
+        if (old->start > end)
+            return;
 
-        if (it->item.start >= start && it->item.end <= end) {
-            /* URI range completey covered by the erase - remove it */
-            free(it->item.uri);
+        if (start <= old->start && end >= old->end) {
+            /* Erase range covers URI completely - remove it */
+            grid_row_uri_range_destroy(old);
             tll_remove(row->extra->uri_ranges, it);
+        }
+
+        else if (start > old->start && end < old->end) {
+            /* Erase range erases a part in the middle of the URI */
+            struct row_uri_range old_tail = {
+                .start = end + 1,
+                .end = old->end,
+                .id = old->id,
+                .uri = old->uri != NULL ? xstrdup(old->uri) : NULL,
+            };
+            tll_insert_after(row->extra->uri_ranges, it, old_tail);
+            old->end = start - 1;
+            return;  /* There can be no more URIs affected by the erase range */
+        }
+
+        else if (start <= old->start && end >= old->start) {
+            /* Erase range erases the head of the URI */
+            xassert(start <= old->start);
+            old->start = end + 1;
+            return;  /* There can be no more overlapping URIs */
+        }
+
+        else if (start <= old->end && end >= old->end) {
+            /* Erase range erases the tail of the URI */
+            xassert(end >= old->end);
+            old->end = start - 1;
         }
     }
 }
