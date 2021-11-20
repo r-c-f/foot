@@ -1770,11 +1770,13 @@ erase_cell_range(struct terminal *term, struct row *row, int start, int end)
 
     row->dirty = true;
 
-    if (unlikely(term->vt.attrs.have_bg)) {
+    const enum color_source bg_src = term->vt.attrs.bg_src;
+
+    if (unlikely(bg_src != COLOR_DEFAULT)) {
         for (int col = start; col <= end; col++) {
             struct cell *c = &row->cells[col];
             c->wc = 0;
-            c->attrs = (struct attributes){.have_bg = 1, .bg = term->vt.attrs.bg};
+            c->attrs = (struct attributes){.bg_src = bg_src, .bg = term->vt.attrs.bg};
         }
     } else
         memset(&row->cells[start], 0, (end - start + 1) * sizeof(row->cells[0]));

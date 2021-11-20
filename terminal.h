@@ -24,6 +24,13 @@
 #include "shm.h"
 #include "wayland.h"
 
+enum color_source {
+    COLOR_DEFAULT,
+    COLOR_BASE16,
+    COLOR_BASE256,
+    COLOR_RGB,
+};
+
 /*
  *  Note: we want the cells to be as small as possible. Larger cells
  *  means fewer scrollback lines (or performance drops due to cache
@@ -43,12 +50,11 @@ struct attributes {
     uint32_t fg:24;
 
     bool clean:1;
+    enum color_source fg_src:2;
+    enum color_source bg_src:2;
     bool confined:1;
-    bool have_fg:1;
-    bool have_bg:1;
     bool selected:1;
     bool url:1;
-    uint32_t reserved:2;
     uint32_t bg:24;
 };
 static_assert(sizeof(struct attributes) == 8, "VT attribute struct too large");
