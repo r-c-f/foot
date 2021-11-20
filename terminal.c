@@ -3162,6 +3162,8 @@ term_print(struct terminal *term, wchar_t wc, int width)
 {
     xassert(width > 0);
 
+    struct grid *grid = term->grid;
+
     if (unlikely(term->charsets.set[term->charsets.selected] == CHARSET_GRAPHIC) &&
         wc >= 0x60 && wc <= 0x7e)
     {
@@ -3180,24 +3182,26 @@ term_print(struct terminal *term, wchar_t wc, int width)
     print_linewrap(term);
     print_insert(term, width);
 
+    int col = grid->cursor.point.col;
+
     if (unlikely(width > 1) && likely(term->auto_margin) &&
-        term->grid->cursor.point.col + width > term->cols)
+        col + width > term->cols)
     {
         /* Multi-column character that doesn't fit on current line -
          * pad with spacers */
-        for (size_t i = term->grid->cursor.point.col; i < term->cols; i++)
+        for (size_t i = col; i < term->cols; i++)
             print_spacer(term, i, 0);
 
         /* And force a line-wrap */
-        term->grid->cursor.lcf = 1;
+        grid->cursor.lcf = 1;
         print_linewrap(term);
     }
 
     sixel_overwrite_at_cursor(term, width);
 
     /* *Must* get current cell *after* linewrap+insert */
-    struct row *row = term->grid->cur_row;
-    struct cell *cell = &row->cells[term->grid->cursor.point.col];
+    struct row *row = grid->cur_row;
+    struct cell *cell = &row->cells[col];
 
     cell->wc = term->vt.last_printed = wc;
     cell->attrs = term->vt.attrs;
@@ -3205,18 +3209,22 @@ term_print(struct terminal *term, wchar_t wc, int width)
     row->dirty = true;
     row->linebreak = true;
 
+    grid_row_uri_range_erase(row, col, col + width - 1);
+
     /* Advance cursor the 'additional' columns while dirty:ing the cells */
-    for (int i = 1; i < width && term->grid->cursor.point.col < term->cols - 1; i++) {
-        term->grid->cursor.point.col++;
-        print_spacer(term, term->grid->cursor.point.col, width - i);
+    for (int i = 1; i < width && col < term->cols - 1; i++) {
+        col++;
+        print_spacer(term, col, width - i);
     }
 
     /* Advance cursor */
-    if (unlikely(++term->grid->cursor.point.col >= term->cols)) {
-        term->grid->cursor.lcf = true;
-        term->grid->cursor.point.col--;
+    if (unlikely(++col >= term->cols)) {
+        grid->cursor.lcf = true;
+        col--;
     } else
-        xassert(!term->grid->cursor.lcf);
+        xassert(!grid->cursor.lcf);
+
+    grid->cursor.point.col = col;
 }
 
 static void
@@ -3228,15 +3236,18 @@ ascii_printer_generic(struct terminal *term, wchar_t wc)
 static void
 ascii_printer_fast(struct terminal *term, wchar_t wc)
 {
+    struct grid *grid = term->grid;
+
     xassert(term->charsets.set[term->charsets.selected] == CHARSET_ASCII);
     xassert(!term->insert_mode);
-    xassert(tll_length(term->grid->sixel_images) == 0);
+    xassert(tll_length(grid->sixel_images) == 0);
 
     print_linewrap(term);
 
     /* *Must* get current cell *after* linewrap+insert */
-    struct row *row = term->grid->cur_row;
-    struct cell *cell = &row->cells[term->grid->cursor.point.col];
+    int col = grid->cursor.point.col;
+    struct row *row = grid->cur_row;
+    struct cell *cell = &row->cells[col];
 
     cell->wc = term->vt.last_printed = wc;
     cell->attrs = term->vt.attrs;
@@ -3244,12 +3255,16 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
     row->dirty = true;
     row->linebreak = true;
 
+    grid_row_uri_range_erase(row, col, col);
+
     /* Advance cursor */
-    if (unlikely(++term->grid->cursor.point.col >= term->cols)) {
-        term->grid->cursor.lcf = true;
-        term->grid->cursor.point.col--;
+    if (unlikely(++col >= term->cols)) {
+        grid->cursor.lcf = true;
+        col--;
     } else
-        xassert(!term->grid->cursor.lcf);
+        xassert(!grid->cursor.lcf);
+
+    grid->cursor.point.col = col;
 }
 
 static void
