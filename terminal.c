@@ -1781,63 +1781,7 @@ erase_cell_range(struct terminal *term, struct row *row, int start, int end)
     } else
         memset(&row->cells[start], 0, (end - start + 1) * sizeof(row->cells[0]));
 
-    if (likely(row->extra == NULL))
-        return;
-
-    /* Split up, or remove, URI ranges affected by the erase */
-    tll_foreach(row->extra->uri_ranges, it) {
-        if (it->item.start > end) {
-            /* This range, and all subsequent ranges, start *after*
-             * the erase range */
-            break;
-        }
-
-        if (it->item.start < start && it->item.end >= start) {
-            /*
-             * URI crosses the erase *start* point.
-             *
-             * Create a new range for the URI part *before* the erased
-             * cells.
-             *
-             * Also modify this URI range’s start point so that we can
-             * remove it below.
-             */
-            struct row_uri_range range_before = {
-                .start = it->item.start,
-                .end = start - 1,
-                .id = it->item.id,
-                .uri = xstrdup(it->item.uri),
-            };
-            tll_insert_before(row->extra->uri_ranges, it, range_before);
-            it->item.start = start;
-        }
-
-        if (it->item.start <= end && it->item.end > end) {
-            /*
-             * URI crosses the erase *end* point.
-             *
-             * Create a new range for the URI part *after* the erased
-             * cells.
-             *
-             * Also modify the URI range’s end point so that we can
-             * remove it below.
-             */
-            struct row_uri_range range_after = {
-                .start = end + 1,
-                .end = it->item.end,
-                .id = it->item.id,
-                .uri = xstrdup(it->item.uri),
-            };
-            tll_insert_before(row->extra->uri_ranges, it, range_after);
-            it->item.end = end;
-        }
-
-        if (it->item.start >= start && it->item.end <= end) {
-            /* URI range completey covered by the erase - remove it */
-            free(it->item.uri);
-            tll_remove(row->extra->uri_ranges, it);
-        }
-    }
+    grid_row_uri_range_erase(row, start, end);
 }
 
 static inline void
@@ -3590,21 +3534,7 @@ term_osc8_close(struct terminal *term)
             .id = term->vt.osc8.id,
             .uri = xstrdup(term->vt.osc8.uri),
         };
-        grid_row_add_uri_range(row, range);
-
-#if defined(_DEBUG)
-        tll_foreach(row->extra->uri_ranges, it1) {
-            tll_foreach(row->extra->uri_ranges, it2) {
-                if (&it1->item == &it2->item)
-                    continue;
-
-                xassert(it1->item.start != it2->item.start);
-                xassert(it1->item.start != it2->item.end);
-                xassert(it1->item.end != it2->item.start);
-                xassert(it1->item.end != it2->item.end);
-            }
-        }
-#endif
+        grid_row_uri_range_add(row, range);
         start_col = 0;
 
         if (r == end.row)
