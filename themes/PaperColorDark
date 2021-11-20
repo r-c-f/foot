@@ -24,5 +24,5 @@
  bright5=ff5faf   # bright magenta
  bright6=00afaf   # bright cyan
  bright7=5f8787   # bright white
- selection-foreground=1c1c1c
- selection-background=af87d7
+ #selection-foreground=1c1c1c
+ #selection-background=af87d7
