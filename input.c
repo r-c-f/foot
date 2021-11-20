@@ -1128,10 +1128,8 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
             seat->kbd.xkb_compose_state);
     }
 
-    if (compose_status == XKB_COMPOSE_COMPOSING) {
-        /* TODO: goto maybe_repeat? */
-        return;
-    }
+    if (compose_status == XKB_COMPOSE_COMPOSING)
+        goto maybe_repeat;
 
     xkb_mod_mask_t mods, consumed;
     get_current_modifiers(seat, &mods, &consumed, key);
