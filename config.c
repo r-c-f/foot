@@ -614,6 +614,7 @@ value_to_enum(struct context *ctx, const char **value_map, int *res)
         valid_values[idx - 2] = '\0';
 
     LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
+    free(valid_values);
     *res = -1;
     return false;
 }
