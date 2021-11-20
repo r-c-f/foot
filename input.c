@@ -6,6 +6,7 @@
 #include <threads.h>
 #include <locale.h>
 #include <errno.h>
+#include <wctype.h>
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <sys/timerfd.h>
@@ -985,15 +986,22 @@ get_current_modifiers(const struct seat *seat,
 
 static void
 legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
-                    enum modifier mods, size_t count,
-                    const uint8_t utf8[static count], uint32_t state)
+                    xkb_mod_mask_t mods, xkb_mod_mask_t consumed,
+                    size_t count, const uint8_t utf8[static count],
+                    uint32_t state)
 {
+    enum modifier keymap_mods = MOD_NONE;
+    keymap_mods |= seat->kbd.shift ? MOD_SHIFT : MOD_NONE;
+    keymap_mods |= seat->kbd.alt ? MOD_ALT : MOD_NONE;
+    keymap_mods |= seat->kbd.ctrl ? MOD_CTRL : MOD_NONE;
+    keymap_mods |= seat->kbd.meta ? MOD_META : MOD_NONE;
+
     const struct key_data *keymap;
-    if (sym == XKB_KEY_Escape && mods == MOD_NONE && term->modify_escape_key) {
+    if (sym == XKB_KEY_Escape && keymap_mods == MOD_NONE && term->modify_escape_key) {
         static const struct key_data esc = {.seq = "\033[27;1;27~"};
         keymap = &esc;
     } else
-        keymap = keymap_lookup(term, sym, mods);
+        keymap = keymap_lookup(term, sym, keymap_mods);
 
     if (keymap != NULL) {
         term_to_slave(term, keymap->seq, strlen(keymap->seq));
@@ -1009,11 +1017,11 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
     LOG_DBG("term->modify_other_keys=%d, count=%d, is_ctrl=%d (utf8=0x%02x), sym=%d",
             term->modify_other_keys_2, count, IS_CTRL(utf8[0]), utf8[0], sym);
 
-    bool ctrl_is_in_effect = (mods & MOD_CTRL) != 0;
+    bool ctrl_is_in_effect = (keymap_mods & MOD_CTRL) != 0;
     bool ctrl_seq = is_control_key(sym) || (count == 1 && IS_CTRL(utf8[0]));
 
-    if (mods != MOD_NONE && (term->modify_other_keys_2 ||
-                             (ctrl_is_in_effect && !ctrl_seq)))
+    if (keymap_mods != MOD_NONE && (term->modify_other_keys_2 ||
+                                    (ctrl_is_in_effect && !ctrl_seq)))
     {
         static const int mod_param_map[32] = {
             [MOD_SHIFT] = 2,
@@ -1033,8 +1041,8 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
             [MOD_META | MOD_SHIFT | MOD_ALT | MOD_CTRL] = 16,
         };
 
-        xassert(mods < sizeof(mod_param_map) / sizeof(mod_param_map[0]));
-        int modify_param = mod_param_map[mods];
+        xassert(keymap_mods < sizeof(mod_param_map) / sizeof(mod_param_map[0]));
+        int modify_param = mod_param_map[keymap_mods];
         xassert(modify_param != 0);
 
         char reply[1024];
@@ -1042,7 +1050,7 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
         term_to_slave(term, reply, n);
     }
 
-    else if (mods & MOD_ALT) {
+    else if (keymap_mods & MOD_ALT) {
         /*
          * When the alt modifier is pressed, we do one out of three things:
          *
@@ -1084,6 +1092,168 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
         }
     } else
         term_to_slave(term, utf8, count);
+}
+
+static void
+kitty_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
+                   xkb_mod_mask_t mods, xkb_mod_mask_t consumed,
+                   size_t count, const uint8_t utf8[static count],
+                   uint32_t utf32, enum xkb_compose_status compose_status,
+                   uint32_t state)
+{
+    /* TODO: shift seems to already have been excluded from ‘mods’*/
+    xkb_mod_mask_t effective = mods & ~consumed;
+
+    if (compose_status == XKB_COMPOSE_COMPOSED) {
+        term_to_slave(term, utf8, count);
+        return;
+    }
+
+    if (effective == 0) {
+        switch (sym) {
+        case XKB_KEY_Return:    term_to_slave(term, "\r", 1); return;
+        case XKB_KEY_BackSpace: term_to_slave(term, "\x7f", 1); return;
+        case XKB_KEY_Tab:       term_to_slave(term, "\t", 1); return;
+        }
+
+        if (iswprint(utf32)) {
+            term_to_slave(term, utf8, count);
+            return;
+        }
+    }
+
+    unsigned int encoded_mods = 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_shift) ? (1 << 0) : 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_alt)   ? (1 << 1) : 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_ctrl)  ? (1 << 2) : 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_meta)  ? (1 << 3) : 0;
+    encoded_mods++;
+
+    int key = -1;
+    char final;
+
+    switch (sym) {
+    case XKB_KEY_Escape:       key = 27;    final = 'u'; break;
+    case XKB_KEY_Return:       key = 13;    final = 'u'; break;
+    case XKB_KEY_Tab:          key = 9;     final = 'u'; break;
+    case XKB_KEY_BackSpace:    key = 127;   final = 'u'; break;
+    case XKB_KEY_Insert:       key = 2;     final = '~'; break;
+    case XKB_KEY_Delete:       key = 3;     final = '~'; break;
+    case XKB_KEY_Left:         key = 1;     final = 'D'; break;
+    case XKB_KEY_Right:        key = 1;     final = 'C'; break;
+    case XKB_KEY_Up:           key = 1;     final = 'A'; break;
+    case XKB_KEY_Down:         key = 1;     final = 'B'; break;
+    case XKB_KEY_Page_Up:      key = 5;     final = '~'; break;
+    case XKB_KEY_Page_Down:    key = 6;     final = '~'; break;
+    case XKB_KEY_Home:         key = 1;     final = 'H'; break;
+    case XKB_KEY_End:          key = 1;     final = 'F'; break;
+    case XKB_KEY_Caps_Lock:    key = 57358; final = 'u'; break;
+    case XKB_KEY_Scroll_Lock:  key = 57359; final = 'u'; break;
+    case XKB_KEY_Num_Lock:     key = 57360; final = 'u'; break;
+    case XKB_KEY_Print:        key = 57361; final = 'u'; break;
+    case XKB_KEY_Pause:        key = 57362; final = 'u'; break;
+    case XKB_KEY_Menu:         key = 57363; final = 'u'; break;
+    case XKB_KEY_F1:           key = 1;     final = 'P'; break;
+    case XKB_KEY_F2:           key = 1;     final = 'Q'; break;
+    case XKB_KEY_F3:           key = 1;     final = 'R'; break;
+    case XKB_KEY_F4:           key = 1;     final = 'S'; break;
+    case XKB_KEY_F5:           key = 15;    final = '~'; break;
+    case XKB_KEY_F6:           key = 17;    final = '~'; break;
+    case XKB_KEY_F7:           key = 18;    final = '~'; break;
+    case XKB_KEY_F8:           key = 19;    final = '~'; break;
+    case XKB_KEY_F9:           key = 20;    final = '~'; break;
+    case XKB_KEY_F10:          key = 21;    final = '~'; break;
+    case XKB_KEY_F11:          key = 23;    final = '~'; break;
+    case XKB_KEY_F12:          key = 24;    final = '~'; break;
+    case XKB_KEY_F13:          key = 57376; final = 'u'; break;
+    case XKB_KEY_F14:          key = 57377; final = 'u'; break;
+    case XKB_KEY_F15:          key = 57378; final = 'u'; break;
+    case XKB_KEY_F16:          key = 57379; final = 'u'; break;
+    case XKB_KEY_F17:          key = 57380; final = 'u'; break;
+    case XKB_KEY_F18:          key = 57381; final = 'u'; break;
+    case XKB_KEY_F19:          key = 57382; final = 'u'; break;
+    case XKB_KEY_F20:          key = 57383; final = 'u'; break;
+    case XKB_KEY_F21:          key = 57384; final = 'u'; break;
+    case XKB_KEY_F22:          key = 57385; final = 'u'; break;
+    case XKB_KEY_F23:          key = 57386; final = 'u'; break;
+    case XKB_KEY_F24:          key = 57387; final = 'u'; break;
+    case XKB_KEY_F25:          key = 57388; final = 'u'; break;
+    case XKB_KEY_F26:          key = 57389; final = 'u'; break;
+    case XKB_KEY_F27:          key = 57390; final = 'u'; break;
+    case XKB_KEY_F28:          key = 57391; final = 'u'; break;
+    case XKB_KEY_F29:          key = 57392; final = 'u'; break;
+    case XKB_KEY_F30:          key = 57393; final = 'u'; break;
+    case XKB_KEY_F31:          key = 57394; final = 'u'; break;
+    case XKB_KEY_F32:          key = 57395; final = 'u'; break;
+    case XKB_KEY_F33:          key = 57396; final = 'u'; break;
+    case XKB_KEY_F34:          key = 57397; final = 'u'; break;
+    case XKB_KEY_F35:          key = 57398; final = 'u'; break;
+    case XKB_KEY_KP_0:         key = 57399; final = 'u'; break;
+    case XKB_KEY_KP_1:         key = 57400; final = 'u'; break;
+    case XKB_KEY_KP_2:         key = 57401; final = 'u'; break;
+    case XKB_KEY_KP_3:         key = 57402; final = 'u'; break;
+    case XKB_KEY_KP_4:         key = 57403; final = 'u'; break;
+    case XKB_KEY_KP_5:         key = 57404; final = 'u'; break;
+    case XKB_KEY_KP_6:         key = 57405; final = 'u'; break;
+    case XKB_KEY_KP_7:         key = 57406; final = 'u'; break;
+    case XKB_KEY_KP_8:         key = 57407; final = 'u'; break;
+    case XKB_KEY_KP_9:         key = 57408; final = 'u'; break;
+    case XKB_KEY_KP_Decimal:   key = 57409; final = 'u'; break;
+    case XKB_KEY_KP_Divide:    key = 57410; final = 'u'; break;
+    case XKB_KEY_KP_Multiply:  key = 57411; final = 'u'; break;
+    case XKB_KEY_KP_Subtract:  key = 57412; final = 'u'; break;
+    case XKB_KEY_KP_Add:       key = 57413; final = 'u'; break;
+    case XKB_KEY_KP_Enter:     key = 57414; final = 'u'; break;
+    case XKB_KEY_KP_Equal:     key = 57415; final = 'u'; break;
+    case XKB_KEY_KP_Separator: key = 57416; final = 'u'; break;
+    case XKB_KEY_KP_Left:      key = 57417; final = 'u'; break;
+    case XKB_KEY_KP_Right:     key = 57418; final = 'u'; break;
+    case XKB_KEY_KP_Up:        key = 57419; final = 'u'; break;
+    case XKB_KEY_KP_Down:      key = 57420; final = 'u'; break;
+    case XKB_KEY_KP_Page_Up:   key = 57421; final = 'u'; break;
+    case XKB_KEY_KP_Page_Down: key = 57422; final = 'u'; break;
+    case XKB_KEY_KP_Home:      key = 57423; final = 'u'; break;
+    case XKB_KEY_KP_End:       key = 57424; final = 'u'; break;
+    case XKB_KEY_KP_Insert:    key = 57425; final = 'u'; break;
+    case XKB_KEY_KP_Delete:    key = 57426; final = 'u'; break;
+    case XKB_KEY_KP_Begin:     key = 1;     final = 'E'; break;
+
+    default:
+        if (count > 0) {
+            if (effective == 0) {
+                term_to_slave(term, utf8, count);
+                return;
+            }
+
+            /* TODO: this isn’t correct */
+            key = xkb_keysym_to_lower(sym);
+            final = 'u';
+        }
+        break;
+    }
+
+    xassert(encoded_mods >= 1);
+
+    char buf[16];
+    int bytes;
+
+    if (key < 0)
+        return;
+
+    if (final == 'u' || final == '~') {
+        if (encoded_mods > 1)
+            bytes = snprintf(buf, sizeof(buf), "\x1b[%u;%u%c",
+                             key, encoded_mods, final);
+        else
+            bytes = snprintf(buf, sizeof(buf), "\x1b[%u%c", key, final);
+    } else {
+        if (encoded_mods > 1)
+            bytes = snprintf(buf, sizeof(buf), "\x1b[1;%u%c", encoded_mods, final);
+        else
+            bytes = snprintf(buf, sizeof(buf), "\x1b[%c", final);
+    }
+
+    term_to_slave(term, buf, bytes);
 }
 
 static void
@@ -1214,11 +1384,6 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
      * Keys generating escape sequences
      */
 
-    enum modifier keymap_mods = MOD_NONE;
-    keymap_mods |= seat->kbd.shift ? MOD_SHIFT : MOD_NONE;
-    keymap_mods |= seat->kbd.alt ? MOD_ALT : MOD_NONE;
-    keymap_mods |= seat->kbd.ctrl ? MOD_CTRL : MOD_NONE;
-    keymap_mods |= seat->kbd.meta ? MOD_META : MOD_NONE;
 
     /*
      * Compose, and maybe emit "normal" character
@@ -1238,17 +1403,24 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
      * and use a malloc:ed buffer when necessary */
     uint8_t buf[32];
     uint8_t *utf8 = count < sizeof(buf) ? buf : xmalloc(count + 1);
+    uint32_t utf32 = (uint32_t)-1;
 
-    compose_status == XKB_COMPOSE_COMPOSED
-        ? xkb_compose_state_get_utf8(
-            seat->kbd.xkb_compose_state, (char *)utf8, count + 1)
-        : xkb_state_key_get_utf8(
+    if (compose_status == XKB_COMPOSE_COMPOSED) {
+        xkb_compose_state_get_utf8(
+            seat->kbd.xkb_compose_state, (char *)utf8, count + 1);
+    } else {
+        xkb_state_key_get_utf8(
             seat->kbd.xkb_state, key, (char *)utf8, count + 1);
+        utf32 = xkb_state_key_get_utf32(seat->kbd.xkb_state, key);
+    }
+
+    if (term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx] != 0)
+        kitty_kbd_protocol(seat, term, sym, mods, consumed, count, utf8, utf32, compose_status, state);
+    else
+        legacy_kbd_protocol(seat, term, sym, mods, consumed, count, utf8, state);
 
     if (seat->kbd.xkb_compose_state != NULL)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
-
-    legacy_kbd_protocol(seat, term, sym, keymap_mods, count, utf8, state);
 
     if (utf8 != buf)
         free(utf8);
