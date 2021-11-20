@@ -53,6 +53,8 @@
 * Regression: `pipe-*` key bindings not being parsed correctly,
   resulting in invalid error messages
   (https://codeberg.org/dnkl/foot/issues/809).
+* OSC-8 data not being cleared when cell is overwritten
+  (https://codeberg.org/dnkl/foot/issues/804).
 
 
 ### Security
