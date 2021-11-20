@@ -3209,7 +3209,7 @@ term_print(struct terminal *term, wchar_t wc, int width)
     row->dirty = true;
     row->linebreak = true;
 
-    grid_row_uri_range_erase(row, col, col + width - 1);
+    int uri_start = col;
 
     /* Advance cursor the 'additional' columns while dirty:ing the cells */
     for (int i = 1; i < width && col < term->cols - 1; i++) {
@@ -3225,6 +3225,9 @@ term_print(struct terminal *term, wchar_t wc, int width)
         xassert(!grid->cursor.lcf);
 
     grid->cursor.point.col = col;
+
+    if (unlikely(row->extra != NULL))
+        grid_row_uri_range_erase(row, uri_start, uri_start + width - 1);
 }
 
 static void
@@ -3255,7 +3258,7 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
     row->dirty = true;
     row->linebreak = true;
 
-    grid_row_uri_range_erase(row, col, col);
+    int uri_start = col;
 
     /* Advance cursor */
     if (unlikely(++col >= term->cols)) {
@@ -3265,6 +3268,9 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
         xassert(!grid->cursor.lcf);
 
     grid->cursor.point.col = col;
+
+    if (unlikely(row->extra != NULL))
+        grid_row_uri_range_erase(row, uri_start, uri_start);
 }
 
 static void
