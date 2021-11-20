@@ -27,6 +27,7 @@
 #include "util.h"
 #include "wayland.h"
 #include "xmalloc.h"
+#include "xsnprintf.h"
 
 static const uint32_t default_foreground = 0xdcdccc;
 static const uint32_t default_background = 0x111111;
@@ -604,17 +605,17 @@ value_to_enum(struct context *ctx, const char **value_map, int *res)
     }
 
     const size_t size = str_len + count * 4 + 1;
-    char *valid_values = xmalloc(size);
-    int idx = 0;
+    char valid_values[512];
+    size_t idx = 0;
+    xassert(size < sizeof(valid_values));
 
     for (size_t i = 0; i < count; i++)
-        idx += snprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
+        idx += xsnprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
 
     if (count > 0)
         valid_values[idx - 2] = '\0';
 
     LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
-    free(valid_values);
     *res = -1;
     return false;
 }
