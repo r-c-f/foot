@@ -29,7 +29,7 @@ sources:
 tasks:
   - debug: |
       mkdir -p bld/debug
-      meson --buildtype=debug -Dterminfo=disabled -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled  -Dfcft:test-text-shaping=true foot bld/debug
+      meson --buildtype=debug -Dterminfo=disabled -Dgrapheme-clustering=enabled -Dfcft:grapheme-shaping=enabled -Dfcft:run-shaping=enabled -Dfcft:test-text-shaping=true foot bld/debug
       ninja -C bld/debug -k0
       meson test -C bld/debug --print-errorlogs
   - release: |
