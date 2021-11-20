@@ -70,7 +70,7 @@ sixel_init(struct terminal *term, int p1, int p2, int p3)
 
     term->sixel.default_bg = term->sixel.transparent_bg
         ? 0x00000000u
-        : 0xffu << 24 | (term->vt.attrs.have_bg
+        : 0xffu << 24 | (term->vt.attrs.bg_src != COLOR_DEFAULT
                          ? term->vt.attrs.bg
                          : term->colors.bg);
 
