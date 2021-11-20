@@ -34,6 +34,6 @@ tasks:
       meson test -C bld/debug --print-errorlogs
   - release: |
       mkdir -p bld/release
-      meson --buildtype=minsize -Dterminfo=disabled -Dgrapheme-clustering=enabled -Dfcft:text-shaping=enabled  -Dfcft:test-text-shaping=true foot bld/release
+      meson --buildtype=minsize -Dterminfo=disabled -Dgrapheme-clustering=enabled -Dfcft:grapheme-shaping=enabled -Dfcft:run-shaping=enabled  -Dfcft:test-text-shaping=true foot bld/release
       ninja -C bld/release -k0
       meson test -C bld/release --print-errorlogs
