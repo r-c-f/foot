@@ -674,6 +674,8 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.mod_alt = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_ALT) ;
         seat->kbd.mod_ctrl = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CTRL);
         seat->kbd.mod_meta = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_LOGO);
+        seat->kbd.mod_caps = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CAPS);
+        seat->kbd.mod_num = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_NUM);
 
         seat->kbd.key_arrow_up = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "UP");
         seat->kbd.key_arrow_down = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "DOWN");
@@ -961,16 +963,30 @@ UNITTEST
     xassert(strcmp(info->seq, "\033[27;3;13~") == 0);
 }
 
-static void
-get_current_modifiers(const struct seat *seat,
-                      xkb_mod_mask_t *effective,
-                      xkb_mod_mask_t *consumed, uint32_t key)
+static xkb_mod_mask_t
+get_insignificant_modifiers(const struct seat *seat)
+{
+    const xkb_mod_mask_t caps = 1 << seat->kbd.mod_caps;
+    const xkb_mod_mask_t num = 1 << seat->kbd.mod_num;
+    return caps | num;
+}
+
+static xkb_mod_mask_t
+get_significant_modifiers(const struct seat *seat)
 {
     const xkb_mod_mask_t ctrl = 1 << seat->kbd.mod_ctrl;
     const xkb_mod_mask_t alt = 1 << seat->kbd.mod_alt;
     const xkb_mod_mask_t shift = 1 << seat->kbd.mod_shift;
     const xkb_mod_mask_t meta = 1 << seat->kbd.mod_meta;
-    const xkb_mod_mask_t significant = ctrl | alt | shift | meta;
+    return ctrl | alt | shift | meta;
+}
+
+static void
+get_current_modifiers(const struct seat *seat,
+                      xkb_mod_mask_t *effective,
+                      xkb_mod_mask_t *consumed, uint32_t key)
+{
+    const xkb_mod_mask_t significant = get_significant_modifiers(seat);
 
     if (effective != NULL) {
         *effective = xkb_state_serialize_mods(
@@ -984,17 +1000,42 @@ get_current_modifiers(const struct seat *seat,
     }
 }
 
+struct kbd_ctx {
+    xkb_layout_index_t layout;
+    xkb_keycode_t key;
+    xkb_keysym_t sym;
+
+    struct {
+        const xkb_keysym_t *syms;
+        size_t count;
+    } level0_syms;
+
+    xkb_mod_mask_t mods;
+    xkb_mod_mask_t consumed;
+
+    struct {
+        const uint8_t *buf;
+        size_t count;
+    } utf8;
+    uint32_t utf32;
+
+    enum xkb_compose_status compose_status;
+    enum wl_keyboard_key_state key_state;
+};
+
 static void
-legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
-                    xkb_mod_mask_t mods, xkb_mod_mask_t consumed,
-                    size_t count, const uint8_t utf8[static count],
-                    uint32_t state)
+legacy_kbd_protocol(struct seat *seat, struct terminal *term,
+                    const struct kbd_ctx *ctx)
 {
     enum modifier keymap_mods = MOD_NONE;
     keymap_mods |= seat->kbd.shift ? MOD_SHIFT : MOD_NONE;
     keymap_mods |= seat->kbd.alt ? MOD_ALT : MOD_NONE;
     keymap_mods |= seat->kbd.ctrl ? MOD_CTRL : MOD_NONE;
     keymap_mods |= seat->kbd.meta ? MOD_META : MOD_NONE;
+
+    const xkb_keysym_t sym = ctx->sym;
+    const size_t count = ctx->utf8.count;
+    const uint8_t *const utf8 = ctx->utf8.buf;
 
     const struct key_data *keymap;
     if (sym == XKB_KEY_Escape && keymap_mods == MOD_NONE && term->modify_escape_key) {
@@ -1095,16 +1136,18 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
 }
 
 static void
-kitty_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
-                   xkb_mod_mask_t mods, xkb_mod_mask_t consumed,
-                   size_t count, const uint8_t utf8[static count],
-                   uint32_t utf32, enum xkb_compose_status compose_status,
-                   uint32_t state)
+kitty_kbd_protocol(struct seat *seat, struct terminal *term,
+                   const struct kbd_ctx *ctx)
 {
-    /* TODO: shift seems to already have been excluded from ‘mods’*/
-    xkb_mod_mask_t effective = mods & ~consumed;
+    const xkb_mod_mask_t mods = ctx->mods;
+    const xkb_mod_mask_t consumed = ctx->consumed;
+    const xkb_mod_mask_t effective = mods & ~consumed;
+    const xkb_keysym_t sym = ctx->sym;
+    const uint32_t utf32 = ctx->utf32;
+    const uint8_t *const utf8 = ctx->utf8.buf;
+    const size_t count = ctx->utf8.count;
 
-    if (compose_status == XKB_COMPOSE_COMPOSED) {
+    if (ctx->compose_status == XKB_COMPOSE_COMPOSED) {
         term_to_slave(term, utf8, count);
         return;
     }
@@ -1225,8 +1268,64 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term, xkb_keysym_t sym,
                 return;
             }
 
-            /* TODO: this isn’t correct */
-            key = xkb_keysym_to_lower(sym);
+            /*
+             * Use keysym (typically its Unicode codepoint value).
+             *
+             * If the keysym is shifted, use its unshifted codepoint
+             * instead. In other words, ctrl+a and ctrl+shift+a should
+             * both use the same value for ‘key’ (97 - i.a. ‘a’).
+             *
+             * However, if a non-significant modifier was used to
+             * generate the symbol. This is needed since we cannot
+             * encode non-significant modifiers, and thus the “extra”
+             * modifier(s) would get lost.
+             *
+             * Example:
+             *
+             * the Swedish layout has ‘2’, QUOTATION MARK (“double
+             * quote”), ‘@’, and ‘²’ on the same key. ‘2’ is the base
+             * symbol.
+             *
+             * Shift+2 results in QUOTATION MARK
+             * AltGr+2 results in ‘@’
+             * AltGr+Shift+2 results in ‘²’
+             *
+             * The kitty kbd protocol can’t encode AltGr. So, if we
+             * always used the base symbol (‘2’), Alt+Shift+2 would
+             * result in the same escape sequence as
+             * AltGr+Alt+Shift+2.
+             *
+             * (yes, this matches what kitty does, as of 0.23.1)
+             */
+
+            /* Get the key’s shift level */
+            xkb_level_index_t lvl = xkb_state_key_get_level(
+                seat->kbd.xkb_state, ctx->key, ctx->layout);
+
+            /* And get all modifier combinations that, combined with
+             * the pressed key, results in the current shift level */
+            xkb_mod_mask_t masks[32];
+            size_t mask_count = xkb_keymap_key_get_mods_for_level(
+                seat->kbd.xkb_keymap, ctx->key, ctx->layout, lvl,
+                masks, ALEN(masks));
+
+            xkb_mod_mask_t significant = get_significant_modifiers(seat);
+            xkb_mod_mask_t insignificant = get_insignificant_modifiers(seat);
+
+            /* Check modifier combinations - if a combination has
+             * modifiers not in our set of ‘significant’ modifiers,
+             * use key sym as-is */
+            bool use_level0_sym = true;
+            for (size_t i = 0; i < mask_count; i++) {
+                if ((masks[i] & ~insignificant & ~significant) > 0) {
+                    use_level0_sym = false;
+                    break;
+                }
+            }
+
+            key = use_level0_sym && ctx->level0_syms.count > 0
+                ? ctx->level0_syms.syms[0]
+                : sym;
             final = 'u';
         }
         break;
@@ -1414,10 +1513,29 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         utf32 = xkb_state_key_get_utf32(seat->kbd.xkb_state, key);
     }
 
+    struct kbd_ctx ctx = {
+        .layout = layout_idx,
+        .key = key,
+        .sym = sym,
+        .level0_syms = {
+            .syms = raw_syms,
+            .count = raw_count,
+        },
+        .mods = mods,
+        .consumed = consumed,
+        .utf8 = {
+            .buf = utf8,
+            .count = count,
+        },
+        .utf32 = utf32,
+        .compose_status = compose_status,
+        .key_state = state,
+    };
+
     if (term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx] != 0)
-        kitty_kbd_protocol(seat, term, sym, mods, consumed, count, utf8, utf32, compose_status, state);
+        kitty_kbd_protocol(seat, term, &ctx);
     else
-        legacy_kbd_protocol(seat, term, sym, mods, consumed, count, utf8, state);
+        legacy_kbd_protocol(seat, term, &ctx);
 
     if (seat->kbd.xkb_compose_state != NULL)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
