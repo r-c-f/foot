@@ -1781,7 +1781,8 @@ erase_cell_range(struct terminal *term, struct row *row, int start, int end)
     } else
         memset(&row->cells[start], 0, (end - start + 1) * sizeof(row->cells[0]));
 
-    grid_row_uri_range_erase(row, start, end);
+    if (unlikely(row->extra != NULL))
+        grid_row_uri_range_erase(row, start, end);
 }
 
 static inline void
