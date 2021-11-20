@@ -877,8 +877,7 @@ out:
 void
 grid_row_uri_range_erase(struct row *row, int start, int end)
 {
-    if (likely(row->extra == NULL))
-        return;
+    xassert(row->extra != NULL);
 
     /* Split up, or remove, URI ranges affected by the erase */
     tll_foreach(row->extra->uri_ranges, it) {
