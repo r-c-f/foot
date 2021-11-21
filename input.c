@@ -1083,7 +1083,7 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
         int modify_param = mod_param_map[keymap_mods];
         xassert(modify_param != 0);
 
-        char reply[1024];
+        char reply[32];
         size_t n = xsnprintf(reply, sizeof(reply), "\x1b[27;%d;%d~", modify_param, sym);
         term_to_slave(term, reply, n);
     }
