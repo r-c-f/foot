@@ -2829,7 +2829,7 @@ term_mouse_grabbed(const struct terminal *term, struct seat *seat)
     return term->mouse_tracking == MOUSE_NONE ||
         (seat->kbd_focus == term &&
          seat->kbd.shift &&
-         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.meta);
+         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.super);
 }
 
 void

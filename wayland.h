@@ -194,7 +194,7 @@ struct seat {
         xkb_mod_index_t mod_shift;
         xkb_mod_index_t mod_alt;
         xkb_mod_index_t mod_ctrl;
-        xkb_mod_index_t mod_meta;
+        xkb_mod_index_t mod_super;
         xkb_mod_index_t mod_caps;
         xkb_mod_index_t mod_num;
 
@@ -208,7 +208,7 @@ struct seat {
         bool shift;
         bool alt;
         bool ctrl;
-        bool meta;
+        bool super;
 
         struct {
             key_binding_list_t key;

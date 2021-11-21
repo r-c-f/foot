@@ -368,8 +368,8 @@ conf_modifiers_to_mask(const struct seat *seat,
         mods |= modifiers->ctrl << seat->kbd.mod_ctrl;
     if (seat->kbd.mod_alt != XKB_MOD_INVALID)
         mods |= modifiers->alt << seat->kbd.mod_alt;
-    if (seat->kbd.mod_meta != XKB_MOD_INVALID)
-        mods |= modifiers->meta << seat->kbd.mod_meta;
+    if (seat->kbd.mod_super != XKB_MOD_INVALID)
+        mods |= modifiers->meta << seat->kbd.mod_super;
     return mods;
 }
 
@@ -677,7 +677,7 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.mod_shift = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_SHIFT);
         seat->kbd.mod_alt = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_ALT) ;
         seat->kbd.mod_ctrl = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CTRL);
-        seat->kbd.mod_meta = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_LOGO);
+        seat->kbd.mod_super = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_LOGO);
         seat->kbd.mod_caps = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CAPS);
         seat->kbd.mod_num = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_NUM);
 
@@ -688,8 +688,8 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
             seat->kbd.bind_significant |= 1 << seat->kbd.mod_alt;
         if (seat->kbd.mod_ctrl != XKB_MOD_INVALID)
             seat->kbd.bind_significant |= 1 << seat->kbd.mod_ctrl;
-        if (seat->kbd.mod_meta != XKB_MOD_INVALID)
-            seat->kbd.bind_significant |= 1 << seat->kbd.mod_meta;
+        if (seat->kbd.mod_super != XKB_MOD_INVALID)
+            seat->kbd.bind_significant |= 1 << seat->kbd.mod_super;
 
         seat->kbd.kitty_significant = seat->kbd.bind_significant;
         if (seat->kbd.mod_caps != XKB_MOD_INVALID)
@@ -801,7 +801,7 @@ keyboard_leave(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial,
     seat->kbd.shift = false;
     seat->kbd.alt = false;
     seat->kbd.ctrl = false;
-    seat->kbd.meta = false;
+    seat->kbd.super = false;
     if (seat->kbd.xkb_compose_state != NULL)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
 
@@ -1028,7 +1028,7 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
     keymap_mods |= seat->kbd.shift ? MOD_SHIFT : MOD_NONE;
     keymap_mods |= seat->kbd.alt ? MOD_ALT : MOD_NONE;
     keymap_mods |= seat->kbd.ctrl ? MOD_CTRL : MOD_NONE;
-    keymap_mods |= seat->kbd.meta ? MOD_META : MOD_NONE;
+    keymap_mods |= seat->kbd.super ? MOD_META : MOD_NONE;
 
     const xkb_keysym_t sym = ctx->sym;
     const size_t count = ctx->utf8.count;
@@ -1181,8 +1181,8 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         encoded_mods |= mods & (1 << seat->kbd.mod_alt)   ? (1 << 1) : 0;
     if (seat->kbd.mod_ctrl != XKB_MOD_INVALID)
         encoded_mods |= mods & (1 << seat->kbd.mod_ctrl)  ? (1 << 2) : 0;
-    if (seat->kbd.mod_meta != XKB_MOD_INVALID)
-        encoded_mods |= mods & (1 << seat->kbd.mod_meta)  ? (1 << 3) : 0;
+    if (seat->kbd.mod_super != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_super)  ? (1 << 3) : 0;
     if (seat->kbd.mod_caps != XKB_MOD_INVALID)
         encoded_mods |= mods & (1 << seat->kbd.mod_caps)  ? (1 << 6) : 0;
     if (seat->kbd.mod_num != XKB_MOD_INVALID)
@@ -1618,9 +1618,9 @@ keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial,
             ? xkb_state_mod_index_is_active(
                 seat->kbd.xkb_state, seat->kbd.mod_ctrl, XKB_STATE_MODS_EFFECTIVE)
             : false;
-        seat->kbd.meta = seat->kbd.mod_meta != XKB_MOD_INVALID
+        seat->kbd.super = seat->kbd.mod_super != XKB_MOD_INVALID
             ? xkb_state_mod_index_is_active(
-                seat->kbd.xkb_state, seat->kbd.mod_meta, XKB_STATE_MODS_EFFECTIVE)
+                seat->kbd.xkb_state, seat->kbd.mod_super, XKB_STATE_MODS_EFFECTIVE)
             : false;
     }
 
