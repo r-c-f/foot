@@ -1079,7 +1079,7 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
             [MOD_META | MOD_SHIFT | MOD_ALT | MOD_CTRL] = 16,
         };
 
-        xassert(keymap_mods < sizeof(mod_param_map) / sizeof(mod_param_map[0]));
+        xassert(keymap_mods < ALEN(mod_param_map));
         int modify_param = mod_param_map[keymap_mods];
         xassert(modify_param != 0);
 
