@@ -362,10 +362,14 @@ conf_modifiers_to_mask(const struct seat *seat,
                        const struct config_key_modifiers *modifiers)
 {
     xkb_mod_mask_t mods = 0;
-    mods |= modifiers->shift << seat->kbd.mod_shift;
-    mods |= modifiers->ctrl << seat->kbd.mod_ctrl;
-    mods |= modifiers->alt << seat->kbd.mod_alt;
-    mods |= modifiers->meta << seat->kbd.mod_meta;
+    if (seat->kbd.mod_shift != XKB_MOD_INVALID)
+        mods |= modifiers->shift << seat->kbd.mod_shift;
+    if (seat->kbd.mod_ctrl != XKB_MOD_INVALID)
+        mods |= modifiers->ctrl << seat->kbd.mod_ctrl;
+    if (seat->kbd.mod_alt != XKB_MOD_INVALID)
+        mods |= modifiers->alt << seat->kbd.mod_alt;
+    if (seat->kbd.mod_meta != XKB_MOD_INVALID)
+        mods |= modifiers->meta << seat->kbd.mod_meta;
     return mods;
 }
 
@@ -677,15 +681,21 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.mod_caps = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CAPS);
         seat->kbd.mod_num = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_NUM);
 
-        seat->kbd.bind_significant =
-            1 << seat->kbd.mod_shift |
-            1 << seat->kbd.mod_alt |
-            1 << seat->kbd.mod_ctrl |
-            1 << seat->kbd.mod_meta;
+        seat->kbd.bind_significant = 0;
+        if (seat->kbd.mod_shift != XKB_MOD_INVALID)
+            seat->kbd.bind_significant |= 1 << seat->kbd.mod_shift;
+        if (seat->kbd.mod_alt != XKB_MOD_INVALID)
+            seat->kbd.bind_significant |= 1 << seat->kbd.mod_alt;
+        if (seat->kbd.mod_ctrl != XKB_MOD_INVALID)
+            seat->kbd.bind_significant |= 1 << seat->kbd.mod_ctrl;
+        if (seat->kbd.mod_meta != XKB_MOD_INVALID)
+            seat->kbd.bind_significant |= 1 << seat->kbd.mod_meta;
 
-        seat->kbd.kitty_significant = seat->kbd.bind_significant |
-            1 << seat->kbd.mod_caps |
-            1 << seat->kbd.mod_num;
+        seat->kbd.kitty_significant = seat->kbd.bind_significant;
+        if (seat->kbd.mod_caps != XKB_MOD_INVALID)
+            seat->kbd.kitty_significant |= 1 << seat->kbd.mod_caps;
+        if (seat->kbd.mod_num != XKB_MOD_INVALID)
+            seat->kbd.kitty_significant |= 1 << seat->kbd.mod_num;
 
         seat->kbd.key_arrow_up = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "UP");
         seat->kbd.key_arrow_down = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "DOWN");
@@ -1129,6 +1139,9 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     const xkb_mod_mask_t mods = ctx->mods & seat->kbd.kitty_significant;
     const xkb_mod_mask_t consumed = ctx->consumed & seat->kbd.kitty_significant;
     const xkb_mod_mask_t effective = mods & ~consumed;
+    const xkb_mod_mask_t caps_num =
+        (seat->kbd.mod_caps != XKB_MOD_INVALID ? 1 << seat->kbd.mod_caps : 0) |
+        (seat->kbd.mod_num != XKB_MOD_INVALID ? 1 << seat->kbd.mod_num : 0);
     const xkb_keysym_t sym = ctx->sym;
     const uint32_t utf32 = ctx->utf32;
     const uint8_t *const utf8 = ctx->utf8.buf;
@@ -1156,20 +1169,24 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
      * keys, like Return and Backspace; figure out if there’s some
      * better magic than filtering out Caps- and Num-Lock here..
      */
-    if (iswprint(utf32) && (effective & ~(1 << seat->kbd.mod_caps |
-                                          1 << seat->kbd.mod_num)) == 0)
-    {
+    if (iswprint(utf32) && (effective & ~caps_num) == 0) {
         term_to_slave(term, utf8, count);
         return;
     }
 
     unsigned int encoded_mods = 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_shift) ? (1 << 0) : 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_alt)   ? (1 << 1) : 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_ctrl)  ? (1 << 2) : 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_meta)  ? (1 << 3) : 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_caps)  ? (1 << 6) : 0;
-    encoded_mods |= mods & (1 << seat->kbd.mod_num)   ? (1 << 7) : 0;
+    if (seat->kbd.mod_shift != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_shift) ? (1 << 0) : 0;
+    if (seat->kbd.mod_alt != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_alt)   ? (1 << 1) : 0;
+    if (seat->kbd.mod_ctrl != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_ctrl)  ? (1 << 2) : 0;
+    if (seat->kbd.mod_meta != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_meta)  ? (1 << 3) : 0;
+    if (seat->kbd.mod_caps != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_caps)  ? (1 << 6) : 0;
+    if (seat->kbd.mod_num != XKB_MOD_INVALID)
+        encoded_mods |= mods & (1 << seat->kbd.mod_num)   ? (1 << 7) : 0;
     encoded_mods++;
 
     int key = -1;
@@ -1577,14 +1594,22 @@ keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial,
             seat->kbd.xkb_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
 
         /* Update state of modifiers we're interested in for e.g mouse events */
-        seat->kbd.shift = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_shift, XKB_STATE_MODS_EFFECTIVE);
-        seat->kbd.alt = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_alt, XKB_STATE_MODS_EFFECTIVE);
-        seat->kbd.ctrl = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_ctrl, XKB_STATE_MODS_EFFECTIVE);
-        seat->kbd.meta = xkb_state_mod_index_is_active(
-            seat->kbd.xkb_state, seat->kbd.mod_meta, XKB_STATE_MODS_EFFECTIVE);
+        seat->kbd.shift = seat->kbd.mod_shift != XKB_MOD_INVALID
+            ? xkb_state_mod_index_is_active(
+                seat->kbd.xkb_state, seat->kbd.mod_shift, XKB_STATE_MODS_EFFECTIVE)
+            : false;
+        seat->kbd.alt = seat->kbd.mod_alt != XKB_MOD_INVALID
+            ? xkb_state_mod_index_is_active(
+                seat->kbd.xkb_state, seat->kbd.mod_alt, XKB_STATE_MODS_EFFECTIVE)
+            : false;
+        seat->kbd.ctrl = seat->kbd.mod_ctrl != XKB_MOD_INVALID
+            ? xkb_state_mod_index_is_active(
+                seat->kbd.xkb_state, seat->kbd.mod_ctrl, XKB_STATE_MODS_EFFECTIVE)
+            : false;
+        seat->kbd.meta = seat->kbd.mod_meta != XKB_MOD_INVALID
+            ? xkb_state_mod_index_is_active(
+                seat->kbd.xkb_state, seat->kbd.mod_meta, XKB_STATE_MODS_EFFECTIVE)
+            : false;
     }
 
     if (seat->kbd_focus && seat->kbd_focus->active_surface == TERM_SURF_GRID)
@@ -2304,7 +2329,8 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                     /* Ignore Shift when matching modifiers, since it is
                      * used to enable selection in mouse grabbing client
                      * applications */
-                    mods &= ~(1 << seat->kbd.mod_shift);
+                    if (seat->kbd.mod_shift != XKB_MOD_INVALID)
+                        mods &= ~(1 << seat->kbd.mod_shift);
 
                     const struct mouse_binding *match = NULL;
 
