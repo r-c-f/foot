@@ -1098,10 +1098,10 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
          *
          * #1 is configured with \E[?1036, and is on by default
          *
-         * If #1 has been disabled, we use #2, *if* it's a single
-         * byte we're emitting. Since this is an UTF-8 terminal,
-         * we then UTF8-encode the 8-bit character. #2 is
-         * configured with \E[?1034, and is on by default.
+         * If #1 has been disabled, we use #2, *if* it's a single byte
+         * we're emitting. Since this is a UTF-8 terminal, we then
+         * UTF8-encode the 8-bit character. #2 is configured with
+         * \E[?1034, and is on by default.
          *
          * Lastly, if both #1 and #2 have been disabled, the alt
          * modifier is ignored.
