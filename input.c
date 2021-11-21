@@ -677,6 +677,16 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.mod_caps = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_CAPS);
         seat->kbd.mod_num = xkb_keymap_mod_get_index(seat->kbd.xkb_keymap, XKB_MOD_NAME_NUM);
 
+        seat->kbd.bind_significant =
+            1 << seat->kbd.mod_shift |
+            1 << seat->kbd.mod_alt |
+            1 << seat->kbd.mod_ctrl |
+            1 << seat->kbd.mod_meta;
+
+        seat->kbd.kitty_significant = seat->kbd.bind_significant |
+            1 << seat->kbd.mod_caps |
+            1 << seat->kbd.mod_num;
+
         seat->kbd.key_arrow_up = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "UP");
         seat->kbd.key_arrow_down = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "DOWN");
     }
@@ -963,41 +973,18 @@ UNITTEST
     xassert(strcmp(info->seq, "\033[27;3;13~") == 0);
 }
 
-static xkb_mod_mask_t
-get_insignificant_modifiers(const struct seat *seat)
-{
-    const xkb_mod_mask_t caps = 1 << seat->kbd.mod_caps;
-    const xkb_mod_mask_t num = 1 << seat->kbd.mod_num;
-    return caps | num;
-}
-
-static xkb_mod_mask_t
-get_significant_modifiers(const struct seat *seat)
-{
-    const xkb_mod_mask_t ctrl = 1 << seat->kbd.mod_ctrl;
-    const xkb_mod_mask_t alt = 1 << seat->kbd.mod_alt;
-    const xkb_mod_mask_t shift = 1 << seat->kbd.mod_shift;
-    const xkb_mod_mask_t meta = 1 << seat->kbd.mod_meta;
-    return ctrl | alt | shift | meta;
-}
-
 static void
 get_current_modifiers(const struct seat *seat,
                       xkb_mod_mask_t *effective,
                       xkb_mod_mask_t *consumed, uint32_t key)
 {
-    const xkb_mod_mask_t significant = get_significant_modifiers(seat);
-
     if (effective != NULL) {
         *effective = xkb_state_serialize_mods(
             seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
-        *effective &= significant;
     }
 
-    if (consumed != NULL) {
+    if (consumed != NULL)
         *consumed = xkb_state_key_get_consumed_mods(seat->kbd.xkb_state, key);
-        *consumed &= significant;
-    }
 }
 
 struct kbd_ctx {
@@ -1139,8 +1126,8 @@ static void
 kitty_kbd_protocol(struct seat *seat, struct terminal *term,
                    const struct kbd_ctx *ctx)
 {
-    const xkb_mod_mask_t mods = ctx->mods;
-    const xkb_mod_mask_t consumed = ctx->consumed;
+    const xkb_mod_mask_t mods = ctx->mods & seat->kbd.kitty_significant;
+    const xkb_mod_mask_t consumed = ctx->consumed & seat->kbd.kitty_significant;
     const xkb_mod_mask_t effective = mods & ~consumed;
     const xkb_keysym_t sym = ctx->sym;
     const uint32_t utf32 = ctx->utf32;
@@ -1170,6 +1157,8 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     encoded_mods |= mods & (1 << seat->kbd.mod_alt)   ? (1 << 1) : 0;
     encoded_mods |= mods & (1 << seat->kbd.mod_ctrl)  ? (1 << 2) : 0;
     encoded_mods |= mods & (1 << seat->kbd.mod_meta)  ? (1 << 3) : 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_caps)  ? (1 << 6) : 0;
+    encoded_mods |= mods & (1 << seat->kbd.mod_num)   ? (1 << 7) : 0;
     encoded_mods++;
 
     int key = -1;
@@ -1309,15 +1298,12 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
                 seat->kbd.xkb_keymap, ctx->key, ctx->layout, lvl,
                 masks, ALEN(masks));
 
-            xkb_mod_mask_t significant = get_significant_modifiers(seat);
-            xkb_mod_mask_t insignificant = get_insignificant_modifiers(seat);
-
             /* Check modifier combinations - if a combination has
              * modifiers not in our set of ‘significant’ modifiers,
              * use key sym as-is */
             bool use_level0_sym = true;
             for (size_t i = 0; i < mask_count; i++) {
-                if ((masks[i] & ~insignificant & ~significant) > 0) {
+                if ((masks[i] & ~seat->kbd.kitty_significant) > 0) {
                     use_level0_sym = false;
                     break;
                 }
@@ -1403,6 +1389,9 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     xkb_mod_mask_t mods, consumed;
     get_current_modifiers(seat, &mods, &consumed, key);
 
+    xkb_mod_mask_t bind_mods = mods & seat->kbd.bind_significant;
+    xkb_mod_mask_t bind_consumed = consumed & seat->kbd.bind_significant;
+
     xkb_layout_index_t layout_idx =
         xkb_state_key_get_layout(seat->kbd.xkb_state, key);
 
@@ -1414,13 +1403,13 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         if (should_repeat)
             start_repeater(seat, key);
         search_input(
-            seat, term, key, sym, mods, consumed, raw_syms, raw_count, serial);
+            seat, term, key, sym, bind_mods, bind_consumed, raw_syms, raw_count, serial);
         return;
     } else  if (urls_mode_is_active(term)) {
         if (should_repeat)
             start_repeater(seat, key);
         urls_input(
-            seat, term, key, sym, mods, consumed, raw_syms, raw_count, serial);
+            seat, term, key, sym, bind_mods, bind_consumed, raw_syms, raw_count, serial);
         return;
     }
 
@@ -1450,14 +1439,14 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
 
         /* Match translated symbol */
         if (bind->sym == sym &&
-            bind->mods == (mods & ~consumed) &&
+            bind->mods == (bind_mods & ~bind_consumed) &&
             execute_binding(
                 seat, term, bind->action, bind->pipe_argv, serial))
         {
             goto maybe_repeat;
         }
 
-        if (bind->mods != mods)
+        if (bind->mods != bind_mods)
             continue;
 
         /* Match untranslated symbols */
@@ -2299,6 +2288,7 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
 
                     xkb_mod_mask_t mods;
                     get_current_modifiers(seat, &mods, NULL, 0);
+                    mods &= seat->kbd.bind_significant;
 
                     /* Ignore Shift when matching modifiers, since it is
                      * used to enable selection in mouse grabbing client
