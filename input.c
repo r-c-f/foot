@@ -1291,67 +1291,23 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     case XKB_KEY_XF86AudioRaiseVolume: key = 57439; final = 'u'; break;
     case XKB_KEY_XF86AudioMute:        key = 57440; final = 'u'; break;
 
-    case XKB_KEY_Caps_Lock:
-        if (seat->kbd.mod_caps == XKB_MOD_INVALID) {
-            key = 57358;
-            final = 'u';
-        }
-        break;
+#if 0  /* TODO: enable when “Report all keys as escape codes” is enabled */
+    case XKB_KEY_Caps_Lock: key = 57358; final = 'u'; break;
+    case XKB_KEY_Num_Lock:  key = 57360; final = 'u'; break;
 
-    case XKB_KEY_Num_Lock:
-        if (seat->kbd.mod_num == XKB_MOD_INVALID) {
-            key = 57360;
-            final = 'u';
-        }
-        break;
-
-    case XKB_KEY_Shift_L:
-    case XKB_KEY_Shift_R:
-        if (seat->kbd.mod_shift == XKB_MOD_INVALID) {
-            key = sym == XKB_KEY_Shift_L ? 57441 : 57447;
-            final = 'u';
-        }
-        break;
-
-    case XKB_KEY_Control_L:
-    case XKB_KEY_Control_R:
-        if (seat->kbd.mod_ctrl == XKB_MOD_INVALID) {
-            key = sym == XKB_KEY_Control_L ? 57442 : 57448;
-            final = 'u';
-        }
-        break;
-
-    case XKB_KEY_Alt_L:
-    case XKB_KEY_Alt_R:
-        if (seat->kbd.mod_alt == XKB_MOD_INVALID) {
-            key = sym == XKB_KEY_Alt_L ? 57443 : 57449;
-            final = 'u';
-        }
-        break;
-
-    case XKB_KEY_Super_L:
-    case XKB_KEY_Super_R:
-        if (seat->kbd.mod_super == XKB_MOD_INVALID) {
-            key = sym == XKB_KEY_Super_L ? 57444 : 57450;
-            final = 'u';
-        }
-        break;
-
-    case XKB_KEY_Hyper_L:
-    case XKB_KEY_Hyper_R:
-        //if (seat->kbd.mod_hyper == XKB_MOD_INVALID) {
-        key = sym == XKB_KEY_Hyper_L ? 57445 : 57451;
-        final = 'u';
-        //}
-        break;
-
-    case XKB_KEY_Meta_L:
-    case XKB_KEY_Meta_R:
-        //if (seat->kbd.mod_meta == XKB_MOD_INVALID) {
-        key = sym == XKB_KEY_Meta_L ? 57446 : 57452;
-        final = 'u';
-        //}
-        break;
+    case XKB_KEY_Shift_L:   key = 57441; final = 'u'; break;
+    case XKB_KEY_Control_L: key = 57442; final = 'u'; break;
+    case XKB_KEY_Alt_L:     key = 57443; final = 'u'; break;
+    case XKB_KEY_Super_L:   key = 57444; final = 'u'; break;
+    case XKB_KEY_Hyper_L:   key = 57445; final = 'u'; break;
+    case XKB_KEY_Meta_L:    key = 57446; final = 'u'; break;
+    case XKB_KEY_Shift_R:   key = 57447; final = 'u'; break;
+    case XKB_KEY_Control_R: key = 57448; final = 'u'; break;
+    case XKB_KEY_Alt_R:     key = 57449; final = 'u'; break;
+    case XKB_KEY_Super_R:   key = 57450; final = 'u'; break;
+    case XKB_KEY_Hyper_R:   key = 57451; final = 'u'; break;
+    case XKB_KEY_Meta_R:    key = 57452; final = 'u'; break;
+#endif
 
     default:
         if (count > 0) {
