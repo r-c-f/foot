@@ -1014,8 +1014,6 @@ parse_section_main(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
@@ -2267,29 +2265,10 @@ parse_section_tweak(struct context *ctx)
             return false;
         }
 
-        switch (mode) {
-        case 0:
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = false;
-            return true;
-
-        case 1:
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = false;
-            return true;
-
-        case 2:
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = true;
-            return true;
-
-        case 3:
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = true;
-            return true;
-        }
-
-        UNREACHABLE();
+        xassert(0 <= mode && mode <= 3);
+        conf->tweak.render_timer_osd = mode == 1 || mode == 3;
+        conf->tweak.render_timer_log = mode == 2 || mode == 3;
+        return true;
     }
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
@@ -2342,8 +2321,6 @@ parse_section_tweak(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
