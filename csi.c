@@ -1557,7 +1557,6 @@ csi_dispatch(struct terminal *term, uint8_t final)
             grid->kitty_kbd.flags[idx] = flags;
             grid->kitty_kbd.idx = idx;
 
-            xassert(grid->kitty_kbd.idx < ALEN(grid->kitty_kbd.flags));
             LOG_DBG("kitty kbd: pushed new flags: 0x%03x", flags);
             break;
         }
@@ -1607,7 +1606,6 @@ csi_dispatch(struct terminal *term, uint8_t final)
             }
 
             grid->kitty_kbd.idx = idx;
-            xassert(grid->kitty_kbd.idx < ALEN(grid->kitty_kbd.flags));
 
             LOG_DBG("kitty kbd: flags after pop: 0x%03x",
                     term->grid->kitty_kbd.flags[idx]);
