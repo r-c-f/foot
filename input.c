@@ -1196,6 +1196,7 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     case XKB_KEY_Escape:       key = 27;    final = 'u'; break;
     case XKB_KEY_Return:       key = 13;    final = 'u'; break;
     case XKB_KEY_Tab:          key = 9;     final = 'u'; break;
+    case XKB_KEY_ISO_Left_Tab: key = 9;     final = 'u'; break;
     case XKB_KEY_BackSpace:    key = 127;   final = 'u'; break;
     case XKB_KEY_Insert:       key = 2;     final = '~'; break;
     case XKB_KEY_Delete:       key = 3;     final = '~'; break;
