@@ -3193,9 +3193,6 @@ term_print(struct terminal *term, wchar_t wc, int width)
         for (size_t i = col; i < term->cols; i++)
             print_spacer(term, i, 0);
 
-        if (grid->cur_row->extra != NULL)
-            grid_row_uri_range_erase(grid->cur_row, col, term->cols - 1);
-
         /* And force a line-wrap */
         grid->cursor.lcf = 1;
         print_linewrap(term);
