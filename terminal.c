@@ -3196,6 +3196,7 @@ term_print(struct terminal *term, wchar_t wc, int width)
         /* And force a line-wrap */
         grid->cursor.lcf = 1;
         print_linewrap(term);
+        col = 0;
     }
 
     sixel_overwrite_at_cursor(term, width);
