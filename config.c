@@ -1645,9 +1645,9 @@ argv_compare(char *const *argv1, char *const *argv2)
  *  - argv: allocated array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
  */
 static ssize_t
-pipe_argv_from_value(struct context *ctx, char ***argv)
+pipe_argv_from_value(struct context *ctx, struct argv *argv)
 {
-    *argv = NULL;
+    argv->args = NULL;
 
     if (ctx->value[0] != '[')
         return 0;
@@ -1661,7 +1661,7 @@ pipe_argv_from_value(struct context *ctx, char ***argv)
     size_t pipe_len = pipe_cmd_end - ctx->value - 1;
     char *cmd = xstrndup(&ctx->value[1], pipe_len);
 
-    if (!tokenize_cmdline(cmd, argv)) {
+    if (!tokenize_cmdline(cmd, &argv->args)) {
         LOG_CONTEXTUAL_ERR("syntax error in command line");
         free(cmd);
         return -1;
@@ -1721,7 +1721,7 @@ parse_key_binding_section(struct context *ctx,
                           const char *const action_map[static action_count],
                           struct config_key_binding_list *bindings)
 {
-    char **pipe_argv;
+    struct argv pipe_argv;
 
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
@@ -1736,8 +1736,8 @@ parse_key_binding_section(struct context *ctx,
 
         /* Unset binding */
         if (strcasecmp(ctx->value, "none") == 0) {
-            remove_action_from_key_bindings_list(bindings, action, pipe_argv);
-            free(pipe_argv);
+            remove_action_from_key_bindings_list(bindings, action, pipe_argv.args);
+            free_argv(&pipe_argv);
             return true;
         }
 
@@ -1746,12 +1746,12 @@ parse_key_binding_section(struct context *ctx,
             has_key_binding_collisions(
                 ctx, action, action_map, bindings, &key_combos))
         {
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
             return false;
         }
 
-        remove_action_from_key_bindings_list(bindings, action, pipe_argv);
+        remove_action_from_key_bindings_list(bindings, action, pipe_argv.args);
 
         /* Emit key bindings */
         size_t ofs = bindings->count;
@@ -1767,9 +1767,7 @@ parse_key_binding_section(struct context *ctx,
                 .modifiers = combo->modifiers,
                 .sym = combo->sym,
                 .pipe = {
-                    .argv = {
-                        .args = pipe_argv,
-                    },
+                    .argv = pipe_argv,
                     .master_copy = first,
                 },
             };
@@ -1784,7 +1782,7 @@ parse_key_binding_section(struct context *ctx,
     }
 
     LOG_CONTEXTUAL_ERR("not a valid action: %s", ctx->key);
-    free(pipe_argv);
+    free_argv(&pipe_argv);
     return false;
 }
 
@@ -2097,7 +2095,7 @@ parse_section_mouse_bindings(struct context *ctx)
     const char *key = ctx->key;
     const char *value = ctx->value;
 
-    char **pipe_argv;
+    struct argv pipe_argv;
 
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
@@ -2125,7 +2123,7 @@ parse_section_mouse_bindings(struct context *ctx)
                     binding->action = BIND_ACTION_NONE;
                 }
             }
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             return true;
         }
 
@@ -2133,7 +2131,7 @@ parse_section_mouse_bindings(struct context *ctx)
         if (!value_to_mouse_combos(ctx, &key_combos) ||
             has_mouse_binding_collisions(ctx, &key_combos))
         {
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
             return false;
         }
@@ -2143,9 +2141,9 @@ parse_section_mouse_bindings(struct context *ctx)
             struct config_mouse_binding *binding = &conf->bindings.mouse.arr[i];
 
             if (binding->action == action &&
-                ((binding->pipe.argv.args == NULL && pipe_argv == NULL) ||
-                 (binding->pipe.argv.args != NULL && pipe_argv != NULL &&
-                  argv_compare(binding->pipe.argv.args, pipe_argv) == 0)))
+                ((binding->pipe.argv.args == NULL && pipe_argv.args == NULL) ||
+                 (binding->pipe.argv.args != NULL && pipe_argv.args != NULL &&
+                  argv_compare(binding->pipe.argv.args, pipe_argv.args) == 0)))
             {
                 if (binding->pipe.master_copy)
                     free_argv(&binding->pipe.argv);
@@ -2169,9 +2167,7 @@ parse_section_mouse_bindings(struct context *ctx)
                 .button = combo->m.button,
                 .count = combo->m.count,
                 .pipe = {
-                    .argv = {
-                        .args = pipe_argv,
-                    },
+                    .argv = pipe_argv,
                     .master_copy = first,
                 },
             };
@@ -2185,7 +2181,7 @@ parse_section_mouse_bindings(struct context *ctx)
     }
 
     LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
-    free(pipe_argv);
+    free_argv(&pipe_argv);
     return false;
 }
 
