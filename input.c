@@ -1190,9 +1190,9 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     case XKB_KEY_Page_Down:    key = 6;     final = '~'; break;
     case XKB_KEY_Home:         key = 1;     final = 'H'; break;
     case XKB_KEY_End:          key = 1;     final = 'F'; break;
-    case XKB_KEY_Caps_Lock:    key = 57358; final = 'u'; break;
+        //case XKB_KEY_Caps_Lock:    key = 57358; final = 'u'; break;
     case XKB_KEY_Scroll_Lock:  key = 57359; final = 'u'; break;
-    case XKB_KEY_Num_Lock:     key = 57360; final = 'u'; break;
+        //case XKB_KEY_Num_Lock:     key = 57360; final = 'u'; break;
     case XKB_KEY_Print:        key = 57361; final = 'u'; break;
     case XKB_KEY_Pause:        key = 57362; final = 'u'; break;
     case XKB_KEY_Menu:         key = 57363; final = 'u'; break;
