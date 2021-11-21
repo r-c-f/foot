@@ -1145,11 +1145,22 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         case XKB_KEY_BackSpace: term_to_slave(term, "\x7f", 1); return;
         case XKB_KEY_Tab:       term_to_slave(term, "\t", 1); return;
         }
+    }
 
-        if (iswprint(utf32)) {
-            term_to_slave(term, utf8, count);
-            return;
-        }
+    /*
+     * Printables without any modifiers are printed as is.
+     *
+     * TODO: plain text keys (a-z, 0-9 etc) are still printed as text,
+     * even when NumLock is active, despite NumLock being a
+     * significant modifier, *and* despite NumLock affecting other
+     * keys, like Return and Backspace; figure out if there’s some
+     * better magic than filtering out Caps- and Num-Lock here..
+     */
+    if (iswprint(utf32) && (effective & ~(1 << seat->kbd.mod_caps |
+                                          1 << seat->kbd.mod_num)) == 0)
+    {
+        term_to_slave(term, utf8, count);
+        return;
     }
 
     unsigned int encoded_mods = 0;
