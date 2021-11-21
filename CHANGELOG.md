@@ -49,6 +49,7 @@
 
 * Regression: `letter-spacing` resulting in a “not a valid option”
   error (https://codeberg.org/dnkl/foot/issues/795).
+* Regression: bad section name in configuration error messages.
 
 
 ### Security

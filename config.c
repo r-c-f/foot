@@ -2469,9 +2469,11 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;                           \
     }
 
+    char *section_name = xstrdup("main");
+
     struct context context = {
         .conf = conf,
-        .section = "main",
+        .section = section_name,
         .path = path,
         .lineno = 0,
         .errors_are_fatal = errors_are_fatal,
@@ -2539,7 +2541,9 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
                 error_or_continue();
             }
 
-            context.section = &key_value[1];
+            free(section_name);
+            section_name = xstrdup(&key_value[1]);
+            context.section = section_name;
 
             /* Process next line */
             continue;
@@ -2569,10 +2573,12 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             error_or_continue();
     }
 
+    free(section_name);
     free(_line);
     return true;
 
 err:
+    free(section_name);
     free(_line);
     return false;
 }
