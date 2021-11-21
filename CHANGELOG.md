@@ -50,6 +50,9 @@
 * Regression: `letter-spacing` resulting in a “not a valid option”
   error (https://codeberg.org/dnkl/foot/issues/795).
 * Regression: bad section name in configuration error messages.
+* Regression: `pipe-*` key bindings not being parsed correctly,
+  resulting in invalid error messages
+  (https://codeberg.org/dnkl/foot/issues/809).
 
 
 ### Security
