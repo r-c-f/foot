@@ -1639,12 +1639,12 @@ argv_compare(char *const *argv1, char *const *argv2)
  *          filled with {'cmd-to-exec', 'arg1', 'arg2', NULL}
  *
  * Returns:
- *  - ssize_t, number of bytes to strip from 'value' to remove the '[]'
+ *  - ssize_t, number of bytes that were stripped from 'value' to remove the '[]'
  *    enclosed cmd and its arguments, including any subsequent
  *    whitespace characters. I.e. if 'value' is "[cmd] BTN_RIGHT", the
  *    return value is 6 (strlen("[cmd] ")).
  *  - cmd: allocated string containing "cmd arg1 arg2...". Caller frees.
- *  - argv: allocatd array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
+ *  - argv: allocated array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
  */
 static ssize_t
 pipe_argv_from_value(struct context *ctx, char ***argv)
@@ -1728,8 +1728,6 @@ parse_key_binding_section(struct context *ctx,
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
-
-    ctx->value += pipe_remove_len;
 
     for (int action = 0; action < action_count; action++) {
         if (action_map[action] == NULL)
@@ -2106,8 +2104,6 @@ parse_section_mouse_bindings(struct context *ctx)
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
-
-    value += pipe_remove_len;
 
     for (enum bind_action_normal action = 0;
          action < BIND_ACTION_COUNT;
