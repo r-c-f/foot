@@ -3202,15 +3202,14 @@ term_print(struct terminal *term, wchar_t wc, int width)
 
     /* *Must* get current cell *after* linewrap+insert */
     struct row *row = grid->cur_row;
-    struct cell *cell = &row->cells[col];
-
-    cell->wc = term->vt.last_printed = wc;
-    cell->attrs = term->vt.attrs;
-
     row->dirty = true;
     row->linebreak = true;
 
-    int uri_start = col;
+    struct cell *cell = &row->cells[col];
+    cell->wc = term->vt.last_printed = wc;
+    cell->attrs = term->vt.attrs;
+
+    const int uri_start = col;
 
     /* Advance cursor the 'additional' columns while dirty:ing the cells */
     for (int i = 1; i < width && col < term->cols - 1; i++) {
@@ -3250,16 +3249,16 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
 
     /* *Must* get current cell *after* linewrap+insert */
     int col = grid->cursor.point.col;
+    const int uri_start = col;
+
     struct row *row = grid->cur_row;
-    struct cell *cell = &row->cells[col];
-
-    cell->wc = term->vt.last_printed = wc;
-    cell->attrs = term->vt.attrs;
-
     row->dirty = true;
     row->linebreak = true;
 
-    int uri_start = col;
+    struct cell *cell = &row->cells[col];
+    cell->wc = term->vt.last_printed = wc;
+    cell->attrs = term->vt.attrs;
+
 
     /* Advance cursor */
     if (unlikely(++col >= term->cols)) {
