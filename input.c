@@ -1277,6 +1277,20 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     case XKB_KEY_KP_Delete:    key = 57426; final = 'u'; break;
     case XKB_KEY_KP_Begin:     key = 1;     final = 'E'; break;
 
+    case XKB_KEY_XF86AudioPlay:        key = 57428; final = 'u'; break;
+    case XKB_KEY_XF86AudioPause:       key = 57429; final = 'u'; break;
+        //case XKB_KEY_XF86AudioPlayPause: key = 57430; final = 'u'; break;
+        //case XKB_KEY_XF86AudioReverse: key = 57431; final = 'u'; break;
+    case XKB_KEY_XF86AudioStop:        key = 57432; final = 'u'; break;
+    case XKB_KEY_XF86AudioForward:     key = 57433; final = 'u'; break;
+    case XKB_KEY_XF86AudioRewind:      key = 57434; final = 'u'; break;
+    case XKB_KEY_XF86AudioNext:        key = 57435; final = 'u'; break;
+    case XKB_KEY_XF86AudioPrev:        key = 57436; final = 'u'; break;
+    case XKB_KEY_XF86AudioRecord:      key = 57437; final = 'u'; break;
+    case XKB_KEY_XF86AudioLowerVolume: key = 57438; final = 'u'; break;
+    case XKB_KEY_XF86AudioRaiseVolume: key = 57439; final = 'u'; break;
+    case XKB_KEY_XF86AudioMute:        key = 57440; final = 'u'; break;
+
     case XKB_KEY_Caps_Lock:
         if (seat->kbd.mod_caps == XKB_MOD_INVALID) {
             key = 57358;
