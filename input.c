@@ -1305,6 +1305,54 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         }
         break;
 
+    case XKB_KEY_Shift_L:
+    case XKB_KEY_Shift_R:
+        if (seat->kbd.mod_shift == XKB_MOD_INVALID) {
+            key = sym == XKB_KEY_Shift_L ? 57441 : 57447;
+            final = 'u';
+        }
+        break;
+
+    case XKB_KEY_Control_L:
+    case XKB_KEY_Control_R:
+        if (seat->kbd.mod_ctrl == XKB_MOD_INVALID) {
+            key = sym == XKB_KEY_Control_L ? 57442 : 57448;
+            final = 'u';
+        }
+        break;
+
+    case XKB_KEY_Alt_L:
+    case XKB_KEY_Alt_R:
+        if (seat->kbd.mod_alt == XKB_MOD_INVALID) {
+            key = sym == XKB_KEY_Alt_L ? 57443 : 57449;
+            final = 'u';
+        }
+        break;
+
+    case XKB_KEY_Super_L:
+    case XKB_KEY_Super_R:
+        if (seat->kbd.mod_super == XKB_MOD_INVALID) {
+            key = sym == XKB_KEY_Super_L ? 57444 : 57450;
+            final = 'u';
+        }
+        break;
+
+    case XKB_KEY_Hyper_L:
+    case XKB_KEY_Hyper_R:
+        //if (seat->kbd.mod_hyper == XKB_MOD_INVALID) {
+        key = sym == XKB_KEY_Hyper_L ? 57445 : 57451;
+        final = 'u';
+        //}
+        break;
+
+    case XKB_KEY_Meta_L:
+    case XKB_KEY_Meta_R:
+        //if (seat->kbd.mod_meta == XKB_MOD_INVALID) {
+        key = sym == XKB_KEY_Meta_L ? 57446 : 57452;
+        final = 'u';
+        //}
+        break;
+
     default:
         if (count > 0) {
             if (effective == 0) {
