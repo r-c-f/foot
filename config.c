@@ -1557,11 +1557,40 @@ err:
     return false;
 }
 
+static int
+argv_compare(const struct argv *argv1, const struct argv *argv2)
+{
+    if (argv1->args == NULL && argv2->args == NULL)
+        return 0;
+
+    if (argv1->args == NULL)
+        return -1;
+    if (argv2->args == NULL)
+        return 1;
+
+    for (size_t i = 0; ; i++) {
+        if (argv1->args[i] == NULL && argv2->args[i] == NULL)
+            return 0;
+        if (argv1->args[i] == NULL)
+            return -1;
+        if (argv2->args[i] == NULL)
+            return 1;
+
+        int ret = strcmp(argv1->args[i], argv2->args[i]);
+        if (ret != 0)
+            return ret;
+    }
+
+    BUG("unexpected loop break");
+    return 1;
+}
+
 static bool
 has_key_binding_collisions(struct context *ctx,
                            int action, const char *const action_map[],
                            const struct config_key_binding_list *bindings,
-                           const struct key_combo_list *key_combos)
+                           const struct key_combo_list *key_combos,
+                           const struct argv *pipe_argv)
 {
     for (size_t j = 0; j < bindings->count; j++) {
         const struct config_key_binding *combo1 = &bindings->arr[j];
@@ -1569,8 +1598,10 @@ has_key_binding_collisions(struct context *ctx,
         if (combo1->action == BIND_ACTION_NONE)
             continue;
 
-        if (combo1->action == action)
-            continue;
+        if (combo1->action == action) {
+            if (argv_compare(&combo1->pipe.argv, pipe_argv) == 0)
+                continue;
+        }
 
         for (size_t i = 0; i < key_combos->count; i++) {
             const struct key_combo *combo2 = &key_combos->combos[i];
@@ -1598,29 +1629,6 @@ has_key_binding_collisions(struct context *ctx,
     }
 
     return false;
-}
-
-static int
-argv_compare(char *const *argv1, char *const *argv2)
-{
-    xassert(argv1 != NULL);
-    xassert(argv2 != NULL);
-
-    for (size_t i = 0; ; i++) {
-        if (argv1[i] == NULL && argv2[i] == NULL)
-            return 0;
-        if (argv1[i] == NULL)
-            return -1;
-        if (argv2[i] == NULL)
-            return 1;
-
-        int ret = strcmp(argv1[i], argv2[i]);
-        if (ret != 0)
-            return ret;
-    }
-
-    BUG("unexpected loop break");
-    return 1;
 }
 
 /*
@@ -1680,7 +1688,7 @@ pipe_argv_from_value(struct context *ctx, struct argv *argv)
 
 static void NOINLINE
 remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
-                                     int action, char **pipe_argv)
+                                     int action, const struct argv *pipe_argv)
 {
     size_t remove_first_idx = 0;
     size_t remove_count = 0;
@@ -1688,11 +1696,10 @@ remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
     for (size_t i = 0; i < bindings->count; i++) {
         struct config_key_binding *binding = &bindings->arr[i];
 
-        if (binding->action == action &&
-            ((binding->pipe.argv.args == NULL && pipe_argv == NULL) ||
-             (binding->pipe.argv.args != NULL && pipe_argv != NULL &&
-              argv_compare(binding->pipe.argv.args, pipe_argv) == 0)))
-        {
+        if (binding->action != action)
+            continue;
+
+        if (argv_compare(&binding->pipe.argv, pipe_argv) == 0) {
             if (remove_count++ == 0)
                 remove_first_idx = i;
 
@@ -1736,7 +1743,7 @@ parse_key_binding_section(struct context *ctx,
 
         /* Unset binding */
         if (strcasecmp(ctx->value, "none") == 0) {
-            remove_action_from_key_bindings_list(bindings, action, pipe_argv.args);
+            remove_action_from_key_bindings_list(bindings, action, &pipe_argv);
             free_argv(&pipe_argv);
             return true;
         }
@@ -1744,14 +1751,14 @@ parse_key_binding_section(struct context *ctx,
         struct key_combo_list key_combos = {0};
         if (!value_to_key_combos(ctx, &key_combos) ||
             has_key_binding_collisions(
-                ctx, action, action_map, bindings, &key_combos))
+                ctx, action, action_map, bindings, &key_combos, &pipe_argv))
         {
             free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
             return false;
         }
 
-        remove_action_from_key_bindings_list(bindings, action, pipe_argv.args);
+        remove_action_from_key_bindings_list(bindings, action, &pipe_argv);
 
         /* Emit key bindings */
         size_t ofs = bindings->count;
@@ -2140,11 +2147,10 @@ parse_section_mouse_bindings(struct context *ctx)
         for (size_t i = 0; i < conf->bindings.mouse.count; i++) {
             struct config_mouse_binding *binding = &conf->bindings.mouse.arr[i];
 
-            if (binding->action == action &&
-                ((binding->pipe.argv.args == NULL && pipe_argv.args == NULL) ||
-                 (binding->pipe.argv.args != NULL && pipe_argv.args != NULL &&
-                  argv_compare(binding->pipe.argv.args, pipe_argv.args) == 0)))
-            {
+            if (binding->action != action)
+                continue;
+
+            if (argv_compare(&binding->pipe.argv, &pipe_argv) == 0) {
                 if (binding->pipe.master_copy)
                     free_argv(&binding->pipe.argv);
                 binding->action = BIND_ACTION_NONE;
