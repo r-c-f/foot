@@ -1543,7 +1543,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
             break; /* final == 'm' */
 
         case 'u': {
-            int flags = vt_param_get(term, 0, 0) & KITTY_KBD_MASK;
+            int flags = vt_param_get(term, 0, 0) & KITTY_KBD_SUPPORTED;
 
             struct grid *grid = term->grid;
             uint8_t idx = grid->kitty_kbd.idx;
@@ -1693,7 +1693,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
             break;
 
         case 'u': {
-            int flag_set = vt_param_get(term, 0, 0) & KITTY_KBD_MASK;
+            int flag_set = vt_param_get(term, 0, 0) & KITTY_KBD_SUPPORTED;
             int mode = vt_param_get(term, 1, 1);
 
             struct grid *grid = term->grid;
