@@ -2248,7 +2248,7 @@ parse_section_tweak(struct context *ctx)
 
         return value_to_enum(
             ctx,
-            (const char *[]){"wcswidth", "double-width", NULL},
+            (const char *[]){"wcswidth", "double-width", "max", NULL},
             (int *)&conf->tweak.grapheme_width_method);
     }
 

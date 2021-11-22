@@ -256,7 +256,11 @@ struct config {
         enum fcft_scaling_filter fcft_filter;
         bool overflowing_glyphs;
         bool grapheme_shaping;
-        enum {GRAPHEME_WIDTH_WCSWIDTH, GRAPHEME_WIDTH_DOUBLE} grapheme_width_method;
+        enum {
+            GRAPHEME_WIDTH_WCSWIDTH,
+            GRAPHEME_WIDTH_DOUBLE,
+            GRAPHEME_WIDTH_MAX,
+        } grapheme_width_method;
         bool render_timer_osd;
         bool render_timer_log;
         bool damage_whole_window;

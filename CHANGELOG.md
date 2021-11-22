@@ -35,7 +35,12 @@
 
 
 ## Unreleased
+
 ### Added
+
+* New value, `max`, for `[tweak].grapheme-width-method`.
+
+
 ### Changed
 ### Deprecated
 ### Removed
