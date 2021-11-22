@@ -27,6 +27,7 @@
 #include "util.h"
 #include "wayland.h"
 #include "xmalloc.h"
+#include "xsnprintf.h"
 
 static const uint32_t default_foreground = 0xdcdccc;
 static const uint32_t default_background = 0x111111;
@@ -604,11 +605,12 @@ value_to_enum(struct context *ctx, const char **value_map, int *res)
     }
 
     const size_t size = str_len + count * 4 + 1;
-    char *valid_values = xmalloc(size);
-    int idx = 0;
+    char valid_values[512];
+    size_t idx = 0;
+    xassert(size < sizeof(valid_values));
 
     for (size_t i = 0; i < count; i++)
-        idx += snprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
+        idx += xsnprintf(&valid_values[idx], size - idx, "'%s', ", value_map[i]);
 
     if (count > 0)
         valid_values[idx - 2] = '\0';
@@ -956,7 +958,7 @@ parse_section_main(struct context *ctx)
         return value_to_pt_or_px(ctx, &conf->line_height);
 
     else if (strcmp(key, "letter-spacing") == 0)
-        value_to_pt_or_px(ctx, &conf->letter_spacing);
+        return value_to_pt_or_px(ctx, &conf->letter_spacing);
 
     else if (strcmp(key, "horizontal-letter-offset") == 0)
         return value_to_pt_or_px(ctx, &conf->horizontal_letter_offset);
@@ -1012,8 +1014,6 @@ parse_section_main(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
@@ -1557,11 +1557,40 @@ err:
     return false;
 }
 
+static int
+argv_compare(const struct argv *argv1, const struct argv *argv2)
+{
+    if (argv1->args == NULL && argv2->args == NULL)
+        return 0;
+
+    if (argv1->args == NULL)
+        return -1;
+    if (argv2->args == NULL)
+        return 1;
+
+    for (size_t i = 0; ; i++) {
+        if (argv1->args[i] == NULL && argv2->args[i] == NULL)
+            return 0;
+        if (argv1->args[i] == NULL)
+            return -1;
+        if (argv2->args[i] == NULL)
+            return 1;
+
+        int ret = strcmp(argv1->args[i], argv2->args[i]);
+        if (ret != 0)
+            return ret;
+    }
+
+    BUG("unexpected loop break");
+    return 1;
+}
+
 static bool
 has_key_binding_collisions(struct context *ctx,
                            int action, const char *const action_map[],
                            const struct config_key_binding_list *bindings,
-                           const struct key_combo_list *key_combos)
+                           const struct key_combo_list *key_combos,
+                           const struct argv *pipe_argv)
 {
     for (size_t j = 0; j < bindings->count; j++) {
         const struct config_key_binding *combo1 = &bindings->arr[j];
@@ -1569,8 +1598,10 @@ has_key_binding_collisions(struct context *ctx,
         if (combo1->action == BIND_ACTION_NONE)
             continue;
 
-        if (combo1->action == action)
-            continue;
+        if (combo1->action == action) {
+            if (argv_compare(&combo1->pipe.argv, pipe_argv) == 0)
+                continue;
+        }
 
         for (size_t i = 0; i < key_combos->count; i++) {
             const struct key_combo *combo2 = &key_combos->combos[i];
@@ -1600,29 +1631,6 @@ has_key_binding_collisions(struct context *ctx,
     return false;
 }
 
-static int
-argv_compare(char *const *argv1, char *const *argv2)
-{
-    xassert(argv1 != NULL);
-    xassert(argv2 != NULL);
-
-    for (size_t i = 0; ; i++) {
-        if (argv1[i] == NULL && argv2[i] == NULL)
-            return 0;
-        if (argv1[i] == NULL)
-            return -1;
-        if (argv2[i] == NULL)
-            return 1;
-
-        int ret = strcmp(argv1[i], argv2[i]);
-        if (ret != 0)
-            return ret;
-    }
-
-    BUG("unexpected loop break");
-    return 1;
-}
-
 /*
  * Parses a key binding value on the form
  *  "[cmd-to-exec arg1 arg2] Mods+Key"
@@ -1637,17 +1645,17 @@ argv_compare(char *const *argv1, char *const *argv2)
  *          filled with {'cmd-to-exec', 'arg1', 'arg2', NULL}
  *
  * Returns:
- *  - ssize_t, number of bytes to strip from 'value' to remove the '[]'
+ *  - ssize_t, number of bytes that were stripped from 'value' to remove the '[]'
  *    enclosed cmd and its arguments, including any subsequent
  *    whitespace characters. I.e. if 'value' is "[cmd] BTN_RIGHT", the
  *    return value is 6 (strlen("[cmd] ")).
  *  - cmd: allocated string containing "cmd arg1 arg2...". Caller frees.
- *  - argv: allocatd array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
+ *  - argv: allocated array containing {"cmd", "arg1", "arg2", NULL}. Caller frees.
  */
 static ssize_t
-pipe_argv_from_value(struct context *ctx, char ***argv)
+pipe_argv_from_value(struct context *ctx, struct argv *argv)
 {
-    *argv = NULL;
+    argv->args = NULL;
 
     if (ctx->value[0] != '[')
         return 0;
@@ -1661,7 +1669,7 @@ pipe_argv_from_value(struct context *ctx, char ***argv)
     size_t pipe_len = pipe_cmd_end - ctx->value - 1;
     char *cmd = xstrndup(&ctx->value[1], pipe_len);
 
-    if (!tokenize_cmdline(cmd, argv)) {
+    if (!tokenize_cmdline(cmd, &argv->args)) {
         LOG_CONTEXTUAL_ERR("syntax error in command line");
         free(cmd);
         return -1;
@@ -1680,7 +1688,7 @@ pipe_argv_from_value(struct context *ctx, char ***argv)
 
 static void NOINLINE
 remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
-                                     int action, char **pipe_argv)
+                                     int action, const struct argv *pipe_argv)
 {
     size_t remove_first_idx = 0;
     size_t remove_count = 0;
@@ -1688,11 +1696,10 @@ remove_action_from_key_bindings_list(struct config_key_binding_list *bindings,
     for (size_t i = 0; i < bindings->count; i++) {
         struct config_key_binding *binding = &bindings->arr[i];
 
-        if (binding->action == action &&
-            ((binding->pipe.argv.args == NULL && pipe_argv == NULL) ||
-             (binding->pipe.argv.args != NULL && pipe_argv != NULL &&
-              argv_compare(binding->pipe.argv.args, pipe_argv) == 0)))
-        {
+        if (binding->action != action)
+            continue;
+
+        if (argv_compare(&binding->pipe.argv, pipe_argv) == 0) {
             if (remove_count++ == 0)
                 remove_first_idx = i;
 
@@ -1721,13 +1728,11 @@ parse_key_binding_section(struct context *ctx,
                           const char *const action_map[static action_count],
                           struct config_key_binding_list *bindings)
 {
-    char **pipe_argv;
+    struct argv pipe_argv;
 
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
-
-    ctx->value += pipe_remove_len;
 
     for (int action = 0; action < action_count; action++) {
         if (action_map[action] == NULL)
@@ -1738,22 +1743,22 @@ parse_key_binding_section(struct context *ctx,
 
         /* Unset binding */
         if (strcasecmp(ctx->value, "none") == 0) {
-            remove_action_from_key_bindings_list(bindings, action, pipe_argv);
-            free(pipe_argv);
+            remove_action_from_key_bindings_list(bindings, action, &pipe_argv);
+            free_argv(&pipe_argv);
             return true;
         }
 
         struct key_combo_list key_combos = {0};
         if (!value_to_key_combos(ctx, &key_combos) ||
             has_key_binding_collisions(
-                ctx, action, action_map, bindings, &key_combos))
+                ctx, action, action_map, bindings, &key_combos, &pipe_argv))
         {
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
             return false;
         }
 
-        remove_action_from_key_bindings_list(bindings, action, pipe_argv);
+        remove_action_from_key_bindings_list(bindings, action, &pipe_argv);
 
         /* Emit key bindings */
         size_t ofs = bindings->count;
@@ -1769,9 +1774,7 @@ parse_key_binding_section(struct context *ctx,
                 .modifiers = combo->modifiers,
                 .sym = combo->sym,
                 .pipe = {
-                    .argv = {
-                        .args = pipe_argv,
-                    },
+                    .argv = pipe_argv,
                     .master_copy = first,
                 },
             };
@@ -1786,7 +1789,7 @@ parse_key_binding_section(struct context *ctx,
     }
 
     LOG_CONTEXTUAL_ERR("not a valid action: %s", ctx->key);
-    free(pipe_argv);
+    free_argv(&pipe_argv);
     return false;
 }
 
@@ -2099,13 +2102,11 @@ parse_section_mouse_bindings(struct context *ctx)
     const char *key = ctx->key;
     const char *value = ctx->value;
 
-    char **pipe_argv;
+    struct argv pipe_argv;
 
     ssize_t pipe_remove_len = pipe_argv_from_value(ctx, &pipe_argv);
     if (pipe_remove_len < 0)
         return false;
-
-    value += pipe_remove_len;
 
     for (enum bind_action_normal action = 0;
          action < BIND_ACTION_COUNT;
@@ -2129,7 +2130,7 @@ parse_section_mouse_bindings(struct context *ctx)
                     binding->action = BIND_ACTION_NONE;
                 }
             }
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             return true;
         }
 
@@ -2137,7 +2138,7 @@ parse_section_mouse_bindings(struct context *ctx)
         if (!value_to_mouse_combos(ctx, &key_combos) ||
             has_mouse_binding_collisions(ctx, &key_combos))
         {
-            free(pipe_argv);
+            free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
             return false;
         }
@@ -2146,11 +2147,10 @@ parse_section_mouse_bindings(struct context *ctx)
         for (size_t i = 0; i < conf->bindings.mouse.count; i++) {
             struct config_mouse_binding *binding = &conf->bindings.mouse.arr[i];
 
-            if (binding->action == action &&
-                ((binding->pipe.argv.args == NULL && pipe_argv == NULL) ||
-                 (binding->pipe.argv.args != NULL && pipe_argv != NULL &&
-                  argv_compare(binding->pipe.argv.args, pipe_argv) == 0)))
-            {
+            if (binding->action != action)
+                continue;
+
+            if (argv_compare(&binding->pipe.argv, &pipe_argv) == 0) {
                 if (binding->pipe.master_copy)
                     free_argv(&binding->pipe.argv);
                 binding->action = BIND_ACTION_NONE;
@@ -2173,9 +2173,7 @@ parse_section_mouse_bindings(struct context *ctx)
                 .button = combo->m.button,
                 .count = combo->m.count,
                 .pipe = {
-                    .argv = {
-                        .args = pipe_argv,
-                    },
+                    .argv = pipe_argv,
                     .master_copy = first,
                 },
             };
@@ -2189,7 +2187,7 @@ parse_section_mouse_bindings(struct context *ctx)
     }
 
     LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
-    free(pipe_argv);
+    free_argv(&pipe_argv);
     return false;
 }
 
@@ -2265,29 +2263,10 @@ parse_section_tweak(struct context *ctx)
             return false;
         }
 
-        switch (mode) {
-        case 0:
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = false;
-            return true;
-
-        case 1:
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = false;
-            return true;
-
-        case 2:
-            conf->tweak.render_timer_osd = false;
-            conf->tweak.render_timer_log = true;
-            return true;
-
-        case 3:
-            conf->tweak.render_timer_osd = true;
-            conf->tweak.render_timer_log = true;
-            return true;
-        }
-
-        UNREACHABLE();
+        xassert(0 <= mode && mode <= 3);
+        conf->tweak.render_timer_osd = mode == 1 || mode == 3;
+        conf->tweak.render_timer_log = mode == 2 || mode == 3;
+        return true;
     }
 
     else if (strcmp(key, "delayed-render-lower") == 0) {
@@ -2340,8 +2319,6 @@ parse_section_tweak(struct context *ctx)
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
     }
-
-    UNREACHABLE();
 }
 
 static bool
@@ -2467,9 +2444,11 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             continue;                           \
     }
 
+    char *section_name = xstrdup("main");
+
     struct context context = {
         .conf = conf,
-        .section = "main",
+        .section = section_name,
         .path = path,
         .lineno = 0,
         .errors_are_fatal = errors_are_fatal,
@@ -2537,7 +2516,9 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
                 error_or_continue();
             }
 
-            context.section = &key_value[1];
+            free(section_name);
+            section_name = xstrdup(&key_value[1]);
+            context.section = section_name;
 
             /* Process next line */
             continue;
@@ -2567,10 +2548,12 @@ parse_config_file(FILE *f, struct config *conf, const char *path, bool errors_ar
             error_or_continue();
     }
 
+    free(section_name);
     free(_line);
     return true;
 
 err:
+    free(section_name);
     free(_line);
     return false;
 }

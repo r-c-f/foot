@@ -231,7 +231,7 @@ executable(
   install: true)
 
 install_data(
-  'foot.desktop', 'foot-server.desktop',
+  'foot.desktop', 'foot-server.desktop', 'footclient.desktop',
   install_dir: join_paths(get_option('datadir'), 'applications'))
 
 scdoc = dependency('scdoc', native: true, required: get_option('docs'))
@@ -240,8 +240,11 @@ if scdoc.found()
     'LICENSE', 'README.md', 'CHANGELOG.md',
     install_dir: join_paths(get_option('datadir'), 'doc', 'foot'))
   install_data('foot.ini', install_dir: join_paths(get_option('datadir'), 'foot'))
-  install_subdir('themes', install_dir: join_paths(get_option('datadir'), 'foot'))
   subdir('doc')
+endif
+
+if get_option('themes')
+  install_subdir('themes', install_dir: join_paths(get_option('datadir'), 'foot'))
 endif
 
 tic = find_program('tic', native: true, required: get_option('terminfo'))
@@ -273,6 +276,7 @@ subdir('icons')
 summary(
   {
     'Documentation': scdoc.found(),
+    'Themes': get_option('themes'),
     'IME': get_option('ime'),
     'Grapheme clustering': utf8proc.found(),
     'Build terminfo': tic.found(),

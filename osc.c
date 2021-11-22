@@ -503,7 +503,7 @@ osc_notify(struct terminal *term, char *string)
      * (https://pub.phyks.me/scripts/urxvt/notify) is very simple:
      *
      * #!/usr/bin/perl
-     * 
+     *
      * sub on_osc_seq_perl {
      *   my ($term, $osc, $resp) = @_;
      *   if ($osc =~ /^notify;(\S+);(.*)$/) {
@@ -560,7 +560,7 @@ update_color_in_grids(struct terminal *term, uint32_t old_color,
 
             for (size_t c = 0; c < term->grid->num_cols; c++) {
                 struct cell *cell = &row->cells[c];
-                if (cell->attrs.have_fg &&
+                if (cell->attrs.fg_src != COLOR_DEFAULT &&
                     cell->attrs.fg == old_color)
                 {
                     cell->attrs.fg = new_color;
@@ -568,7 +568,7 @@ update_color_in_grids(struct terminal *term, uint32_t old_color,
                     row->dirty = true;
                 }
 
-                if ( cell->attrs.have_bg &&
+                if (cell->attrs.bg_src != COLOR_DEFAULT &&
                     cell->attrs.bg == old_color)
                 {
                     cell->attrs.bg = new_color;
