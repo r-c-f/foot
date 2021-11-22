@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.10.1](#1-10-1)
 * [1.10.0](#1-10-0)
 * [1.9.2](#1-9-2)
 * [1.9.1](#1-9-1)
@@ -33,7 +33,7 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.10.1
 
 ### Added
 
@@ -42,9 +42,6 @@
 * XDG desktop file for footclient.
 
 
-### Changed
-### Deprecated
-### Removed
 ### Fixed
 
 * Regression: `letter-spacing` resulting in a “not a valid option”
@@ -57,8 +54,12 @@
   (https://codeberg.org/dnkl/foot/issues/804).
 
 
-### Security
 ### Contributors
+
+* Arnavion
+* Craig Barnes
+* Soc Virnyl Silab Estela
+* Xiretza
 
 
 ## 1.10.0
