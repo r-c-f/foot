@@ -1093,7 +1093,7 @@ any of these options.
 *grapheme-width-method*
 	Selects which method to use when calculating the width
 	(i.e. number of columns) of a grapheme cluster. One of
-	*double-width* and *wcswidth*.
+	*wcswidth*, *double-width* and *max*.
 	
 	*wcswidth* simply adds together the individual width of all
 	codepoints making up the cluster.
@@ -1103,6 +1103,8 @@ any of these options.
 	applications since applications typically use *wcswidth*(3)
 	internally to calculate the width. This results in cursor
 	de-synchronization issues.
+	
+	*max* uses the width of the largest codepoint in the cluster.
 	
 	Default: _wcswidth_
 
