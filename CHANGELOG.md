@@ -48,6 +48,9 @@
 
 * An ongoing mouse selection is now finalized on a pointer leave event
   (for example by switching workspace while doing a mouse selection).
+* OSC-8 URIs in the last column
+* OSC-8 URIs sometimes being applied to too many, and seemingly
+  unrelated cells (https://codeberg.org/dnkl/foot/issues/816).
 
 
 ### Security

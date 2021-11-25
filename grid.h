@@ -74,6 +74,8 @@ grid_row_in_view(struct grid *grid, int row_no)
     return row;
 }
 
+void grid_row_uri_range_put(
+    struct row *row, int col, const char *uri, uint64_t id);
 void grid_row_uri_range_add(struct row *row, struct row_uri_range range);
 void grid_row_uri_range_erase(struct row *row, int start, int end);
 
