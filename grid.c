@@ -337,7 +337,7 @@ grid_resize_without_reflow(
             const struct row_uri_range *old_range =
                 &old_row->extra->uri_ranges.v[i];
 
-            if (old_range->start >= new_rows) {
+            if (old_range->start >= new_cols) {
                 /* The whole range is truncated */
                 continue;
             }
