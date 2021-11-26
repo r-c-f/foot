@@ -684,19 +684,20 @@ grid_resize_and_reflow(
             tp = NULL;
 
         /* Does this row have any URIs? */
-        struct row_uri_range *range;
+        struct row_uri_range *range, *range_terminator;
         struct row_data *extra = old_row->extra;
-        size_t uri_range_idx = 0;
 
         if (extra != NULL && extra->uri_ranges.count > 0) {
-            range = &extra->uri_ranges.v[uri_range_idx];
+            range = &extra->uri_ranges.v[0];
+            range_terminator = &extra->uri_ranges.v[extra->uri_ranges.count];
 
-            /* Make sure the *last* URI range's end point is included in the copy */
+            /* Make sure the *last* URI range's end point is included
+             * in the copy */
             const struct row_uri_range *last_on_row =
                 &extra->uri_ranges.v[extra->uri_ranges.count - 1];
             col_count = max(col_count, last_on_row->end + 1);
         } else
-            range = NULL;
+            range = range_terminator = NULL;
 
         for (int start = 0, left = col_count; left > 0;) {
             int end;
@@ -710,7 +711,7 @@ grid_resize_and_reflow(
              * If there are no more tracking points, or URI ranges,
              * the end-coordinate will be at the end of the row,
              */
-            if (range != NULL) {
+            if (range != range_terminator) {
                 int uri_col = (range->start >= start ? range->start : range->end) + 1;
 
                 if (tp != NULL) {
@@ -835,20 +836,15 @@ grid_resize_and_reflow(
             }
 
             if (uri_break) {
+                xassert(range != NULL);
+
                 if (range->start == end - 1)
                     reflow_uri_range_start(range, new_row, new_col_idx - 1);
 
                 if (range->end == end - 1) {
                     reflow_uri_range_end(range, new_row, new_col_idx - 1);
-
-                    xassert(&extra->uri_ranges.v[uri_range_idx] == range);
                     grid_row_uri_range_destroy(range);
-
-                    uri_range_idx++;
-
-                    range = uri_range_idx < extra->uri_ranges.count
-                        ? &old_row->extra->uri_ranges.v[uri_range_idx]
-                        : NULL;
+                    range++;
                 }
             }
 
