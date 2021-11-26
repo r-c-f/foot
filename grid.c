@@ -362,6 +362,7 @@ grid_resize_without_reflow(
         new_row->dirty = true;
     }
 
+#if defined(_DEBUG)
     for (size_t r = 0; r < new_rows; r++) {
         const struct row *row = new_grid[r];
 
@@ -373,6 +374,7 @@ grid_resize_without_reflow(
         verify_no_overlapping_uris(row->extra);
         verify_uris_are_sorted(row->extra);
     }
+#endif
 
     /* Free old grid */
     for (int r = 0; r < grid->num_rows; r++)
