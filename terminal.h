@@ -185,7 +185,6 @@ struct vt {
     struct {
         uint64_t id;
         char *uri;
-        struct coord begin;
     } osc8;
 
     struct {
