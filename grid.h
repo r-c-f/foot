@@ -88,14 +88,15 @@ grid_row_uri_range_destroy(struct row_uri_range *range)
 static inline void
 grid_row_reset_extra(struct row *row)
 {
-    if (likely(row->extra == NULL))
+    struct row_data *extra = row->extra;
+
+    if (likely(extra == NULL))
         return;
 
-    tll_foreach(row->extra->uri_ranges, it) {
-        grid_row_uri_range_destroy(&it->item);
-        tll_remove(row->extra->uri_ranges, it);
-    }
+    for (size_t i = 0; i < extra->uri_ranges.count; i++)
+        grid_row_uri_range_destroy(&extra->uri_ranges.v[i]);
+    free(extra->uri_ranges.v);
 
-    free(row->extra);
+    free(extra);
     row->extra = NULL;
 }

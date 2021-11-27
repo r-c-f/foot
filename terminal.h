@@ -102,7 +102,11 @@ struct row_uri_range {
 };
 
 struct row_data {
-    tll(struct row_uri_range) uri_ranges;
+    struct {
+        struct row_uri_range *v;
+        uint32_t size;
+        uint32_t count;
+    } uri_ranges;
 };
 
 struct row {
