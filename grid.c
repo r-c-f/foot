@@ -149,29 +149,24 @@ grid_snapshot(const struct grid *grid)
         for (int c = 0; c < grid->num_cols; c++)
             clone_row->cells[c] = row->cells[c];
 
-        if (row->extra != NULL) {
-            const struct row_data *extra = row->extra;
-            struct row_data *new_extra = xmalloc(sizeof(*new_extra));
-            struct row_uri_range *ranges =
-                xmalloc(extra->uri_ranges.count * sizeof(ranges[0]));
+        const struct row_data *extra = row->extra;
+
+        if (extra != NULL) {
+            ensure_row_has_extra_data(clone_row);
+            uri_range_ensure_size(clone_row->extra, extra->uri_ranges.count);
+
+            struct row_data *clone_extra = clone_row->extra;
 
             for (size_t i = 0; i < extra->uri_ranges.count; i++) {
                 const struct row_uri_range *range = &extra->uri_ranges.v[i];
-
-                ranges[i] = (struct row_uri_range){
-                    .start = range->start,
-                    .end = range->end,
-                    .id = range->id,
-                    .uri = xstrdup(range->uri),
-                };
-
+                uri_range_append(
+                    clone_extra,
+                    (struct row_uri_range){
+                        .start = range->start,
+                        .end = range->end,
+                        .id = range->id,
+                        .uri = xstrdup(range->uri)});
             }
-
-            new_extra->uri_ranges.v = ranges;
-            new_extra->uri_ranges.size = extra->uri_ranges.count;
-            new_extra->uri_ranges.count = extra->uri_ranges.count;
-
-            clone_row->extra = new_extra;
         } else
             clone_row->extra = NULL;
     }
