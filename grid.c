@@ -72,7 +72,7 @@ static void
 uri_range_ensure_size(struct row_data *extra, size_t count_to_add)
 {
     if (extra->uri_ranges.count + count_to_add > extra->uri_ranges.size) {
-        extra->uri_ranges.size += count_to_add + 4;
+        extra->uri_ranges.size += count_to_add + count_to_add;
         extra->uri_ranges.v = xrealloc(
             extra->uri_ranges.v,
             extra->uri_ranges.size * sizeof(extra->uri_ranges.v[0]));
