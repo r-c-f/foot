@@ -993,8 +993,10 @@ get_current_modifiers(const struct seat *seat,
             seat->kbd.xkb_state, XKB_STATE_MODS_EFFECTIVE);
     }
 
-    if (consumed != NULL)
-        *consumed = xkb_state_key_get_consumed_mods(seat->kbd.xkb_state, key);
+    if (consumed != NULL) {
+        *consumed = xkb_state_key_get_consumed_mods2(
+            seat->kbd.xkb_state, key, XKB_CONSUMED_MODE_XKB);
+    }
 }
 
 struct kbd_ctx {
