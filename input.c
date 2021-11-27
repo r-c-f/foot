@@ -1139,7 +1139,8 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
                    const struct kbd_ctx *ctx)
 {
     const xkb_mod_mask_t mods = ctx->mods & seat->kbd.kitty_significant;
-    const xkb_mod_mask_t consumed = ctx->consumed & seat->kbd.kitty_significant;
+    const xkb_mod_mask_t consumed = xkb_state_key_get_consumed_mods2(
+        seat->kbd.xkb_state, ctx->key, XKB_CONSUMED_MODE_GTK) & seat->kbd.kitty_significant;
     const xkb_mod_mask_t effective = mods & ~consumed;
     const xkb_mod_mask_t caps_num =
         (seat->kbd.mod_caps != XKB_MOD_INVALID ? 1 << seat->kbd.mod_caps : 0) |
