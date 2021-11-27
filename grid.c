@@ -340,23 +340,26 @@ grid_resize_without_reflow(
         }
 
         /* Copy URI ranges, truncating them if necessary */
-        if (old_row->extra == NULL)
+        const struct row_data *old_extra = old_row->extra;
+        if (old_extra == NULL)
             continue;
 
-        for (size_t i = 0; i < old_row->extra->uri_ranges.count; i++) {
-            const struct row_uri_range *old_range =
-                &old_row->extra->uri_ranges.v[i];
+        ensure_row_has_extra_data(new_row);
+        struct row_data *new_extra = new_row->extra;
 
-            if (old_range->start >= new_cols) {
+        uri_range_ensure_size(new_extra, old_extra->uri_ranges.count);
+
+        for (size_t i = 0; i < old_extra->uri_ranges.count; i++) {
+            const struct row_uri_range *range = &old_extra->uri_ranges.v[i];
+
+            if (range->start >= new_cols) {
                 /* The whole range is truncated */
                 continue;
             }
 
-            ensure_row_has_extra_data(new_row);
-            uri_range_append(
-                new_row->extra,
-                old_range->start, min(old_range->end, new_cols - 1),
-                old_range->id, xstrdup(old_range->uri));
+            const int start = range->start;
+            const int end = min(range->end, new_cols - 1);
+            uri_range_append(new_extra, start, end, range->id, range->uri);
         }
     }
 
