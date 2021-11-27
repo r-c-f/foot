@@ -1038,7 +1038,6 @@ grid_row_uri_range_put(struct row *row, int col, const char *uri, uint64_t id)
         }
     }
 
-    xassert(insert_idx >= 0);
     xassert(insert_idx <= extra->uri_ranges.count);
 
     if (replace) {
