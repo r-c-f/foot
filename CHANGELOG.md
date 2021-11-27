@@ -39,6 +39,9 @@
 ### Added
 
 * New value, `max`, for `[tweak].grapheme-width-method`.
+* Initial support for the [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/).
+  Modes supported:
+  - [Disambiguate escape codes](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#disambiguate)
 
 
 ### Changed
