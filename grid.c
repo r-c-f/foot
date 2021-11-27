@@ -82,7 +82,8 @@ uri_range_ensure_size(struct row_data *extra, size_t count_to_add)
 }
 
 static void
-uri_range_insert(struct row_data *extra, size_t idx, struct row_uri_range range)
+uri_range_insert(struct row_data *extra, size_t idx, int start, int end,
+                 uint64_t id, const char *uri)
 {
     uri_range_ensure_size(extra, 1);
 
@@ -93,15 +94,33 @@ uri_range_insert(struct row_data *extra, size_t idx, struct row_uri_range range)
             &extra->uri_ranges.v[idx],
             move_count * sizeof(extra->uri_ranges.v[0]));
 
-    extra->uri_ranges.v[idx] = range;
     extra->uri_ranges.count++;
+    extra->uri_ranges.v[idx] = (struct row_uri_range){
+        .start = start,
+        .end = end,
+        .id = id,
+        .uri = xstrdup(uri),
+    };
 }
 
 static void
-uri_range_append(struct row_data *extra, struct row_uri_range range)
+uri_range_append_no_strdup(struct row_data *extra, int start, int end,
+                           uint64_t id, char *uri)
 {
     uri_range_ensure_size(extra, 1);
-    extra->uri_ranges.v[extra->uri_ranges.count++] = range;
+    extra->uri_ranges.v[extra->uri_ranges.count++] = (struct row_uri_range){
+        .start = start,
+        .end = end,
+        .id = id,
+        .uri = uri,
+    };
+}
+
+static void
+uri_range_append(struct row_data *extra, int start, int end, uint64_t id,
+                 const char *uri)
+{
+    uri_range_append_no_strdup(extra, start, end, id, xstrdup(uri));
 }
 
 static void
@@ -152,20 +171,16 @@ grid_snapshot(const struct grid *grid)
         const struct row_data *extra = row->extra;
 
         if (extra != NULL) {
-            ensure_row_has_extra_data(clone_row);
-            uri_range_ensure_size(clone_row->extra, extra->uri_ranges.count);
+            struct row_data *clone_extra = xcalloc(1, sizeof(*clone_extra));
+            clone_row->extra = clone_extra;
 
-            struct row_data *clone_extra = clone_row->extra;
+            uri_range_ensure_size(clone_extra, extra->uri_ranges.count);
 
             for (size_t i = 0; i < extra->uri_ranges.count; i++) {
                 const struct row_uri_range *range = &extra->uri_ranges.v[i];
                 uri_range_append(
                     clone_extra,
-                    (struct row_uri_range){
-                        .start = range->start,
-                        .end = range->end,
-                        .id = range->id,
-                        .uri = xstrdup(range->uri)});
+                    range->start, range->end, range->id, range->uri);
             }
         } else
             clone_row->extra = NULL;
@@ -337,14 +352,11 @@ grid_resize_without_reflow(
                 continue;
             }
 
-            struct row_uri_range range = {
-                .start = old_range->start,
-                .end = min(old_range->end, new_cols - 1),
-                .id = old_range->id,
-                .uri = xstrdup(old_range->uri),
-            };
             ensure_row_has_extra_data(new_row);
-            uri_range_append(new_row->extra, range);
+            uri_range_append(
+                new_row->extra,
+                old_range->start, min(old_range->end, new_cols - 1),
+                old_range->id, xstrdup(old_range->uri));
         }
     }
 
@@ -418,15 +430,10 @@ static void
 reflow_uri_range_start(struct row_uri_range *range, struct row *new_row,
                        int new_col_idx)
 {
-    struct row_uri_range new_range = {
-        .start = new_col_idx,
-        .end = -1,
-        .id = range->id,
-        .uri = range->uri,
-    };
-    range->uri = NULL;
     ensure_row_has_extra_data(new_row);
-    uri_range_append(new_row->extra, new_range);
+    uri_range_append_no_strdup
+        (new_row->extra, new_col_idx, -1, range->id, range->uri);
+    range->uri = NULL;
 }
 
 static void
@@ -489,14 +496,8 @@ _line_wrap(struct grid *old_grid, struct row **new_grid, struct row *row,
             range->end = col_count - 1;
 
             /* Open a new range on the new/current row */
-            struct row_uri_range new_range = {
-                .start = 0,
-                .end = -1,
-                .id = range->id,
-                .uri = xstrdup(range->uri),
-            };
             ensure_row_has_extra_data(new_row);
-            uri_range_append(new_row->extra, new_range);
+            uri_range_append(new_row->extra, 0, -1, range->id, range->uri);
         }
     }
 
@@ -1022,15 +1023,7 @@ grid_row_uri_range_put(struct row *row, int col, const char *uri, uint64_t id)
                 xassert(r->start < col);
                 xassert(r->end > col);
 
-                struct row_uri_range new_tail = {
-                    .start = col + 1,
-                    .end = r->end,
-                    .id = r->id,
-                    .uri = xstrdup(r->uri),
-                };
-                xassert(new_tail.start <= new_tail.end);
-
-                uri_range_insert(extra, i + 1, new_tail);
+                uri_range_insert(extra, i + 1, col + 1, r->end, r->id, r->uri);
 
                 r->end = col - 1;
                 xassert(r->start <= r->end);
@@ -1042,21 +1035,19 @@ grid_row_uri_range_put(struct row *row, int col, const char *uri, uint64_t id)
         }
     }
 
-    struct row_uri_range new_range = {
-        .start = col,
-        .end = col,
-        .id = id,
-        .uri = xstrdup(uri),
-    };
-
     xassert(insert_idx >= 0);
     xassert(insert_idx <= extra->uri_ranges.count);
 
     if (replace) {
         grid_row_uri_range_destroy(&extra->uri_ranges.v[insert_idx]);
-        extra->uri_ranges.v[insert_idx] = new_range;
+        extra->uri_ranges.v[insert_idx] = (struct row_uri_range){
+            .start = col,
+            .end = col,
+            .id = id,
+            .uri = xstrdup(uri),
+        };
     } else
-        uri_range_insert(extra, insert_idx, new_range);
+        uri_range_insert(extra, insert_idx, col, col, id, uri);
 
     if (run_merge_pass) {
         for (size_t i = 1; i < extra->uri_ranges.count; i++) {
@@ -1167,13 +1158,8 @@ grid_row_uri_range_erase(struct row *row, int start, int end)
 
         else if (start > old->start && end < old->end) {
             /* Erase range erases a part in the middle of the URI */
-            struct row_uri_range old_tail = {
-                .start = end + 1,
-                .end = old->end,
-                .id = old->id,
-                .uri = old->uri != NULL ? xstrdup(old->uri) : NULL,
-            };
-            uri_range_insert(extra, i + 1, old_tail);
+            uri_range_insert(
+                extra, i + 1, end + 1, old->end, old->id, old->uri);
             old->end = start - 1;
             return;  /* There can be no more URIs affected by the erase range */
         }
@@ -1198,8 +1184,8 @@ UNITTEST
     struct row_data row_data = {.uri_ranges = {0}};
     struct row row = {.extra = &row_data};
 
-    uri_range_append(&row_data, (struct row_uri_range){1, 10});
-    uri_range_append(&row_data, (struct row_uri_range){11, 20});
+    uri_range_append(&row_data, 1, 10, 0, "dummy");
+    uri_range_append(&row_data, 11, 20, 0, "dummy");
     xassert(row_data.uri_ranges.count == 2);
     xassert(row_data.uri_ranges.v[1].start == 11);
     xassert(row_data.uri_ranges.v[1].end == 20);
@@ -1214,8 +1200,8 @@ UNITTEST
 
     /* Two URIs, then erase second half of the first, first half of
        the second */
-    uri_range_append(&row_data, (struct row_uri_range){1, 10});
-    uri_range_append(&row_data, (struct row_uri_range){11, 20});
+    uri_range_append(&row_data, 1, 10, 0, "dummy");
+    uri_range_append(&row_data, 11, 20, 0, "dummy");
     grid_row_uri_range_erase(&row, 5, 15);
     xassert(row_data.uri_ranges.count == 2);
     xassert(row_data.uri_ranges.v[0].start == 1);
@@ -1225,10 +1211,12 @@ UNITTEST
     verify_no_overlapping_uris(&row_data);
     verify_uris_are_sorted(&row_data);
 
+    grid_row_uri_range_destroy(&row_data.uri_ranges.v[0]);
+    grid_row_uri_range_destroy(&row_data.uri_ranges.v[1]);
     row_data.uri_ranges.count = 0;
 
     /* One URI, erase middle part of it */
-    uri_range_append(&row_data, (struct row_uri_range){1, 10});
+    uri_range_append(&row_data, 1, 10, 0, "dummy");
     grid_row_uri_range_erase(&row, 5, 6);
     xassert(row_data.uri_ranges.count == 2);
     xassert(row_data.uri_ranges.v[0].start == 1);
@@ -1238,5 +1226,7 @@ UNITTEST
     verify_no_overlapping_uris(&row_data);
     verify_uris_are_sorted(&row_data);
 
+    for (size_t i = 0; i < row_data.uri_ranges.count; i++)
+        grid_row_uri_range_destroy(&row_data.uri_ranges.v[i]);
     free(row_data.uri_ranges.v);
 }
