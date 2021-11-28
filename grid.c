@@ -1143,19 +1143,18 @@ grid_row_uri_range_erase(struct row *row, int start, int end)
     struct row_data *extra = row->extra;
 
     /* Split up, or remove, URI ranges affected by the erase */
-    for (ssize_t i = 0; i < extra->uri_ranges.count; i++) {
+    for (ssize_t i = (ssize_t)extra->uri_ranges.count - 1; i >= 0; i--) {
         struct row_uri_range *old = &extra->uri_ranges.v[i];
 
         if (old->end < start)
-            continue;
+            return;
 
         if (old->start > end)
-            return;
+            continue;
 
         if (start <= old->start && end >= old->end) {
             /* Erase range covers URI completely - remove it */
             uri_range_delete(extra, i);
-            i--;
         }
 
         else if (start > old->start && end < old->end) {
@@ -1170,13 +1169,13 @@ grid_row_uri_range_erase(struct row *row, int start, int end)
             /* Erase range erases the head of the URI */
             xassert(start <= old->start);
             old->start = end + 1;
-            return;  /* There can be no more overlapping URIs */
         }
 
         else if (start <= old->end && end >= old->end) {
             /* Erase range erases the tail of the URI */
             xassert(end >= old->end);
             old->end = start - 1;
+            return;  /* There can be no more overlapping URIs */
         }
     }
 }
