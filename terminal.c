@@ -1815,6 +1815,10 @@ term_reset(struct terminal *term, bool hard)
     tll_free_and_free(term->window_title_stack, free);
     term_set_window_title(term, term->conf->title);
 
+    memset(term->normal.kitty_kbd.flags, 0, sizeof(term->normal.kitty_kbd.flags));
+    memset(term->alt.kitty_kbd.flags, 0, sizeof(term->alt.kitty_kbd.flags));
+    term->normal.kitty_kbd.idx = term->alt.kitty_kbd.idx = 0;
+
     term->scroll_region.start = 0;
     term->scroll_region.end = term->rows;
 
@@ -2825,7 +2829,7 @@ term_mouse_grabbed(const struct terminal *term, struct seat *seat)
     return term->mouse_tracking == MOUSE_NONE ||
         (seat->kbd_focus == term &&
          seat->kbd.shift &&
-         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.meta);
+         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.super);
 }
 
 void
