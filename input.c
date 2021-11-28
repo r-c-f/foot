@@ -1594,8 +1594,10 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     if (utf8 != buf)
         free(utf8);
 
-    term_reset_view(term);
-    selection_cancel(term);
+    if (count > 0) {
+        term_reset_view(term);
+        selection_cancel(term);
+    }
 
 maybe_repeat:
     clock_gettime(
