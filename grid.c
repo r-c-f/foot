@@ -1185,6 +1185,10 @@ UNITTEST
     struct row_data row_data = {.uri_ranges = {0}};
     struct row row = {.extra = &row_data};
 
+    /* Try erasing a row without any URIs */
+    grid_row_uri_range_erase(&row, 0, 200);
+    xassert(row_data.uri_ranges.count == 0);
+
     uri_range_append(&row_data, 1, 10, 0, "dummy");
     uri_range_append(&row_data, 11, 20, 0, "dummy");
     xassert(row_data.uri_ranges.count == 2);
