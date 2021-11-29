@@ -1022,7 +1022,7 @@ struct kbd_ctx {
     enum wl_keyboard_key_state key_state;
 };
 
-static void
+static bool
 legacy_kbd_protocol(struct seat *seat, struct terminal *term,
                     const struct kbd_ctx *ctx)
 {
@@ -1045,11 +1045,11 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
 
     if (keymap != NULL) {
         term_to_slave(term, keymap->seq, strlen(keymap->seq));
-        return;
+        return true;
     }
 
     if (count == 0)
-        return;
+        return false;
 
 #define is_control_key(x) ((x) >= 0x40 && (x) <= 0x7f)
 #define IS_CTRL(x) ((x) < 0x20 || ((x) >= 0x7f && (x) <= 0x9f))
@@ -1132,9 +1132,11 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
         }
     } else
         term_to_slave(term, utf8, count);
+
+    return true;
 }
 
-static void
+static bool
 kitty_kbd_protocol(struct seat *seat, struct terminal *term,
                    const struct kbd_ctx *ctx)
 {
@@ -1152,14 +1154,14 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
 
     if (ctx->compose_status == XKB_COMPOSE_COMPOSED) {
         term_to_slave(term, utf8, count);
-        return;
+        return true;
     }
 
     if (effective == 0) {
         switch (sym) {
-        case XKB_KEY_Return:    term_to_slave(term, "\r", 1); return;
-        case XKB_KEY_BackSpace: term_to_slave(term, "\x7f", 1); return;
-        case XKB_KEY_Tab:       term_to_slave(term, "\t", 1); return;
+        case XKB_KEY_Return:    term_to_slave(term, "\r", 1); return  true;
+        case XKB_KEY_BackSpace: term_to_slave(term, "\x7f", 1); return true;
+        case XKB_KEY_Tab:       term_to_slave(term, "\t", 1); return true;
         }
     }
 
@@ -1174,7 +1176,7 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
      */
     if (iswprint(utf32) && (effective & ~caps_num) == 0) {
         term_to_slave(term, utf8, count);
-        return;
+        return true;
     }
 
     unsigned int encoded_mods = 0;
@@ -1316,7 +1318,7 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         if (count > 0) {
             if (effective == 0) {
                 term_to_slave(term, utf8, count);
-                return;
+                return true;
             }
 
             /*
@@ -1385,7 +1387,7 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     int bytes;
 
     if (key < 0)
-        return;
+        return false;
 
     if (final == 'u' || final == '~') {
         if (encoded_mods > 1)
@@ -1401,6 +1403,7 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     }
 
     term_to_slave(term, buf, bytes);
+    return true;
 }
 
 static void
@@ -1583,10 +1586,9 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         .key_state = state,
     };
 
-    if (term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx] != 0)
-        kitty_kbd_protocol(seat, term, &ctx);
-    else
-        legacy_kbd_protocol(seat, term, &ctx);
+    bool handled = term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx] != 0
+        ? kitty_kbd_protocol(seat, term, &ctx)
+        : legacy_kbd_protocol(seat, term, &ctx);
 
     if (seat->kbd.xkb_compose_state != NULL)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
@@ -1594,7 +1596,7 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     if (utf8 != buf)
         free(utf8);
 
-    if (count > 0) {
+    if (handled) {
         term_reset_view(term);
         selection_cancel(term);
     }
