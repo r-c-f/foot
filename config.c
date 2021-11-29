@@ -1485,6 +1485,11 @@ parse_modifiers(struct context *ctx, const char *text, size_t len,
     bool ret = false;
 
     *modifiers = (struct config_key_modifiers){0};
+
+    /* Handle "none" separately because e.g. none+shift is nonsense */
+    if (strncmp(text, "none", len) == 0)
+        return true;
+
     char *copy = xstrndup(text, len);
 
     for (char *tok_ctx = NULL, *key = strtok_r(copy, "+", &tok_ctx);
