@@ -1349,13 +1349,6 @@ parse_section_mouse(struct context *ctx)
     else if (strcmp(key, "alternate-scroll-mode") == 0)
         return value_to_bool(ctx, &conf->mouse.alternate_scroll_mode);
 
-    else if (strcmp(key, "selection-override-modifiers") == 0) {
-        if (!parse_modifiers(ctx, ctx->value, strlen(ctx->value), &conf->mouse.selection_override_modifiers)) {
-            LOG_CONTEXTUAL_ERR("%s: invalid modifiers '%s'", key, ctx->value);
-            return false;
-        }
-    }
-
     else {
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
@@ -2165,6 +2158,37 @@ parse_section_mouse_bindings(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
+
+    if (strcmp(ctx->key, "selection-override-modifiers") == 0) {
+        if (!parse_modifiers(ctx, ctx->value, strlen(ctx->value),
+            &conf->mouse.selection_override_modifiers)) {
+            LOG_CONTEXTUAL_ERR("%s: invalid modifiers '%s'", key, ctx->value);
+            return false;
+        }
+
+        /* Ensure no existing bindings use these modifiers */
+        for (size_t i = 0; i < conf->bindings.mouse.count; i++) {
+            const struct config_mouse_binding *binding = &conf->bindings.mouse.arr[i];
+            struct key_combo combo = {
+                .modifiers = binding->modifiers,
+                .m = {
+                    .button = binding->button,
+                    .count = binding->count,
+                },
+            };
+
+            struct key_combo_list key_combos = {
+                .count = 1,
+                .combos = &combo,
+            };
+
+            if (selection_override_interferes_with_mouse_binding(ctx, &key_combos)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     struct argv pipe_argv;
 

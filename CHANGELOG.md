@@ -38,9 +38,9 @@
 ## Unreleased
 ### Added
 
-* `[mouse].selection-override-modifiers` option, specifying which modifiers
-  to hold to override mouse grabs by client applications and force selection
-  instead.
+* `[mouse-bindings].selection-override-modifiers` option, specifying
+  which modifiers to hold to override mouse grabs by client
+  applications and force selection instead.
 
 
 ### Changed
