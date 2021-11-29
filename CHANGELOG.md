@@ -56,6 +56,9 @@
   unrelated cells (https://codeberg.org/dnkl/foot/issues/816).
 * OSC-8 URIs incorrectly being dropped when resizing the terminal
   window with the alternate screen active.
+* CSD border not being dimmed when window is not focused.
+* Visual corruption with large CSD borders
+  (https://codeberg.org/dnkl/foot/issues/823).
 
 
 ### Security
