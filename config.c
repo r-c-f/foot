@@ -1956,6 +1956,20 @@ parse_section_url_bindings(struct context *ctx)
         &ctx->conf->bindings.url);
 }
 
+static const struct {
+    const char *name;
+    int code;
+} button_map[] = {
+    {"BTN_LEFT", BTN_LEFT},
+    {"BTN_RIGHT", BTN_RIGHT},
+    {"BTN_MIDDLE", BTN_MIDDLE},
+    {"BTN_SIDE", BTN_SIDE},
+    {"BTN_EXTRA", BTN_EXTRA},
+    {"BTN_FORWARD", BTN_FORWARD},
+    {"BTN_BACK", BTN_BACK},
+    {"BTN_TASK", BTN_TASK},
+};
+
 static bool
 value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
@@ -2004,24 +2018,10 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
             }
         }
 
-        static const struct {
-            const char *name;
-            int code;
-        } map[] = {
-            {"BTN_LEFT", BTN_LEFT},
-            {"BTN_RIGHT", BTN_RIGHT},
-            {"BTN_MIDDLE", BTN_MIDDLE},
-            {"BTN_SIDE", BTN_SIDE},
-            {"BTN_EXTRA", BTN_EXTRA},
-            {"BTN_FORWARD", BTN_FORWARD},
-            {"BTN_BACK", BTN_BACK},
-            {"BTN_TASK", BTN_TASK},
-        };
-
         int button = 0;
-        for (size_t i = 0; i < ALEN(map); i++) {
-            if (strcmp(key, map[i].name) == 0) {
-                button = map[i].code;
+        for (size_t i = 0; i < ALEN(button_map); i++) {
+            if (strcmp(key, button_map[i].name) == 0) {
+                button = button_map[i].code;
                 break;
             }
         }
