@@ -2994,7 +2994,6 @@ term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
         break;
 
     case TERM_SURF_NONE:
-    default:
         return;
     }
 
