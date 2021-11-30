@@ -2282,8 +2282,7 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
             }
 
             if (button == BTN_RIGHT && tll_length(seat->mouse.buttons) == 1) {
-                struct csd_data info;
-                info = get_csd_data(term, CSD_SURF_TITLE);
+                const struct csd_data info = get_csd_data(term, CSD_SURF_TITLE);
                 xdg_toplevel_show_window_menu(
                     win->xdg_toplevel,
                     seat->wl_seat,
