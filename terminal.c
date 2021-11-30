@@ -2962,7 +2962,7 @@ term_mouse_motion(struct terminal *term, int button, int row, int col,
 void
 term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
 {
-    const char *xcursor;
+    const char *xcursor = NULL;
 
     switch (term->active_surface) {
     case TERM_SURF_GRID: {
@@ -2995,6 +2995,9 @@ term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
     case TERM_SURF_NONE:
         return;
     }
+
+    if (xcursor == NULL)
+        BUG("xcursor not set");
 
     render_xcursor_set(seat, term, xcursor);
 }
