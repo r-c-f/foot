@@ -2971,7 +2971,6 @@ term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
             : (seat->mouse.col >= 0 &&
                seat->mouse.row >= 0 &&
                term_mouse_grabbed(term, seat)) ? XCURSOR_TEXT
-            : term->is_searching ? XCURSOR_TEXT
             : XCURSOR_LEFT_PTR;
         break;
     }
