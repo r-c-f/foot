@@ -2962,14 +2962,41 @@ term_mouse_motion(struct terminal *term, int button, int row, int col,
 void
 term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
 {
-    const char *xcursor
-        = seat->pointer.hidden ? XCURSOR_HIDDEN
-        : term->is_searching ? XCURSOR_LEFT_PTR
-        : (seat->mouse.col >= 0 &&
-           seat->mouse.row >= 0 &&
-           term_mouse_grabbed(term, seat)) ? XCURSOR_TEXT
-        : term->is_searching ? XCURSOR_TEXT
-        : XCURSOR_LEFT_PTR;
+    const char *xcursor;
+
+    switch (term->active_surface) {
+    case TERM_SURF_GRID: {
+        xcursor = seat->pointer.hidden ? XCURSOR_HIDDEN
+            : term->is_searching ? XCURSOR_LEFT_PTR
+            : (seat->mouse.col >= 0 &&
+               seat->mouse.row >= 0 &&
+               term_mouse_grabbed(term, seat)) ? XCURSOR_TEXT
+            : term->is_searching ? XCURSOR_TEXT
+            : XCURSOR_LEFT_PTR;
+        break;
+    }
+    case TERM_SURF_SEARCH:
+    case TERM_SURF_SCROLLBACK_INDICATOR:
+    case TERM_SURF_RENDER_TIMER:
+    case TERM_SURF_JUMP_LABEL:
+    case TERM_SURF_TITLE:
+    case TERM_SURF_BUTTON_MINIMIZE:
+    case TERM_SURF_BUTTON_MAXIMIZE:
+    case TERM_SURF_BUTTON_CLOSE:
+        xcursor = XCURSOR_LEFT_PTR;
+        break;
+
+    case TERM_SURF_BORDER_LEFT:
+    case TERM_SURF_BORDER_RIGHT:
+    case TERM_SURF_BORDER_TOP:
+    case TERM_SURF_BORDER_BOTTOM:
+        xcursor = xcursor_for_csd_border(term, seat->mouse.x, seat->mouse.y);
+        break;
+
+    case TERM_SURF_NONE:
+    default:
+        return;
+    }
 
     render_xcursor_set(seat, term, xcursor);
 }

@@ -1725,7 +1725,7 @@ is_bottom_right(const struct terminal *term, int x, int y)
          (term->active_surface == TERM_SURF_BORDER_BOTTOM && x > term->width + 1 * csd_border_size * term->scale - 10 * term->scale)));
 }
 
-static const char *
+const char *
 xcursor_for_csd_border(struct terminal *term, int x, int y)
 {
     if (is_top_left(term, x, y))                              return XCURSOR_TOP_LEFT_CORNER;
@@ -1758,11 +1758,18 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     struct wl_window *win = wl_surface_get_user_data(surface);
     struct terminal *term = win->term;
 
+    int x = wl_fixed_to_int(surface_x) * term->scale;
+    int y = wl_fixed_to_int(surface_y) * term->scale;
+
     seat->pointer.serial = serial;
     seat->pointer.hidden = false;
+    seat->mouse.x = x;
+    seat->mouse.y = y;
 
-    LOG_DBG("pointer-enter: pointer=%p, serial=%u, surface = %p, new-moused = %p",
-            (void *)wl_pointer, serial, (void *)surface, (void *)term);
+    LOG_DBG("pointer-enter: pointer=%p, serial=%u, surface = %p, new-moused = %p, "
+            "x=%d, y=%d",
+            (void *)wl_pointer, serial, (void *)surface, (void *)term,
+            x, y);
 
     xassert(tll_length(seat->mouse.buttons) == 0);
 
@@ -1770,9 +1777,6 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     wayl_reload_xcursor_theme(seat, term->scale);
 
     seat->mouse_focus = term;
-
-    int x = wl_fixed_to_int(surface_x) * term->scale;
-    int y = wl_fixed_to_int(surface_y) * term->scale;
 
     switch ((term->active_surface = term_surface_kind(term, surface))) {
     case TERM_SURF_GRID: {
@@ -2275,6 +2279,16 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
                     if (fd >= 0)
                         close(fd);
                 }
+            }
+
+            if (button == BTN_RIGHT && tll_length(seat->mouse.buttons) == 1) {
+                struct csd_data info;
+                info = get_csd_data(term, CSD_SURF_TITLE);
+                xdg_toplevel_show_window_menu(
+                    win->xdg_toplevel,
+                    seat->wl_seat,
+                    seat->pointer.serial,
+                    seat->mouse.x + info.x, seat->mouse.y + info.y);
             }
         }
 
