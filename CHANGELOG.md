@@ -42,6 +42,8 @@
 * Initial support for the [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/).
   Modes supported:
   - [Disambiguate escape codes](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#disambiguate)
+* “Window menu” (compositor provided) on right clicks on the CSD title
+  bar.
 
 
 ### Changed
