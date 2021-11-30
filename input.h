@@ -27,4 +27,4 @@ extern const struct wl_pointer_listener pointer_listener;
 
 void input_repeat(struct seat *seat, uint32_t key);
 
-const char * xcursor_for_csd_border(struct terminal *term, int x, int y);
+const char *xcursor_for_csd_border(struct terminal *term, int x, int y);
