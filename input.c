@@ -1054,7 +1054,7 @@ legacy_kbd_protocol(struct seat *seat, struct terminal *term,
 #define is_control_key(x) ((x) >= 0x40 && (x) <= 0x7f)
 #define IS_CTRL(x) ((x) < 0x20 || ((x) >= 0x7f && (x) <= 0x9f))
 
-    LOG_DBG("term->modify_other_keys=%d, count=%d, is_ctrl=%d (utf8=0x%02x), sym=%d",
+    LOG_DBG("term->modify_other_keys=%d, count=%zu, is_ctrl=%d (utf8=0x%02x), sym=%d",
             term->modify_other_keys_2, count, IS_CTRL(utf8[0]), utf8[0], sym);
 
     bool ctrl_is_in_effect = (keymap_mods & MOD_CTRL) != 0;
