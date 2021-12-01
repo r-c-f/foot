@@ -62,6 +62,8 @@
 * Visual corruption with large CSD borders
   (https://codeberg.org/dnkl/foot/issues/823).
 * Mouse cursor shape sometimes not being updated correctly.
+* Color palette changes (via OSC 4/104) no longer affect RGB colors
+  (https://codeberg.org/dnkl/foot/issues/678).
 
 
 ### Security

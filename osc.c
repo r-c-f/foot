@@ -528,8 +528,7 @@ osc_notify(struct terminal *term, char *string)
 }
 
 static void
-update_color_in_grids(struct terminal *term, uint32_t old_color,
-                      uint32_t new_color)
+update_color_in_grids(struct terminal *term, int palette_idx, uint32_t new_color)
 {
     /*
      * Update color of already rendered cells.
@@ -560,16 +559,19 @@ update_color_in_grids(struct terminal *term, uint32_t old_color,
 
             for (size_t c = 0; c < term->grid->num_cols; c++) {
                 struct cell *cell = &row->cells[c];
-                if (cell->attrs.fg_src != COLOR_DEFAULT &&
-                    cell->attrs.fg == old_color)
+                enum color_source fg_src = cell->attrs.fg_src;
+                enum color_source bg_src = cell->attrs.bg_src;
+
+                if ((fg_src == COLOR_BASE16 || fg_src == COLOR_BASE256) &&
+                    cell->attrs.fg == term->colors.table[palette_idx])
                 {
                     cell->attrs.fg = new_color;
                     cell->attrs.clean = 0;
                     row->dirty = true;
                 }
 
-                if (cell->attrs.bg_src != COLOR_DEFAULT &&
-                    cell->attrs.bg == old_color)
+                if ((bg_src == COLOR_BASE16 || bg_src == COLOR_BASE256) &&
+                    cell->attrs.bg == term->colors.table[palette_idx])
                 {
                     cell->attrs.bg = new_color;
                     cell->attrs.clean = 0;
@@ -666,7 +668,7 @@ osc_dispatch(struct terminal *term)
                 LOG_DBG("change color definition for #%u from %06x to %06x",
                         idx, term->colors.table[idx], color);
 
-                update_color_in_grids(term, term->colors.table[idx], color);
+                update_color_in_grids(term, idx, color);
                 term->colors.table[idx] = color;
             }
         }
@@ -810,8 +812,7 @@ osc_dispatch(struct terminal *term)
         if (strlen(string) == 0) {
             LOG_DBG("resetting all colors");
             for (size_t i = 0; i < ALEN(term->colors.table); i++) {
-                update_color_in_grids(
-                    term, term->colors.table[i], term->conf->colors.table[i]);
+                update_color_in_grids(term, i, term->conf->colors.table[i]);
                 term->colors.table[i] = term->conf->colors.table[i];
         }
         }
@@ -834,8 +835,7 @@ osc_dispatch(struct terminal *term)
                 }
 
                 LOG_DBG("resetting color #%u", idx);
-                update_color_in_grids(
-                    term, term->colors.table[idx], term->conf->colors.table[idx]);
+                update_color_in_grids(term, idx, term->conf->colors.table[idx]);
                 term->colors.table[idx] = term->conf->colors.table[idx];
             }
         }
