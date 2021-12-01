@@ -61,6 +61,7 @@
 * CSD border not being dimmed when window is not focused.
 * Visual corruption with large CSD borders
   (https://codeberg.org/dnkl/foot/issues/823).
+* Mouse cursor shape sometimes not being updated correctly.
 
 
 ### Security

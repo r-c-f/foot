@@ -1773,12 +1773,13 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
 
     xassert(tll_length(seat->mouse.buttons) == 0);
 
-    /* Scale may have changed */
-    wayl_reload_xcursor_theme(seat, term->scale);
-
     seat->mouse_focus = term;
+    term->active_surface = term_surface_kind(term, surface);
 
-    switch ((term->active_surface = term_surface_kind(term, surface))) {
+    wayl_reload_xcursor_theme(seat, term->scale); /* Scale may have changed */
+    term_xcursor_update_for_seat(term, seat);
+
+    switch (term->active_surface) {
     case TERM_SURF_GRID: {
         /*
          * Translate x,y pixel coordinate to a cell coordinate, or -1
@@ -1796,7 +1797,6 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
         else
             seat->mouse.row = (y - term->margins.top) / term->cell_height;
 
-        term_xcursor_update_for_seat(term, seat);
         break;
     }
 
@@ -1805,20 +1805,15 @@ wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
     case TERM_SURF_RENDER_TIMER:
     case TERM_SURF_JUMP_LABEL:
     case TERM_SURF_TITLE:
-        render_xcursor_set(seat, term, XCURSOR_LEFT_PTR);
-        break;
-
     case TERM_SURF_BORDER_LEFT:
     case TERM_SURF_BORDER_RIGHT:
     case TERM_SURF_BORDER_TOP:
     case TERM_SURF_BORDER_BOTTOM:
-        render_xcursor_set(seat, term, xcursor_for_csd_border(term, x, y));
         break;
 
     case TERM_SURF_BUTTON_MINIMIZE:
     case TERM_SURF_BUTTON_MAXIMIZE:
     case TERM_SURF_BUTTON_CLOSE:
-        render_xcursor_set(seat, term, XCURSOR_LEFT_PTR);
         render_refresh_csd(term);
         break;
 
@@ -1847,8 +1842,10 @@ wl_pointer_leave(void *data, struct wl_pointer *wl_pointer,
         wl_callback_destroy(seat->pointer.xcursor_callback);
         seat->pointer.xcursor_callback = NULL;
         seat->pointer.xcursor_pending = false;
-        seat->pointer.xcursor = NULL;
     }
+
+    /* Reset last-set-xcursor, to ensure we update it on a pointer-enter event */
+    seat->pointer.xcursor = NULL;
 
     /* Reset mouse state */
     seat->mouse.x = seat->mouse.y = 0;
@@ -1876,7 +1873,6 @@ wl_pointer_leave(void *data, struct wl_pointer *wl_pointer,
         enum term_surface active_surface = old_moused->active_surface;
 
         old_moused->active_surface = TERM_SURF_NONE;
-        term_xcursor_update_for_seat(old_moused, seat);
 
         switch (active_surface) {
         case TERM_SURF_BUTTON_MINIMIZE:
@@ -1929,6 +1925,8 @@ wl_pointer_motion(void *data, struct wl_pointer *wl_pointer,
     seat->mouse.x = x;
     seat->mouse.y = y;
 
+    term_xcursor_update_for_seat(term, seat);
+
     enum term_surface surf_kind = term->active_surface;
     int button = 0;
     bool send_to_client = false;
@@ -1966,7 +1964,6 @@ wl_pointer_motion(void *data, struct wl_pointer *wl_pointer,
     case TERM_SURF_BORDER_RIGHT:
     case TERM_SURF_BORDER_TOP:
     case TERM_SURF_BORDER_BOTTOM:
-        render_xcursor_set(seat, term, xcursor_for_csd_border(term, x, y));
         break;
 
     case TERM_SURF_GRID: {
@@ -2016,8 +2013,6 @@ wl_pointer_motion(void *data, struct wl_pointer *wl_pointer,
 
         xassert(seat->mouse.col == -1 || (seat->mouse.col >= 0 && seat->mouse.col < term->cols));
         xassert(seat->mouse.row == -1 || (seat->mouse.row >= 0 && seat->mouse.row < term->rows));
-
-        term_xcursor_update_for_seat(term, seat);
 
         /* Cursor has moved to a different cell since last time */
         bool cursor_is_on_new_cell
