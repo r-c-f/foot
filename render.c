@@ -1521,14 +1521,7 @@ render_worker_thread(void *_ctx)
     return -1;
 }
 
-struct csd_data {
-    int x;
-    int y;
-    int width;
-    int height;
-};
-
-static struct csd_data
+struct csd_data
 get_csd_data(const struct terminal *term, enum csd_surface surf_idx)
 {
     xassert(term->window->csd_mode == CSD_YES);
@@ -1763,13 +1756,15 @@ render_csd_border(struct terminal *term, enum csd_surface surf_idx,
      * The “visible” border.
      */
 
-    int bwidth = term->conf->csd.border_width;          /* Full border size */
-    int vwidth = term->conf->csd.border_width_visible;  /* Visibls size */
+    int bwidth = max(term->conf->csd.border_width,
+                     term->conf->csd.border_width_visible); /* Full border size */
+    int vwidth = term->conf->csd.border_width_visible;      /* Visibls size */
 
     if (vwidth > 0) {
 
         const struct config *conf = term->conf;
         int x = 0, y = 0, w = 0, h = 0;
+
 
         switch (surf_idx) {
         case CSD_SURF_TOP:
@@ -1788,16 +1783,32 @@ render_csd_border(struct terminal *term, enum csd_surface surf_idx,
             h = info->height;
             break;
 
-        default:
-            break;
+        case CSD_SURF_TITLE:
+        case CSD_SURF_MINIMIZE:
+        case CSD_SURF_MAXIMIZE:
+        case CSD_SURF_CLOSE:
+        case CSD_SURF_COUNT:
+            BUG("unexpected CSD surface type");
         }
+
+        xassert(x >= 0);
+        xassert(y >= 0);
+        xassert(w >= 0);
+        xassert(h >= 0);
+
+        xassert(x + w <= info->width);
+        xassert(y + h <= info->height);
 
         uint32_t _color =
             conf->csd.color.border_set ? conf->csd.color.border :
             conf->csd.color.title_set ? conf->csd.color.title :
             0xffu << 24 | term->conf->colors.fg;
+        if (!term->visual_focus)
+            _color = color_dim(term, _color);
+
         uint16_t alpha = _color >> 24 | (_color >> 24 << 8);
         pixman_color_t color = color_hex_to_pixman_with_alpha(_color, alpha);
+
 
         pixman_image_fill_rectangles(
             PIXMAN_OP_SRC, buf->pix[0], &color, 1,

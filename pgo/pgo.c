@@ -74,6 +74,12 @@ render_xcursor_set(struct seat *seat, struct terminal *term, const char *xcursor
     return true;
 }
 
+const char *
+xcursor_for_csd_border(struct terminal *term, int x, int y)
+{
+    return XCURSOR_LEFT_PTR;
+}
+
 struct wl_window *
 wayl_win_init(struct terminal *term, const char *token)
 {

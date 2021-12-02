@@ -792,6 +792,10 @@ action_utf8_print(struct terminal *term, wchar_t wc)
                 composed != NULL ? composed->width : base_width;
 
             switch (term->conf->tweak.grapheme_width_method) {
+            case GRAPHEME_WIDTH_MAX:
+                new_cc->width = max(grapheme_width, width);
+                break;
+
             case GRAPHEME_WIDTH_DOUBLE:
                 if (unlikely(wc == 0xfe0f))
                     width = 2;

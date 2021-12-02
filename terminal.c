@@ -1134,9 +1134,6 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .blink = {.fd = -1},
         .vt = {
             .state = 0,  /* STATE_GROUND */
-            .osc8 = {
-                .begin = {-1, -1},
-            },
         },
         .colors = {
             .fg = conf->colors.fg,
@@ -1818,6 +1815,10 @@ term_reset(struct terminal *term, bool hard)
     tll_free_and_free(term->window_title_stack, free);
     term_set_window_title(term, term->conf->title);
 
+    memset(term->normal.kitty_kbd.flags, 0, sizeof(term->normal.kitty_kbd.flags));
+    memset(term->alt.kitty_kbd.flags, 0, sizeof(term->alt.kitty_kbd.flags));
+    term->normal.kitty_kbd.idx = term->alt.kitty_kbd.idx = 0;
+
     term->scroll_region.start = 0;
     term->scroll_region.end = term->rows;
 
@@ -1826,7 +1827,6 @@ term_reset(struct terminal *term, bool hard)
 
     term->vt = (struct vt){
         .state = 0,     /* STATE_GROUND */
-        .osc8 = {.begin = (struct coord){-1, -1}},
     };
 
     if (term->grid == &term->alt) {
@@ -2829,7 +2829,7 @@ term_mouse_grabbed(const struct terminal *term, struct seat *seat)
     return term->mouse_tracking == MOUSE_NONE ||
         (seat->kbd_focus == term &&
          seat->kbd.shift &&
-         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.meta);
+         !seat->kbd.alt && /*!seat->kbd.ctrl &&*/ !seat->kbd.super);
 }
 
 void
@@ -2962,14 +2962,42 @@ term_mouse_motion(struct terminal *term, int button, int row, int col,
 void
 term_xcursor_update_for_seat(struct terminal *term, struct seat *seat)
 {
-    const char *xcursor
-        = seat->pointer.hidden ? XCURSOR_HIDDEN
-        : term->is_searching ? XCURSOR_LEFT_PTR
-        : (seat->mouse.col >= 0 &&
-           seat->mouse.row >= 0 &&
-           term_mouse_grabbed(term, seat)) ? XCURSOR_TEXT
-        : term->is_searching ? XCURSOR_TEXT
-        : XCURSOR_LEFT_PTR;
+    const char *xcursor = NULL;
+
+    switch (term->active_surface) {
+    case TERM_SURF_GRID: {
+        xcursor = seat->pointer.hidden ? XCURSOR_HIDDEN
+            : term->is_searching ? XCURSOR_LEFT_PTR
+            : (seat->mouse.col >= 0 &&
+               seat->mouse.row >= 0 &&
+               term_mouse_grabbed(term, seat)) ? XCURSOR_TEXT
+            : XCURSOR_LEFT_PTR;
+        break;
+    }
+    case TERM_SURF_SEARCH:
+    case TERM_SURF_SCROLLBACK_INDICATOR:
+    case TERM_SURF_RENDER_TIMER:
+    case TERM_SURF_JUMP_LABEL:
+    case TERM_SURF_TITLE:
+    case TERM_SURF_BUTTON_MINIMIZE:
+    case TERM_SURF_BUTTON_MAXIMIZE:
+    case TERM_SURF_BUTTON_CLOSE:
+        xcursor = XCURSOR_LEFT_PTR;
+        break;
+
+    case TERM_SURF_BORDER_LEFT:
+    case TERM_SURF_BORDER_RIGHT:
+    case TERM_SURF_BORDER_TOP:
+    case TERM_SURF_BORDER_BOTTOM:
+        xcursor = xcursor_for_csd_border(term, seat->mouse.x, seat->mouse.y);
+        break;
+
+    case TERM_SURF_NONE:
+        return;
+    }
+
+    if (xcursor == NULL)
+        BUG("xcursor not set");
 
     render_xcursor_set(seat, term, xcursor);
 }
@@ -3151,7 +3179,8 @@ print_insert(struct terminal *term, int width)
 static void
 print_spacer(struct terminal *term, int col, int remaining)
 {
-    struct row *row = term->grid->cur_row;
+    struct grid *grid = term->grid;
+    struct row *row = grid->cur_row;
     struct cell *cell = &row->cells[col];
 
     cell->wc = CELL_SPACER + remaining;
@@ -3210,7 +3239,19 @@ term_print(struct terminal *term, wchar_t wc, int width)
     cell->wc = term->vt.last_printed = wc;
     cell->attrs = term->vt.attrs;
 
-    const int uri_start = col;
+    if (term->vt.osc8.uri != NULL) {
+        grid_row_uri_range_put(
+            row, col, term->vt.osc8.uri, term->vt.osc8.id);
+
+        switch (term->conf->url.osc8_underline) {
+        case OSC8_UNDERLINE_ALWAYS:
+            cell->attrs.url = true;
+            break;
+
+        case OSC8_UNDERLINE_URL_MODE:
+            break;
+        }
+    }
 
     /* Advance cursor the 'additional' columns while dirty:ing the cells */
     for (int i = 1; i < width && col < term->cols - 1; i++) {
@@ -3226,9 +3267,6 @@ term_print(struct terminal *term, wchar_t wc, int width)
         xassert(!grid->cursor.lcf);
 
     grid->cursor.point.col = col;
-
-    if (unlikely(row->extra != NULL))
-        grid_row_uri_range_erase(row, uri_start, uri_start + width - 1);
 }
 
 static void
@@ -3260,7 +3298,6 @@ ascii_printer_fast(struct terminal *term, wchar_t wc)
     cell->wc = term->vt.last_printed = wc;
     cell->attrs = term->vt.attrs;
 
-
     /* Advance cursor */
     if (unlikely(++col >= term->cols)) {
         grid->cursor.lcf = true;
@@ -3287,6 +3324,7 @@ term_update_ascii_printer(struct terminal *term)
 {
     void (*new_printer)(struct terminal *term, wchar_t wc) =
         unlikely(tll_length(term->grid->sixel_images) > 0 ||
+                 term->vt.osc8.uri != NULL ||
                  term->charsets.set[term->charsets.selected] == CHARSET_GRAPHIC ||
                  term->insert_mode)
         ? &ascii_printer_generic
@@ -3294,7 +3332,7 @@ term_update_ascii_printer(struct terminal *term)
 
 #if defined(_DEBUG) && LOG_ENABLE_DBG
     if (term->ascii_printer != new_printer) {
-        LOG_DBG("switching ASCII printer %s -> %s",
+        LOG_DBG("§switching ASCII printer %s -> %s",
                 term->ascii_printer == &ascii_printer_fast ? "fast" : "generic",
                 new_printer == &ascii_printer_fast ? "fast" : "generic");
     }
@@ -3491,84 +3529,19 @@ term_ime_set_cursor_rect(struct terminal *term, int x, int y, int width,
 void
 term_osc8_open(struct terminal *term, uint64_t id, const char *uri)
 {
-    if (unlikely(term->vt.osc8.begin.row >= 0)) {
-        /* It’s valid to switch from one URI to another without
-         * closing the first one */
-        term_osc8_close(term);
-    }
-
+    term_osc8_close(term);
     xassert(term->vt.osc8.uri == NULL);
 
-    term->vt.osc8.begin = (struct coord){
-        .col = term->grid->cursor.point.col,
-        .row = grid_row_absolute(term->grid, term->grid->cursor.point.row),
-    };
     term->vt.osc8.id = id;
     term->vt.osc8.uri = xstrdup(uri);
+    term_update_ascii_printer(term);
 }
 
 void
 term_osc8_close(struct terminal *term)
 {
-    if (term->vt.osc8.begin.row < 0)
-        return;
-
-    if (term->vt.osc8.uri[0] == '\0')
-        goto done;
-
-    struct coord start = term->vt.osc8.begin;
-    struct coord end = (struct coord){
-        .col = term->grid->cursor.point.col,
-        .row = grid_row_absolute(term->grid, term->grid->cursor.point.row),
-    };
-
-    if (start.row == end.row && start.col == end.col) {
-        /* Zero-length URL, e.g: \E]8;;http://foo\E\\\E]8;;\E\\ */
-        goto done;
-    }
-
-    /* end is *inclusive */
-    if (--end.col < 0) {
-        end.row--;
-        end.col = term->cols - 1;
-    }
-
-    int r = start.row;
-    int start_col = start.col;
-    while (true) {
-        int end_col = r == end.row ? end.col : term->cols - 1;
-
-        struct row *row = term->grid->rows[r];
-
-        switch (term->conf->url.osc8_underline) {
-        case OSC8_UNDERLINE_ALWAYS:
-            for (int c = start_col; c <= end_col; c++)
-                row->cells[c].attrs.url = true;
-            break;
-
-        case OSC8_UNDERLINE_URL_MODE:
-            break;
-        }
-
-        struct row_uri_range range = {
-            .start = start_col,
-            .end = end_col,
-            .id = term->vt.osc8.id,
-            .uri = xstrdup(term->vt.osc8.uri),
-        };
-        grid_row_uri_range_add(row, range);
-        start_col = 0;
-
-        if (r == end.row)
-            break;
-
-        r++;
-        r &= term->grid->num_rows - 1;
-    }
-
-done:
     free(term->vt.osc8.uri);
-    term->vt.osc8.id = 0;
     term->vt.osc8.uri = NULL;
-    term->vt.osc8.begin = (struct coord){-1, -1};
+    term->vt.osc8.id = 0;
+    term_update_ascii_printer(term);
 }

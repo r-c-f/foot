@@ -439,24 +439,27 @@ osc8_uris(const struct terminal *term, enum url_action action, url_list_t *urls)
 
     for (int r = 0; r < term->rows; r++) {
         const struct row *row = grid_row_in_view(term->grid, r);
+        const struct row_data *extra = row->extra;
 
-       if (row->extra == NULL)
+       if (extra == NULL)
             continue;
 
-       tll_foreach(row->extra->uri_ranges, it) {
+       for (size_t i = 0; i < extra->uri_ranges.count; i++) {
+           const struct row_uri_range *range = &extra->uri_ranges.v[i];
+
            struct coord start = {
-               .col = it->item.start,
+               .col = range->start,
                .row = r + term->grid->view,
            };
            struct coord end = {
-               .col = it->item.end,
+               .col = range->end,
                .row = r + term->grid->view,
            };
            tll_push_back(
                *urls,
                ((struct url){
-                   .id = it->item.id,
-                   .url = xstrdup(it->item.uri),
+                   .id = range->id,
+                   .url = xstrdup(range->uri),
                    .start = start,
                    .end = end,
                    .action = action,

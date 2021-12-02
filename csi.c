@@ -1444,6 +1444,16 @@ csi_dispatch(struct terminal *term, uint8_t final)
             break;
         }
 
+        case 'u': {
+            enum kitty_kbd_flags flags =
+                term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx];
+
+            char reply[8];
+            int chars = snprintf(reply, sizeof(reply), "\033[?%uu", flags);
+            term_to_slave(term, reply, chars);
+            break;
+        }
+
         default:
             UNHANDLED();
             break;
@@ -1532,6 +1542,25 @@ csi_dispatch(struct terminal *term, uint8_t final)
             }
             break; /* final == 'm' */
 
+        case 'u': {
+            int flags = vt_param_get(term, 0, 0) & KITTY_KBD_SUPPORTED;
+
+            struct grid *grid = term->grid;
+            uint8_t idx = grid->kitty_kbd.idx;
+
+            if (idx + 1 >= ALEN(grid->kitty_kbd.flags)) {
+                /* Stack full, evict oldest by wrapping around */
+                idx = 0;
+            } else
+                idx++;
+
+            grid->kitty_kbd.flags[idx] = flags;
+            grid->kitty_kbd.idx = idx;
+
+            LOG_DBG("kitty kbd: pushed new flags: 0x%03x", flags);
+            break;
+        }
+
         case 'q': {
             /* XTVERSION */
             if (vt_param_get(term, 0, 0) != 0) {
@@ -1554,6 +1583,36 @@ csi_dispatch(struct terminal *term, uint8_t final)
         }
 
         break; /* private[0] == '>' */
+    }
+
+    case '<': {
+        switch (final) {
+        case 'u': {
+            int count = vt_param_get(term, 0, 1);
+            LOG_DBG("kitty kbd: popping %d levels of flags", count);
+
+            struct grid *grid = term->grid;
+            uint8_t idx = grid->kitty_kbd.idx;
+
+            for (int i = 0; i < count; i++) {
+                /* Reset flags. This ensures we get flags=0 when
+                 * over-popping */
+                grid->kitty_kbd.flags[idx] = 0;
+
+                if (idx == 0)
+                    idx = ALEN(grid->kitty_kbd.flags) - 1;
+                else
+                    idx--;
+            }
+
+            grid->kitty_kbd.idx = idx;
+
+            LOG_DBG("kitty kbd: flags after pop: 0x%03x",
+                    term->grid->kitty_kbd.flags[idx]);
+            break;
+        }
+        }
+        break; /* private[0] == ‘<’ */
     }
 
     case ' ': {
@@ -1632,6 +1691,39 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
             term_to_slave(term, "\033P!|464f4f54\033\\", 14);  /* FOOT */
             break;
+
+        case 'u': {
+            int flag_set = vt_param_get(term, 0, 0) & KITTY_KBD_SUPPORTED;
+            int mode = vt_param_get(term, 1, 1);
+
+            struct grid *grid = term->grid;
+            uint8_t idx = grid->kitty_kbd.idx;
+
+            switch (mode) {
+            case 1:
+                /* set bits are set, unset bits are reset */
+                grid->kitty_kbd.flags[idx] = flag_set;
+                break;
+
+            case 2:
+                /* set bits are set, unset bits are left unchanged */
+                grid->kitty_kbd.flags[idx] |= flag_set;
+                break;
+
+            case 3:
+                /* set bits are reset, unset bits are left unchanged */
+                grid->kitty_kbd.flags[idx] &= ~flag_set;
+                break;
+
+            default:
+                UNHANDLED();
+                break;
+            }
+
+            LOG_DBG("kitty kbd: flags after update: 0x%03x",
+                    grid->kitty_kbd.flags[idx]);
+            break;
+        }
 
         default:
             UNHANDLED();

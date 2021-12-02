@@ -102,7 +102,11 @@ struct row_uri_range {
 };
 
 struct row_data {
-    tll(struct row_uri_range) uri_ranges;
+    struct {
+        struct row_uri_range *v;
+        uint32_t size;
+        uint32_t count;
+    } uri_ranges;
 };
 
 struct row {
@@ -121,6 +125,15 @@ struct sixel {
     int cols;
     struct coord pos;
     bool opaque;
+};
+
+enum kitty_kbd_flags {
+    KITTY_KBD_DISAMBIGUATE = 0x01,
+    KITTY_KBD_REPORT_EVENT = 0x02,
+    KITTY_KBD_REPORT_ALTERNATE = 0x04,
+    KITTY_KBD_REPORT_ALL = 0x08,
+    KITTY_KBD_REPORT_ASSOCIATED = 0x10,
+    KITTY_KBD_SUPPORTED = KITTY_KBD_DISAMBIGUATE,
 };
 
 struct grid {
@@ -145,6 +158,12 @@ struct grid {
 
     tll(struct damage) scroll_damage;
     tll(struct sixel) sixel_images;
+
+    struct {
+        enum kitty_kbd_flags flags[8];
+        uint8_t idx;
+    } kitty_kbd;
+
 };
 
 struct vt_subparams {
@@ -185,7 +204,6 @@ struct vt {
     struct {
         uint64_t id;
         char *uri;
-        struct coord begin;
     } osc8;
 
     struct {

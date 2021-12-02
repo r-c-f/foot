@@ -24,3 +24,12 @@ struct render_worker_context {
     struct terminal *term;
 };
 int render_worker_thread(void *_ctx);
+
+struct csd_data {
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+struct csd_data get_csd_data(const struct terminal *term, enum csd_surface surf_idx);

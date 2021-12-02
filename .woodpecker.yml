@@ -64,7 +64,7 @@ pipeline:
       - apk del harfbuzz harfbuzz-dev utf8proc utf8proc-dev
       - mkdir -p bld/debug
       - cd bld/debug
-      - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:text-shaping=disabled -Dfcft:test-text-shaping=false ../..
+      - meson --buildtype=debug -Dgrapheme-clustering=disabled -Dfcft:grapheme-shaping=disabled -Dfcft:run-shaping=disabled -Dfcft:test-text-shaping=false ../..
       - ninja -v -k0
       - ninja -v test
       - ./foot --version
