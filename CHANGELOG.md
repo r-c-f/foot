@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#Unreleased)
+* [1.10.2](#1-10-2)
 * [1.10.1](#1-10-1)
 * [1.10.0](#1-10-0)
 * [1.9.2](#1-9-2)
@@ -34,7 +34,7 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.10.2
 
 ### Added
 
@@ -46,9 +46,6 @@
   bar.
 
 
-### Changed
-### Deprecated
-### Removed
 ### Fixed
 
 * An ongoing mouse selection is now finalized on a pointer leave event
@@ -66,8 +63,9 @@
   (https://codeberg.org/dnkl/foot/issues/678).
 
 
-### Security
 ### Contributors
+
+* Jonas Ådahl
 
 
 ## 1.10.1
