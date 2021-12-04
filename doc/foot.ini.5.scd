@@ -865,10 +865,6 @@ of the modifiers *must* be valid XKB key names, and the button name
 *must* be a valid libinput name. You can find the button names using
 *libinput debug-events*.
 
-Note that *Shift* cannot be used as a modifier in mouse bindings since
-it is used to enable selection when the client application is grabbing
-the mouse.
-
 The trailing *COUNT* is optional and specifies the click count
 required to trigger the binding. The default if *COUNT* is omitted is
 _1_.
@@ -879,7 +875,19 @@ say you want to bind *BTN\_MIDDLE* to *fullscreen*. Since
 need to unmap the default binding. This can be done by setting
 _action=none_; e.g. *primary-paste=none*.
 
-All actions listed under *key-bindings* can be used here as well.
+*selection-override-modifiers*
+	The modifiers set in this set (which may be set to any combination
+	of modifiers, e.g. _mod1+mod2+mod3_, as well as _none_) are used
+	to enable selecting text with the mouse irrespective of whether a
+	client application currently has the mouse grabbed.
+	These modifiers cannot be used as modifiers in mouse bindings.
+	Because the order of bindings is significant, it is best to set
+	this prior to any other mouse bindings that might use modifiers in
+	the default set.
+	Default: _Shift_
+
+The actions to which mouse combos can be bound are listed below. All
+actions listed under *key-bindings* can be used here as well.
 
 *select-begin*
 	Begin an interactive selection. The selection is finalized, and

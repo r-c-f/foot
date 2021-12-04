@@ -1334,6 +1334,10 @@ parse_section_cursor(struct context *ctx)
 }
 
 static bool
+parse_modifiers(struct context *ctx, const char *text, size_t len,
+                struct config_key_modifiers *modifiers);
+
+static bool
 parse_section_mouse(struct context *ctx)
 {
     struct config *conf = ctx->conf;
@@ -1474,6 +1478,11 @@ parse_modifiers(struct context *ctx, const char *text, size_t len,
     bool ret = false;
 
     *modifiers = (struct config_key_modifiers){0};
+
+    /* Handle "none" separately because e.g. none+shift is nonsense */
+    if (strncmp(text, "none", len) == 0)
+        return true;
+
     char *copy = xstrndup(text, len);
 
     for (char *tok_ctx = NULL, *key = strtok_r(copy, "+", &tok_ctx);
@@ -1947,6 +1956,31 @@ parse_section_url_bindings(struct context *ctx)
         &ctx->conf->bindings.url);
 }
 
+static const struct {
+    const char *name;
+    int code;
+} button_map[] = {
+    {"BTN_LEFT", BTN_LEFT},
+    {"BTN_RIGHT", BTN_RIGHT},
+    {"BTN_MIDDLE", BTN_MIDDLE},
+    {"BTN_SIDE", BTN_SIDE},
+    {"BTN_EXTRA", BTN_EXTRA},
+    {"BTN_FORWARD", BTN_FORWARD},
+    {"BTN_BACK", BTN_BACK},
+    {"BTN_TASK", BTN_TASK},
+};
+
+static const char*
+mouse_event_code_get_name(int code)
+{
+    for (size_t i = 0; i < ALEN(button_map); i++) {
+        if (code == button_map[i].code)
+            return button_map[i].name;
+    }
+
+    return NULL;
+}
+
 static bool
 value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
@@ -1971,10 +2005,6 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
             *key = '\0';
             if (!parse_modifiers(ctx, combo, key - combo, &modifiers))
                 goto err;
-            if (modifiers.shift) {
-                LOG_CONTEXTUAL_ERR("Shift cannot be used in mouse bindings");
-                goto err;
-            }
             key++;  /* Skip past the '+' */
         }
 
@@ -1999,24 +2029,10 @@ value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
             }
         }
 
-        static const struct {
-            const char *name;
-            int code;
-        } map[] = {
-            {"BTN_LEFT", BTN_LEFT},
-            {"BTN_RIGHT", BTN_RIGHT},
-            {"BTN_MIDDLE", BTN_MIDDLE},
-            {"BTN_SIDE", BTN_SIDE},
-            {"BTN_EXTRA", BTN_EXTRA},
-            {"BTN_FORWARD", BTN_FORWARD},
-            {"BTN_BACK", BTN_BACK},
-            {"BTN_TASK", BTN_TASK},
-        };
-
         int button = 0;
-        for (size_t i = 0; i < ALEN(map); i++) {
-            if (strcmp(key, map[i].name) == 0) {
-                button = map[i].code;
+        for (size_t i = 0; i < ALEN(button_map); i++) {
+            if (strcmp(key, button_map[i].name) == 0) {
+                button = button_map[i].code;
                 break;
             }
         }
@@ -2055,6 +2071,98 @@ err:
 }
 
 static bool
+modifiers_equal(const struct config_key_modifiers *mods1,
+                const struct config_key_modifiers *mods2)
+{
+    bool shift = mods1->shift == mods2->shift;
+    bool alt = mods1->alt == mods2->alt;
+    bool ctrl = mods1->ctrl == mods2->ctrl;
+    bool meta = mods1->meta == mods2->meta;
+    return shift && alt && ctrl && meta;
+}
+
+static bool
+modifiers_disjoint(const struct config_key_modifiers *mods1,
+                const struct config_key_modifiers *mods2)
+{
+    bool shift = mods1->shift && mods2->shift;
+    bool alt = mods1->alt && mods2->alt;
+    bool ctrl = mods1->ctrl && mods2->ctrl;
+    bool meta = mods1->meta && mods2->meta;
+    return !(shift || alt || ctrl || meta);
+}
+
+static char *
+modifiers_to_str(const struct config_key_modifiers *mods)
+{
+    char *ret = xasprintf("%s%s%s%s",
+        mods->ctrl ? "Control+" : "",
+        mods->alt ? "Alt+": "",
+        mods->meta ? "Meta+": "",
+        mods->shift ? "Shift+": "");
+    ret[strlen(ret) - 1] = '\0';
+    return ret;
+}
+
+static char *
+mouse_combo_to_str(const struct key_combo *combo)
+{
+    char *combo_modifiers_str = modifiers_to_str(&combo->modifiers);
+    const char *combo_button_str = mouse_event_code_get_name(combo->m.button);
+    xassert(combo_button_str != NULL);
+
+    char *ret;
+    if (combo->m.count == 1)
+        ret = xasprintf("%s+%s", combo_modifiers_str, combo_button_str);
+    else
+        ret = xasprintf("%s+%s-%d",
+                        combo_modifiers_str,
+                        combo_button_str,
+                        combo->m.count);
+
+   free (combo_modifiers_str);
+   return ret;
+}
+
+static bool
+selection_override_interferes_with_mouse_binding(struct context *ctx,
+                                                 int action,
+                                                 const struct key_combo_list *key_combos,
+                                                 bool blame_modifiers)
+{
+    struct config *conf = ctx->conf;
+
+    if (action == BIND_ACTION_NONE)
+        return false;
+
+    const struct config_key_modifiers *override_mods =
+        &conf->mouse.selection_override_modifiers;
+    for (size_t i = 0; i < key_combos->count; i++) {
+        const struct key_combo *combo = &key_combos->combos[i];
+
+        if (!modifiers_disjoint(&combo->modifiers, override_mods)) {
+            char *modifiers_str = modifiers_to_str(override_mods);
+            char *combo_str = mouse_combo_to_str(combo);
+            if (blame_modifiers) {
+                LOG_CONTEXTUAL_ERR(
+                    "modifiers conflict with existing binding %s=%s",
+                    binding_action_map[action],
+                    combo_str);
+            } else {
+                LOG_CONTEXTUAL_ERR(
+                    "binding conflicts with selection override modifiers (%s)",
+                    modifiers_str);
+            }
+            free (modifiers_str);
+            free (combo_str);
+            return false;
+        }
+    }
+
+    return false;
+}
+
+static bool
 has_mouse_binding_collisions(struct context *ctx,
                              const struct key_combo_list *key_combos)
 {
@@ -2071,14 +2179,10 @@ has_mouse_binding_collisions(struct context *ctx,
             const struct config_key_modifiers *mods1 = &combo1->modifiers;
             const struct config_key_modifiers *mods2 = &combo2->modifiers;
 
-            bool shift = mods1->shift == mods2->shift;
-            bool alt = mods1->alt == mods2->alt;
-            bool ctrl = mods1->ctrl == mods2->ctrl;
-            bool meta = mods1->meta == mods2->meta;
             bool button = combo1->button == combo2->m.button;
             bool count = combo1->count == combo2->m.count;
 
-            if (shift && alt && ctrl && meta && button && count) {
+            if (modifiers_equal(mods1, mods2) && button && count) {
                 bool has_pipe = combo1->pipe.argv.args != NULL;
                 LOG_CONTEXTUAL_ERR("%s already mapped to '%s%s%s%s'",
                                    combo2->text,
@@ -2101,6 +2205,37 @@ parse_section_mouse_bindings(struct context *ctx)
     struct config *conf = ctx->conf;
     const char *key = ctx->key;
     const char *value = ctx->value;
+
+    if (strcmp(ctx->key, "selection-override-modifiers") == 0) {
+        if (!parse_modifiers(ctx, ctx->value, strlen(ctx->value),
+            &conf->mouse.selection_override_modifiers)) {
+            LOG_CONTEXTUAL_ERR("%s: invalid modifiers '%s'", key, ctx->value);
+            return false;
+        }
+
+        /* Ensure no existing bindings use these modifiers */
+        for (size_t i = 0; i < conf->bindings.mouse.count; i++) {
+            const struct config_mouse_binding *binding = &conf->bindings.mouse.arr[i];
+            struct key_combo combo = {
+                .modifiers = binding->modifiers,
+                .m = {
+                    .button = binding->button,
+                    .count = binding->count,
+                },
+            };
+
+            struct key_combo_list key_combos = {
+                .count = 1,
+                .combos = &combo,
+            };
+
+            if (selection_override_interferes_with_mouse_binding(ctx, binding->action, &key_combos, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     struct argv pipe_argv;
 
@@ -2136,7 +2271,8 @@ parse_section_mouse_bindings(struct context *ctx)
 
         struct key_combo_list key_combos = {0};
         if (!value_to_mouse_combos(ctx, &key_combos) ||
-            has_mouse_binding_collisions(ctx, &key_combos))
+            has_mouse_binding_collisions(ctx, &key_combos) ||
+            selection_override_interferes_with_mouse_binding(ctx, action, &key_combos, false))
         {
             free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
@@ -2780,6 +2916,12 @@ config_load(struct config *conf, const char *conf_path,
         .mouse = {
             .hide_when_typing = false,
             .alternate_scroll_mode = true,
+            .selection_override_modifiers = {
+                .shift = true,
+                .alt = false,
+                .ctrl = false,
+                .meta = false,
+            },
         },
         .csd = {
             .preferred = CONF_CSD_PREFER_SERVER,
