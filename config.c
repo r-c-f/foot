@@ -1970,6 +1970,17 @@ static const struct {
     {"BTN_TASK", BTN_TASK},
 };
 
+static const char*
+mouse_event_code_get_name(int code)
+{
+    for (size_t i = 0; i < ALEN(button_map); i++) {
+        if (code == button_map[i].code)
+            return button_map[i].name;
+    }
+
+    return NULL;
+}
+
 static bool
 value_to_mouse_combos(struct context *ctx, struct key_combo_list *key_combos)
 {
@@ -2093,21 +2104,57 @@ modifiers_to_str(const struct config_key_modifiers *mods)
     return ret;
 }
 
+static char *
+mouse_combo_to_str(const struct key_combo *combo)
+{
+    char *combo_modifiers_str = modifiers_to_str(&combo->modifiers);
+    const char *combo_button_str = mouse_event_code_get_name(combo->m.button);
+    xassert(combo_button_str != NULL);
+
+    char *ret;
+    if (combo->m.count == 1)
+        ret = xasprintf("%s+%s", combo_modifiers_str, combo_button_str);
+    else
+        ret = xasprintf("%s+%s-%d",
+                        combo_modifiers_str,
+                        combo_button_str,
+                        combo->m.count);
+
+   free (combo_modifiers_str);
+   return ret;
+}
+
 static bool
 selection_override_interferes_with_mouse_binding(struct context *ctx,
-                                                 const struct key_combo_list *key_combos)
+                                                 int action,
+                                                 const struct key_combo_list *key_combos,
+                                                 bool blame_modifiers)
 {
     struct config *conf = ctx->conf;
 
-    const struct config_key_modifiers *override_mods = &conf->mouse.selection_override_modifiers;
+    if (action == BIND_ACTION_NONE)
+        return false;
+
+    const struct config_key_modifiers *override_mods =
+        &conf->mouse.selection_override_modifiers;
     for (size_t i = 0; i < key_combos->count; i++) {
         const struct key_combo *combo = &key_combos->combos[i];
+
         if (!modifiers_disjoint(&combo->modifiers, override_mods)) {
             char *modifiers_str = modifiers_to_str(override_mods);
-            LOG_CONTEXTUAL_ERR(
-                "Selection override modifiers (%s) cannot be used in mouse bindings",
-                modifiers_str);
+            char *combo_str = mouse_combo_to_str(combo);
+            if (blame_modifiers) {
+                LOG_CONTEXTUAL_ERR(
+                    "modifiers conflict with existing binding %s=%s",
+                    binding_action_map[action],
+                    combo_str);
+            } else {
+                LOG_CONTEXTUAL_ERR(
+                    "binding conflicts with selection override modifiers (%s)",
+                    modifiers_str);
+            }
             free (modifiers_str);
+            free (combo_str);
             return false;
         }
     }
@@ -2182,7 +2229,7 @@ parse_section_mouse_bindings(struct context *ctx)
                 .combos = &combo,
             };
 
-            if (selection_override_interferes_with_mouse_binding(ctx, &key_combos)) {
+            if (selection_override_interferes_with_mouse_binding(ctx, binding->action, &key_combos, true)) {
                 return false;
             }
         }
@@ -2225,7 +2272,7 @@ parse_section_mouse_bindings(struct context *ctx)
         struct key_combo_list key_combos = {0};
         if (!value_to_mouse_combos(ctx, &key_combos) ||
             has_mouse_binding_collisions(ctx, &key_combos) ||
-            selection_override_interferes_with_mouse_binding(ctx, &key_combos))
+            selection_override_interferes_with_mouse_binding(ctx, action, &key_combos, false))
         {
             free_argv(&pipe_argv);
             free_key_combo_list(&key_combos);
