@@ -160,6 +160,11 @@ shm_chain_new(struct wl_shm *shm, bool scrollable, size_t pix_instances)
 
 void search_selection_cancelled(struct terminal *term) {}
 
+void get_current_modifiers(const struct seat *seat,
+                           xkb_mod_mask_t *effective,
+                           xkb_mod_mask_t *consumed, uint32_t key) {}
+
+
 int
 main(int argc, const char *const *argv)
 {
