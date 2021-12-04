@@ -1031,6 +1031,9 @@ static bool
 legacy_kbd_protocol(struct seat *seat, struct terminal *term,
                     const struct kbd_ctx *ctx)
 {
+    if (ctx->key_state != WL_KEYBOARD_KEY_STATE_PRESSED)
+        return false;
+
     enum modifier keymap_mods = MOD_NONE;
     keymap_mods |= seat->kbd.shift ? MOD_SHIFT : MOD_NONE;
     keymap_mods |= seat->kbd.alt ? MOD_ALT : MOD_NONE;
@@ -1145,6 +1148,25 @@ static bool
 kitty_kbd_protocol(struct seat *seat, struct terminal *term,
                    const struct kbd_ctx *ctx)
 {
+    const bool repeating = seat->kbd.repeat.dont_re_repeat;
+    const bool pressed = ctx->key_state == WL_KEYBOARD_KEY_STATE_PRESSED && !repeating;
+    const bool released = ctx->key_state == WL_KEYBOARD_KEY_STATE_RELEASED;
+    const bool composed = ctx->compose_status == XKB_COMPOSE_COMPOSED;
+
+    const enum kitty_kbd_flags flags = term->grid->kitty_kbd.flags[term->grid->kitty_kbd.idx];
+    const bool disambiguate = flags & KITTY_KBD_DISAMBIGUATE;
+    const bool report_events = flags & KITTY_KBD_REPORT_EVENT;
+
+    if (!report_events && released)
+        return false;
+
+    if (composed && released)
+        return false;
+
+    /* TODO: should we even bother with this, or just say it’s not supported? */
+    if (!disambiguate && pressed)
+        return legacy_kbd_protocol(seat, term, ctx);
+
     const xkb_mod_mask_t mods = ctx->mods & seat->kbd.kitty_significant;
     const xkb_mod_mask_t consumed = xkb_state_key_get_consumed_mods2(
         seat->kbd.xkb_state, ctx->key, XKB_CONSUMED_MODE_GTK) & seat->kbd.kitty_significant;
@@ -1157,11 +1179,6 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     const uint8_t *const utf8 = ctx->utf8.buf;
     const size_t count = ctx->utf8.count;
 
-    if (ctx->compose_status == XKB_COMPOSE_COMPOSED) {
-        term_to_slave(term, utf8, count);
-        return true;
-    }
-
     if (effective == 0) {
         switch (sym) {
         case XKB_KEY_Return:    term_to_slave(term, "\r", 1); return  true;
@@ -1170,16 +1187,10 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         }
     }
 
-    /*
-     * Printables without any modifiers are printed as is.
-     *
-     * TODO: plain text keys (a-z, 0-9 etc) are still printed as text,
-     * even when NumLock is active, despite NumLock being a
-     * significant modifier, *and* despite NumLock affecting other
-     * keys, like Return and Backspace; figure out if there’s some
-     * better magic than filtering out Caps- and Num-Lock here..
-     */
-    if (iswprint(utf32) && (effective & ~caps_num) == 0) {
+    /* Plain-text without modifiers, or commposed text, is emitted as-is */
+    if (((iswprint(utf32) && (effective & ~caps_num) == 0) || composed)
+        && !released)
+    {
         term_to_slave(term, utf8, count);
         return true;
     }
@@ -1301,92 +1312,108 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
     case XKB_KEY_XF86AudioRaiseVolume: key = 57439; final = 'u'; break;
     case XKB_KEY_XF86AudioMute:        key = 57440; final = 'u'; break;
 
-#if 0  /* TODO: enable when “Report all keys as escape codes” is enabled */
-    case XKB_KEY_Caps_Lock: key = 57358; final = 'u'; break;
-    case XKB_KEY_Num_Lock:  key = 57360; final = 'u'; break;
+    case XKB_KEY_Caps_Lock: if (false) {key = 57358; final = 'u';} break;
+    case XKB_KEY_Num_Lock:  if (false) {key = 57360; final = 'u';} break;
 
-    case XKB_KEY_Shift_L:   key = 57441; final = 'u'; break;
-    case XKB_KEY_Control_L: key = 57442; final = 'u'; break;
-    case XKB_KEY_Alt_L:     key = 57443; final = 'u'; break;
-    case XKB_KEY_Super_L:   key = 57444; final = 'u'; break;
-    case XKB_KEY_Hyper_L:   key = 57445; final = 'u'; break;
-    case XKB_KEY_Meta_L:    key = 57446; final = 'u'; break;
-    case XKB_KEY_Shift_R:   key = 57447; final = 'u'; break;
-    case XKB_KEY_Control_R: key = 57448; final = 'u'; break;
-    case XKB_KEY_Alt_R:     key = 57449; final = 'u'; break;
-    case XKB_KEY_Super_R:   key = 57450; final = 'u'; break;
-    case XKB_KEY_Hyper_R:   key = 57451; final = 'u'; break;
-    case XKB_KEY_Meta_R:    key = 57452; final = 'u'; break;
-#endif
+    case XKB_KEY_Shift_L:   if (false) {key = 57441; final = 'u';} break;
+    case XKB_KEY_Control_L: if (false) {key = 57442; final = 'u';} break;
+    case XKB_KEY_Alt_L:     if (false) {key = 57443; final = 'u';} break;
+    case XKB_KEY_Super_L:   if (false) {key = 57444; final = 'u';} break;
+    case XKB_KEY_Hyper_L:   if (false) {key = 57445; final = 'u';} break;
+    case XKB_KEY_Meta_L:    if (false) {key = 57446; final = 'u';} break;
+    case XKB_KEY_Shift_R:   if (false) {key = 57447; final = 'u';} break;
+    case XKB_KEY_Control_R: if (false) {key = 57448; final = 'u';} break;
+    case XKB_KEY_Alt_R:     if (false) {key = 57449; final = 'u';} break;
+    case XKB_KEY_Super_R:   if (false) {key = 57450; final = 'u';} break;
+    case XKB_KEY_Hyper_R:   if (false) {key = 57451; final = 'u';} break;
+    case XKB_KEY_Meta_R:    if (false) {key = 57452; final = 'u';} break;
 
-    default:
-        if (count > 0) {
-            if (effective == 0) {
-                term_to_slave(term, utf8, count);
-                return true;
+    default: {
+        /*
+         * Use keysym (typically its Unicode codepoint value).
+         *
+         * If the keysym is shifted, use its unshifted codepoint
+         * instead. In other words, ctrl+a and ctrl+shift+a should
+         * both use the same value for ‘key’ (97 - i.a. ‘a’).
+         *
+         * However, if a non-significant modifier was used to
+         * generate the symbol. This is needed since we cannot
+         * encode non-significant modifiers, and thus the “extra”
+         * modifier(s) would get lost.
+         *
+         * Example:
+         *
+         * the Swedish layout has ‘2’, QUOTATION MARK (“double
+         * quote”), ‘@’, and ‘²’ on the same key. ‘2’ is the base
+         * symbol.
+         *
+         * Shift+2 results in QUOTATION MARK
+         * AltGr+2 results in ‘@’
+         * AltGr+Shift+2 results in ‘²’
+         *
+         * The kitty kbd protocol can’t encode AltGr. So, if we
+         * always used the base symbol (‘2’), Alt+Shift+2 would
+         * result in the same escape sequence as
+         * AltGr+Alt+Shift+2.
+         *
+         * (yes, this matches what kitty does, as of 0.23.1)
+         */
+
+        /* Get the key’s shift level */
+        xkb_level_index_t lvl = xkb_state_key_get_level(
+            seat->kbd.xkb_state, ctx->key, ctx->layout);
+
+        /* And get all modifier combinations that, combined with
+         * the pressed key, results in the current shift level */
+        xkb_mod_mask_t masks[32];
+        size_t mask_count = xkb_keymap_key_get_mods_for_level(
+            seat->kbd.xkb_keymap, ctx->key, ctx->layout, lvl,
+            masks, ALEN(masks));
+
+        /* Check modifier combinations - if a combination has
+         * modifiers not in our set of ‘significant’ modifiers,
+         * use key sym as-is */
+        bool use_level0_sym = true;
+        for (size_t i = 0; i < mask_count; i++) {
+            if ((masks[i] & ~seat->kbd.kitty_significant) > 0) {
+                use_level0_sym = false;
+                break;
             }
-
-            /*
-             * Use keysym (typically its Unicode codepoint value).
-             *
-             * If the keysym is shifted, use its unshifted codepoint
-             * instead. In other words, ctrl+a and ctrl+shift+a should
-             * both use the same value for ‘key’ (97 - i.a. ‘a’).
-             *
-             * However, if a non-significant modifier was used to
-             * generate the symbol. This is needed since we cannot
-             * encode non-significant modifiers, and thus the “extra”
-             * modifier(s) would get lost.
-             *
-             * Example:
-             *
-             * the Swedish layout has ‘2’, QUOTATION MARK (“double
-             * quote”), ‘@’, and ‘²’ on the same key. ‘2’ is the base
-             * symbol.
-             *
-             * Shift+2 results in QUOTATION MARK
-             * AltGr+2 results in ‘@’
-             * AltGr+Shift+2 results in ‘²’
-             *
-             * The kitty kbd protocol can’t encode AltGr. So, if we
-             * always used the base symbol (‘2’), Alt+Shift+2 would
-             * result in the same escape sequence as
-             * AltGr+Alt+Shift+2.
-             *
-             * (yes, this matches what kitty does, as of 0.23.1)
-             */
-
-            /* Get the key’s shift level */
-            xkb_level_index_t lvl = xkb_state_key_get_level(
-                seat->kbd.xkb_state, ctx->key, ctx->layout);
-
-            /* And get all modifier combinations that, combined with
-             * the pressed key, results in the current shift level */
-            xkb_mod_mask_t masks[32];
-            size_t mask_count = xkb_keymap_key_get_mods_for_level(
-                seat->kbd.xkb_keymap, ctx->key, ctx->layout, lvl,
-                masks, ALEN(masks));
-
-            /* Check modifier combinations - if a combination has
-             * modifiers not in our set of ‘significant’ modifiers,
-             * use key sym as-is */
-            bool use_level0_sym = true;
-            for (size_t i = 0; i < mask_count; i++) {
-                if ((masks[i] & ~seat->kbd.kitty_significant) > 0) {
-                    use_level0_sym = false;
-                    break;
-                }
-            }
-
-            key = use_level0_sym && ctx->level0_syms.count > 0
-                ? ctx->level0_syms.syms[0]
-                : sym;
-            final = 'u';
         }
+
+        xkb_keysym_t sym_to_use = use_level0_sym && ctx->level0_syms.count > 0
+            ? ctx->level0_syms.syms[0]
+            : sym;
+
+        if (composed) {
+            wchar_t wc;
+            if (mbtowc(&wc, (const char *)utf8, count) == count) {
+                xassert(false);
+                key = wc;
+            }
+        }
+
+        if (key < 0) {
+            key = xkb_keysym_to_utf32(sym_to_use);
+            if (key == 0)
+                key = sym_to_use;
+        }
+        final = 'u';
         break;
+    }
     }
 
     xassert(encoded_mods >= 1);
+
+    char event[4];
+    if (report_events) {
+        /* Note: this deviates slightly from Kitty, which omits the
+         * “:1” subparameter for key press events */
+        event[0] = ':';
+        event[1] = '0' + (pressed ? 1 : repeating ? 2 : 3);
+        event[2] = '\0';
+    } else
+        event[0] = '\0';
 
     char buf[16];
     int bytes;
@@ -1395,14 +1422,14 @@ kitty_kbd_protocol(struct seat *seat, struct terminal *term,
         return false;
 
     if (final == 'u' || final == '~') {
-        if (encoded_mods > 1)
-            bytes = snprintf(buf, sizeof(buf), "\x1b[%u;%u%c",
-                             key, encoded_mods, final);
+        if (encoded_mods > 1 || event[0] != '\0')
+            bytes = snprintf(buf, sizeof(buf), "\x1b[%u;%u%s%c",
+                             key, encoded_mods, event, final);
         else
             bytes = snprintf(buf, sizeof(buf), "\x1b[%u%c", key, final);
     } else {
-        if (encoded_mods > 1)
-            bytes = snprintf(buf, sizeof(buf), "\x1b[1;%u%c", encoded_mods, final);
+        if (encoded_mods > 1 || event[0] != '\0')
+            bytes = snprintf(buf, sizeof(buf), "\x1b[1;%u%s%c", encoded_mods, event, final);
         else
             bytes = snprintf(buf, sizeof(buf), "\x1b[%c", final);
     }
@@ -1423,15 +1450,20 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         return;
     }
 
-    if (state == XKB_KEY_UP) {
-        stop_repeater(seat, key);
-        return;
-    }
+    const bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    //const bool repeated = pressed && seat->kbd.repeat.dont_re_repeat;
+    const bool released = state == WL_KEYBOARD_KEY_STATE_RELEASED;
 
-    bool should_repeat = xkb_keymap_key_repeats(seat->kbd.xkb_keymap, key);
+    if (released)
+        stop_repeater(seat, key);
+
+    bool should_repeat =
+        pressed && xkb_keymap_key_repeats(seat->kbd.xkb_keymap, key);
+
     xkb_keysym_t sym = xkb_state_key_get_one_sym(seat->kbd.xkb_state, key);
 
-    if (state == XKB_KEY_DOWN && term->conf->mouse.hide_when_typing &&
+    if (pressed && term->conf->mouse.hide_when_typing &&
+
         /* TODO: better way to detect modifiers */
         sym != XKB_KEY_Shift_L && sym != XKB_KEY_Shift_R &&
         sym != XKB_KEY_Control_L && sym != XKB_KEY_Control_R &&
@@ -1448,7 +1480,8 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     enum xkb_compose_status compose_status = XKB_COMPOSE_NOTHING;
 
     if (seat->kbd.xkb_compose_state != NULL) {
-        xkb_compose_state_feed(seat->kbd.xkb_compose_state, sym);
+        if (pressed)
+            xkb_compose_state_feed(seat->kbd.xkb_compose_state, sym);
         compose_status = xkb_compose_state_get_status(
             seat->kbd.xkb_compose_state);
     }
@@ -1469,18 +1502,26 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     size_t raw_count = xkb_keymap_key_get_syms_by_level(
         seat->kbd.xkb_keymap, key, layout_idx, 0, &raw_syms);
 
-    if (term->is_searching) {
-        if (should_repeat)
-            start_repeater(seat, key);
-        search_input(
-            seat, term, key, sym, bind_mods, bind_consumed, raw_syms, raw_count, serial);
-        return;
-    } else  if (urls_mode_is_active(term)) {
-        if (should_repeat)
-            start_repeater(seat, key);
-        urls_input(
-            seat, term, key, sym, bind_mods, bind_consumed, raw_syms, raw_count, serial);
-        return;
+    if (pressed) {
+        if (term->is_searching) {
+            if (should_repeat)
+                start_repeater(seat, key);
+
+            search_input(
+                seat, term, key, sym, bind_mods, bind_consumed,
+                raw_syms, raw_count, serial);
+            return;
+        }
+
+        else  if (urls_mode_is_active(term)) {
+            if (should_repeat)
+                start_repeater(seat, key);
+
+            urls_input(
+                seat, term, key, sym, bind_mods, bind_consumed,
+                raw_syms, raw_count, serial);
+            return;
+        }
     }
 
 #if 0
@@ -1504,36 +1545,38 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     /*
      * User configurable bindings
      */
-    tll_foreach(seat->kbd.bindings.key, it) {
-        const struct key_binding *bind = &it->item;
+    if (pressed) {
+        tll_foreach(seat->kbd.bindings.key, it) {
+            const struct key_binding *bind = &it->item;
 
-        /* Match translated symbol */
-        if (bind->sym == sym &&
-            bind->mods == (bind_mods & ~bind_consumed) &&
-            execute_binding(
-                seat, term, bind->action, bind->pipe_argv, serial))
-        {
-            goto maybe_repeat;
-        }
-
-        if (bind->mods != bind_mods)
-            continue;
-
-        /* Match untranslated symbols */
-        for (size_t i = 0; i < raw_count; i++) {
-            if (bind->sym == raw_syms[i] && execute_binding(
+            /* Match translated symbol */
+            if (bind->sym == sym &&
+                bind->mods == (bind_mods & ~bind_consumed) &&
+                execute_binding(
                     seat, term, bind->action, bind->pipe_argv, serial))
             {
                 goto maybe_repeat;
             }
-        }
 
-        /* Match raw key code */
-        tll_foreach(bind->key_codes, code) {
-            if (code->item == key && execute_binding(
-                    seat, term, bind->action, bind->pipe_argv, serial))
-            {
-                goto maybe_repeat;
+            if (bind->mods != bind_mods)
+                continue;
+
+            /* Match untranslated symbols */
+            for (size_t i = 0; i < raw_count; i++) {
+                if (bind->sym == raw_syms[i] && execute_binding(
+                        seat, term, bind->action, bind->pipe_argv, serial))
+                {
+                    goto maybe_repeat;
+                }
+            }
+
+            /* Match raw key code */
+            tll_foreach(bind->key_codes, code) {
+                if (code->item == key && execute_binding(
+                        seat, term, bind->action, bind->pipe_argv, serial))
+                {
+                    goto maybe_repeat;
+                }
             }
         }
     }
@@ -1595,7 +1638,7 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
         ? kitty_kbd_protocol(seat, term, &ctx)
         : legacy_kbd_protocol(seat, term, &ctx);
 
-    if (seat->kbd.xkb_compose_state != NULL)
+    if (seat->kbd.xkb_compose_state != NULL && released)
         xkb_compose_state_reset(seat->kbd.xkb_compose_state);
 
     if (utf8 != buf)

@@ -41,6 +41,9 @@
 * `[mouse-bindings].selection-override-modifiers` option, specifying
   which modifiers to hold to override mouse grabs by client
   applications and force selection instead.
+* Kitty keyboard protocol:
+  - [Report event types](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#report-events)
+    (mode `0b10`)
 
 
 ### Changed
@@ -58,7 +61,7 @@
 * New value, `max`, for `[tweak].grapheme-width-method`.
 * Initial support for the [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/).
   Modes supported:
-  - [Disambiguate escape codes](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#disambiguate)
+  - [Disambiguate escape codes](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#disambiguate) (mode `0b1`)
 * “Window menu” (compositor provided) on right clicks on the CSD title
   bar.
 
